@@ -482,3 +482,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+_Deprecated/
+BlazorJs.Core/
+BlazorJs.Sample/
+BlazorJs.Shared/
+dotnetJs.Runtime/

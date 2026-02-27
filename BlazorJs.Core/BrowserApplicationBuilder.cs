@@ -6,9 +6,11 @@ using Microsoft.Extensions.DependencyInjection;
 using BlazorJs.ServiceProvider;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
+using H5;
 
 namespace BlazorJs.Core
 {
+    [External]
     public partial class BrowserApplicationBuilder
     {
         internal BrowserServiceProvider Services { get; }

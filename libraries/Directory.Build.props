@@ -1,0 +1,99 @@
+<Project>
+	<PropertyGroup>
+		<NetCoreAppCurrent>net10.0-browser</NetCoreAppCurrent>
+		<TargetFramework>$(NetCoreAppCurrent)</TargetFramework>
+		<!--TargetFramework>$(NetCoreAppCurrent)-browser</TargetFramework-->
+		<!--TargetPlatformIdentifier>browser</TargetPlatformIdentifier-->
+		<TargetsBrowser>true</TargetsBrowser>
+		<OutputType>Library</OutputType>
+		<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+		<Version>1.0.35</Version>
+		<Authors>Samson A.</Authors>
+		<Company>SIT</Company>
+		<IsPackable>true</IsPackable>
+		<NugetAudit>false</NugetAudit>
+		<NuGetAudit>false</NuGetAudit>
+		<!--PublishTrimmed>true</PublishTrimmed-->
+		<RunAnalyzers>false</RunAnalyzers>
+		<RunAnalyzersDuringLiveAnalisis>false</RunAnalyzersDuringLiveAnalisis>
+		<RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+		<!--ImplicitUsings>true</ImplicitUsings-->
+		<Nullable>enable</Nullable>
+		<RazorLangVersion>8.0</RazorLangVersion>
+		<DefaultNugetVersion>7.0.1</DefaultNugetVersion>
+		<DefineConstants>$(DefineConstants);$(CommandLineDefineConstants);NET;FEATURE_SERIALIZATION</DefineConstants>		
+		
+		<LangVersion>preview</LangVersion>
+		<SkipImportNuGetProps>true</SkipImportNuGetProps>
+		<SkipImportNuGetBuildTargets>true</SkipImportNuGetBuildTargets>
+		<ExcludeMscorlibFacade>true</ExcludeMscorlibFacade>
+		<NoStdLib>true</NoStdLib>
+		<NoCompilerStandardLib>true</NoCompilerStandardLib>
+		<NoExplicitReferenceToStdLib>true</NoExplicitReferenceToStdLib>
+		<DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences>
+		<AddAdditionalExplicitAssemblyReferences>false</AddAdditionalExplicitAssemblyReferences>
+		<AdditionalExplicitAssemblyReferences />
+				
+		<NoWarn>CS0824,CS0626,CS8500,CS3021</NoWarn>
+		<OutputMode>SingleFile,Global,InlineConstants</OutputMode>
+		
+		<RuntimeFlavor>Mono</RuntimeFlavor>
+		<Platform>wasm</Platform>
+		<DotnetGitRoot>E:\dotnet\</DotnetGitRoot>
+		<DotnetRuntimeRoot>$(DotnetGitRoot)runtime\</DotnetRuntimeRoot>
+		<RepoRoot>$(DotnetGitRoot)aspnetcore\</RepoRoot>
+
+		<SharedSourceRoot>$(RepoRoot)src\Shared\</SharedSourceRoot>
+		<ComponentsSharedSourceRoot>$(RepoRoot)src\Components\Shared\</ComponentsSharedSourceRoot>
+		
+		<CoreClrProjectRoot>$(DotnetRuntimeRoot)src\coreclr\</CoreClrProjectRoot>
+		<CoreLibRoot>$(DotnetRuntimeRoot)src\libraries\System.Private.CoreLib\src\</CoreLibRoot>
+		<CoreLibSharedDir>$(DotnetRuntimeRoot)src\libraries\System.Private.CoreLib\src\</CoreLibSharedDir>
+		<LibrariesProjectRoot>$(DotnetRuntimeRoot)src\libraries\</LibrariesProjectRoot>
+		<CommonPath>$(DotnetRuntimeRoot)src\libraries\Common\src\</CommonPath>
+		<BclSourcesRoot>$(DotnetRuntimeRoot)src/mono/System.Private.CoreLib/src</BclSourcesRoot>
+		<!--ILLinkDirectory>$(DotnetRuntimeRoot)src\mono\System.Private.CoreLib\src\ILLink\</ILLinkDirectory-->
+		<PrivateCoreLibSharedProjectDirectory>$(DotnetRuntimeRoot)src\libraries\System.Private.CoreLib\src\</PrivateCoreLibSharedProjectDirectory>
+
+
+		<NewLibrariesProjectRoot>E:\Apps\dotnetJs\libraries\</NewLibrariesProjectRoot>
+		<DotnetJsRuntimeRoot>$(MsBuildThisFileDirectory)/dotnetJs.Runtime</DotnetJsRuntimeRoot>
+		<CoreLibProject>$(NewLibrariesProjectRoot)System.Private.CoreLib\NetJs.System.Private.CoreLib.csproj</CoreLibProject>
+		<UriProject>$(NewLibrariesProjectRoot)System.Private.Uri\NetJs.System.Private.Uri.csproj</UriProject>
+		<LoggingGenerator>$(LibrariesProjectRoot)Microsoft.Extensions.Logging.Abstractions\gen\Microsoft.Extensions.Logging.Generators.Roslyn4.4.csproj</LoggingGenerator>	
+		<RegexGenerator>$(LibrariesProjectRoot)System.Text.RegularExpressions\gen\System.Text.RegularExpressions.Generator.csproj</RegexGenerator>
+		<OptionGenerator>$(LibrariesProjectRoot)Microsoft.Extensions.Options\gen\Microsoft.Extensions.Options.SourceGeneration.csproj</OptionGenerator>
+		<JsonGenerator>$(LibrariesProjectRoot)System.Text.Json\gen\System.Text.Json.SourceGeneration.Roslyn4.4.csproj</JsonGenerator>
+	</PropertyGroup>
+	
+	
+	<PropertyGroup>
+	  <CoreBuildDependsOn>
+		$(CoreBuildDependsOn);
+		!CoreCompile;
+		dotnetJsBuild;
+		PostBuildEvent
+	  </CoreBuildDependsOn>
+	</PropertyGroup>
+	
+	<ItemGroup>
+		<!--<Compile Include="$(DotnetRuntimeRoot)src/libraries/Common/src/System/SR.cs" Link="Common/System/SR.cs" />-->
+		<!--<Content Include="$(DotnetRuntimeRoot)src/libraries/System.Collections/src/Resources/Strings.resx">
+			<GenerateSource>true</GenerateSource>
+			<ClassName>System.SR</ClassName>
+		</Content>-->
+	</ItemGroup>
+
+	<Target Name="CoreCompile" />
+
+	<Target Name="dotnetJsBuild" BeforeTargets="Build" 
+        Inputs="@(Compile)"
+        Outputs="$(IntermediateOutputPath)dotnetJsBuild.timestamp">
+		<Message Importance="high" Text="dotnetJs compiling..." />
+		<Exec Command="dotnetJs build --project &quot;$(ProjectPath)&quot; --configuration &quot;$(Configuration)&quot;" ConsoleToMsBuild="true" WorkingDirectory="$(ProjectDir)" ContinueOnError="ErrorAndStop" IgnoreExitCode="false"/>			
+		<Touch Files="$(IntermediateOutputPath)dotnetJsBuild.timestamp" AlwaysCreate="true" />
+		<Message Importance="high" Text="dotnetJs compilation success!" />
+
+	</Target>
+
+</Project>

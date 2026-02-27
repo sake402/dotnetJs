@@ -1,0 +1,324 @@
+using dotnetJs;
+using System.Collections.Generic;
+using System.Reflection;
+using System.Text.Json.Serialization;
+
+namespace System
+{
+    // --- Enums ---
+
+    [InlineConst]
+    [External]
+    public enum KnownTypeHandle
+    {
+        Unknown,
+        SystemObject,
+        SystemBool,
+        SystemChar,
+        SystemSByte,
+        SystemByte,
+        SystemInt16,
+        SystemUInt16,
+        SystemInt32,
+        SystemUint32,
+        SystemInt64,
+        SystemUint64,
+        SystemFloat,
+        SystemSingle,
+        SystemDouble,
+        SystemArray
+    }
+
+    [InlineConst]
+    [External]
+    public enum TypeHandleFlags : uint
+    {
+        //First 16 bits is type handle
+        //Next 12 bit is assembly handle
+        Array = 1U << 31 //Array flag signifies array of the type in the first 16 bit
+    }
+
+    [InlineConst]
+    [External]
+    public enum TypeKindModel
+    {
+        Unknown = 0,
+        Class,
+        Struct,
+        Interface,
+        Enum,
+        Delegate,
+        Array,
+        Pointer,
+    }
+
+    [Flags]
+    [InlineConst]
+    [External]
+    public enum TypeFlagsModel : long
+    {
+        None = 0,
+        IsPublic = 1L << 0,
+        IsStatic = 1L << 1,
+        IsInterface = 1L << 2,
+        IsEnum = 1L << 3,
+        IsClass = 1L << 4,
+        IsAbstract = 1L << 5,
+        IsGenericType = 1L << 6,
+        IsSealed = 1L << 7,
+        IsRecord = 1L << 8,
+        IsValueType = 1L << 9,
+        IsPrimitive = 1L << 10,
+        HasElementType = 1L << 11,
+        IsArray = 1L << 12,
+        IsInternal = 1L << 13,
+        IsByRef = 1L << 14,
+        IsPointer = 1L << 15,
+        IsNested = 1L << 16,
+        IsFlags = 1L << 17,
+        IsNestedPublic = 1L << 18,
+        IsSerializable = 1L << 19,
+    }
+
+    [Flags]
+    [InlineConst]
+    [External]
+    public enum MemberFlagsModel : int
+    {
+        None = 0,
+        IsPublic = 1 << 0,
+        IsPrivate = 1 << 1,
+        IsFamily = 1 << 2, // protected
+        IsAssembly = 1 << 3, // internal
+        IsFamilyOrAssembly = 1 << 4, // protected internal
+        IsStatic = 1 << 5,
+        IsFinal = 1 << 6,
+        IsVirtual = 1 << 7,
+        IsAbstract = 1 << 8,
+        IsSpecialName = 1 << 9, // e.g., property get/set methods
+        IsHideBySig = 1 << 10,
+        IsExtensionMethod = 1 << 11,
+        IsAsync = 1 << 12,
+        IsOperator = 1 << 13,
+        IsIndexer = 1 << 14,
+        IsOverride = 1 << 15,
+        IsSealed = 1 << 16,
+        IsGeneric = 1 << 17,
+        IsFamilyAndAssembly = IsFamily | IsAssembly,
+    }
+
+    [Flags]
+    [InlineConst]
+    [External]
+    public enum GenericConstraintFlagsModel
+    {
+        None = 0,
+        HasClassConstraint = 1 << 0,
+        HasStructConstraint = 1 << 1,
+        HasNewConstraint = 1 << 2,
+        HasUnmanagedConstraint = 1 << 3,
+    }
+
+    [Flags]
+    [InlineConst]
+    [External]
+    public enum ParameterFlagsModel
+    {
+        None,
+        Optional = 1 << 0,
+        Out = 1 << 1,
+        Ref = 1 << 2,
+        Params = 1 << 3
+    }
+
+    [Flags]
+    [InlineConst]
+    [External]
+    public enum AssemblyFlags
+    {
+        None,
+        Entry = 1 << 0
+    }
+
+    // --- Core Models ---
+    [ObjectLiteral]
+    public class AssemblyModel
+    {
+        [JsonPropertyName("g")][Name("g")] public AssemblyFlags AssemblyFlags { get; set; } = default!;
+        [JsonPropertyName("h")][Name("h")] public ReflectionHandleModel Handle { get; set; } = default!;
+        [JsonPropertyName("f")][Name("f")] public string FullName { get; set; } = default!;
+        [JsonPropertyName("v")][Name("v")] public string Version { get; set; } = default!;
+        [JsonPropertyName("n")][Name("n")] public string[] TypeNames { get; set; } = default!;
+        [JsonPropertyName("t")][Name("t")] public TypeModel[]? Types { get; set; }
+        [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
+        [JsonPropertyName("m")][Name("m")] public AssemblyManifestModel[]? Manifests { get; set; }
+        [JsonPropertyName("r")][Name("r")] public ReflectionHandleModel[] ReferencedAssembliesHandle { get; set; } = default!;
+        [JsonPropertyName("e")][Name("e")] public ReflectionHandleModel Entry { get; set; } = default!;
+    }
+
+    [ObjectLiteral]
+    public class AssemblyManifestModel
+    {
+        [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
+        [JsonPropertyName("d")][Name("d")] public byte[] Data { get; set; } = default!;
+        [JsonPropertyName("r")][Name("r")] public object StringResourceData { get; set; } = default!;
+    }
+
+    [ObjectLiteral]
+    public class TypeModel
+    {
+        // We can derive this name from fullname at runtime
+        //[JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
+        [JsonPropertyName("f")][Name("f")] public ReflectionHandleModel Handle { get; set; }
+        //[JsonPropertyName("aqn")][Name("aqn")] public string AssemblyQualifiedName { get; set; } = default!;
+        [JsonPropertyName("b")][Name("b")] public ReflectionHandleModel? BaseType { get; set; }
+        [JsonPropertyName("d")][Name("d")] public ReflectionHandleModel? DeclaringType { get; set; }
+        [JsonPropertyName("u")][Name("u")] public ReflectionHandleModel? UnderlyingType { get; set; }
+        [JsonPropertyName("k")][Name("k")] public TypeKindModel Kind { get; set; }
+        [JsonPropertyName("kt")][Name("kt")] public KnownTypeHandle KnownType { get; set; }
+        [JsonPropertyName("fg")][Name("fg")] public TypeFlagsModel Flags { get; set; }
+        //[JsonPropertyName("y")][Name("y")] public TypeAttributes TypeAttributes { get; set; }
+        [JsonPropertyName("p")][Name("p")] public PropertyModel[]? Properties { get; set; }
+        [JsonPropertyName("m")][Name("m")] public MethodModel[]? Methods { get; set; }
+        [JsonPropertyName("l")][Name("l")] public FieldModel[]? Fields { get; set; }
+        [JsonPropertyName("c")][Name("c")] public ConstructorModel[]? Constructors { get; set; }
+        [JsonPropertyName("e")][Name("e")] public EventModel[]? Events { get; set; }
+        [JsonPropertyName("i")][Name("i")] public ReflectionHandleModel[]? Interfaces { get; set; }
+        [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
+        [JsonPropertyName("g")][Name("g")] public ReflectionHandleModel[]? GenericArguments { get; set; }
+        [JsonPropertyName("s")][Name("s")] public GenericParameterConstraintModel[]? GenericConstraints { get; set; }
+        [JsonPropertyName("j")][Name("j")] public ReflectionHandleModel[]? NestedTypes { get; set; }
+        [JsonPropertyName("r")][Name("r")] public int GenericParameterCount { get; set; }
+
+        //// --- Helper properties for transpiler ---
+        //[JsonIgnore][Name("(f & 1L) != 0")] public extern bool IsPublic { get; }
+        //[JsonIgnore][Name("(f & 4L) != 0")] public extern bool IsAbstract { get; }
+        //[JsonIgnore][Name("(f & 8L) != 0")] public extern bool IsSealed { get; }
+        //[JsonIgnore][Name("(f & 16L) != 0")] public extern bool IsStatic { get; }
+        //[JsonIgnore][Name("(f & 32L) != 0")] public extern bool IsInterface { get; }
+        //[JsonIgnore][Name("(f & 64L) != 0")] public extern bool IsEnum { get; }
+        //[JsonIgnore][Name("(f & 128L) != 0")] public extern bool IsValueType { get; }
+        //[JsonIgnore][Name("(f & 256L) != 0")] public extern bool IsGenericType { get; }
+        //[JsonIgnore][Name("(f & 65536L) != 0")] public extern bool IsClass { get; }
+        //[JsonIgnore][Name("(f & 131072L) != 0")] public extern bool IsRecord { get; }
+        //[JsonIgnore][Name("(f & 32768L) != 0")] public extern bool IsNested { get; }
+        //[JsonIgnore][Name("(f & 262144) != 0")] public extern bool IsFlags { get; }
+        //[JsonIgnore][Name("(f & 2048) != 0")] public extern bool IsArray { get; }
+    }
+
+    //[External]
+    //public interface IHasAssemblyModel
+    //{
+    //    //Used by runtime to link back to assembly
+    //    [Name("$")] public AssemblyModel AssemblyModel { get; }
+    //}
+
+    [ObjectLiteral]
+    public abstract class MemberModel //: IHasAssemblyModel
+    {
+        [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
+        [JsonPropertyName("o")][Name("o")] public string? OutputName { get; set; } 
+        [JsonPropertyName("d")][Name("d")] public ReflectionHandleModel DeclaringType { get; set; } = default!;
+        [JsonPropertyName("h")][Name("h")] public ReflectionHandleModel Handle { get; set; } = default!;
+        [JsonPropertyName("f")][Name("f")] public MemberFlagsModel Flags { get; set; }
+        [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
+        //Used by runtime to link back to assembly
+        //[JsonIgnore][Name("$")] public AssemblyModel AssemblyModel { get; set; } = default!;
+        // --- Helper properties for transpiler ---
+        //[JsonIgnore][Name("(f & 1) != 0")] public extern bool IsPublic { get; }
+        //[JsonIgnore][Name("(f & 32) != 0")] public extern bool IsStatic { get; }
+        //[JsonIgnore][Name("(f & 256) != 0")] public extern bool IsAbstract { get; }
+        //[JsonIgnore][Name("(f & 128) != 0")] public extern bool IsVirtual { get; }
+    }
+
+    [ObjectLiteral]
+    public class PropertyModel : MemberModel
+    {
+        [JsonPropertyName("p")][Name("p")] public ReflectionHandleModel PropertyType { get; set; }
+        [JsonPropertyName("i")][Name("i")] public ParameterModel[]? IndexParameters { get; set; }
+        [JsonPropertyName("g")][Name("g")] public MethodModel? GetMethod { get; set; }
+        [JsonPropertyName("s")][Name("s")] public MethodModel? SetMethod { get; set; }
+        //[JsonIgnore][Name("(f & 16384) != 0")] public extern bool IsIndexer { get; }
+    }
+
+    //public class AccessorModel
+    //{
+    //    [JsonPropertyName("f")][Name("f")] public MemberFlags Flags { get; set; }
+    //}
+
+    [ObjectLiteral]
+    public class MethodModel : MemberModel
+    {
+        [JsonPropertyName("r")][Name("r")] public ReflectionHandleModel? ReturnType { get; set; }
+        [JsonPropertyName("t")][Name("t")] public AttributeModel[]? ReturnAttributes { get; set; }
+        [JsonPropertyName("p")][Name("p")] public ParameterModel[]? Parameters { get; set; }
+        [JsonPropertyName("g")][Name("a")] public string[]? GenericArguments { get; set; }
+        [JsonPropertyName("c")][Name("c")] public GenericParameterConstraintModel[]? GenericConstraints { get; set; }
+
+        //[JsonIgnore][Name("(f & 2048) != 0")] public extern bool IsExtensionMethod { get; }
+        //[JsonIgnore][Name("(f & 4096) != 0")] public extern bool IsAsync { get; }
+        //[JsonIgnore][Name("(f & 8192) != 0")] public extern bool IsOperator { get; }
+    }
+
+    [ObjectLiteral]
+    public class FieldModel : MemberModel
+    {
+        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel FieldType { get; set; } = default!;
+    }
+
+    [ObjectLiteral]
+    public class ConstructorModel : MethodModel
+    {
+    }
+
+    [ObjectLiteral]
+    public class EventModel : MemberModel
+    {
+        [JsonPropertyName("e")][Name("e")] public ReflectionHandleModel EventHandlerType { get; set; }
+        [JsonPropertyName("m")][Name("m")] public MethodModel? AddMethod { get; set; }
+        [JsonPropertyName("r")][Name("r")] public MethodModel? RemoveMethod { get; set; }
+        [JsonPropertyName("y")][Name("y")] public MethodModel? RaiseMethod { get; set; }
+    }
+
+    [ObjectLiteral]
+    public class ParameterModel// : IHasAssemblyModel
+    {
+        [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
+        [JsonPropertyName("p")][Name("p")] public ReflectionHandleModel ParameterType { get; set; } = default!;
+        [JsonPropertyName("o")][Name("o")] public int Position { get; set; }
+        [JsonPropertyName("f")][Name("f")] public ParameterFlagsModel Flags { get; set; }
+        [JsonPropertyName("v")][Name("v")] public object? DefaultValue { get; set; }
+        //[JsonIgnore][Name("$")] public AssemblyModel AssemblyModel { get; set; } = default!;
+        [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
+    }
+
+    public class AttributeConstructorArgumentModel
+    {
+        [JsonPropertyName("v")][Name("v")] public object? Value { get; set; }
+        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel Type { get; set; }
+    }
+
+    public class AttributeNamedArgumentModel
+    {
+        [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
+        [JsonPropertyName("v")][Name("v")] public object? Value { get; set; }
+        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel Type { get; set; }
+    }
+
+    public class AttributeModel
+    {
+        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel TypeHandle { get; set; } = default!;
+        [JsonPropertyName("c")][Name("c")] public ReflectionHandleModel ConstructorHandle { get; set; } = default!;
+        [JsonPropertyName("a")][Name("a")] public AttributeConstructorArgumentModel[] ConstructorArguments { get; set; } = default!;
+        [JsonPropertyName("n")][Name("n")] public AttributeNamedArgumentModel[] NamedArguments { get; set; } = default!;
+    }
+
+    [ObjectLiteral]
+    public class GenericParameterConstraintModel
+    {
+        [JsonPropertyName("n")][Name("n")] public string ParameterName { get; set; } = default!;
+        [JsonPropertyName("f")][Name("f")] public GenericConstraintFlagsModel Flags { get; set; }
+        [JsonPropertyName("c")][Name("c")] public ReflectionHandleModel[]? TypeConstraints { get; set; }
+    }
+
+}

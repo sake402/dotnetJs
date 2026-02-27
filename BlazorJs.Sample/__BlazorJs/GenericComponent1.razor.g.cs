@@ -15,7 +15,7 @@ namespace BlazorJs.Sample
 
         protected override void BuildRenderTree(IUIFrame __frame0, object __key = null)
         {
-            __frame0.Component<GenericComponent2<T2, double>>(null, sequenceNumber: 122436156);
+            __frame0.Component<GenericComponent2<T2, double>>(null, sequenceNumber: 1089727415);
         }
 
     }

@@ -1,0 +1,81 @@
+﻿
+using dotnetJs;
+
+
+[assembly: AssemblyHandle(AssemblyHandleAttribute.SystemPrivateCoreLib)]
+
+[assembly: Attached(typeof(System.Runtime.Intrinsics.ISimdVector<,>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Scalar<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.SimdVectorExtensions), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector128), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector128<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector128DebugView<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector256), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector256<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector256DebugView<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector512), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector512<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector512DebugView<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector64), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector64<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Vector64DebugView<>), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.VectorMath), typeof(NonScriptableAttribute))]
+
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.AdvSimd), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Aes), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.ArmBase), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Crc32), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Dp), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Rdm), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Sha1), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Sha256), typeof(NonScriptableAttribute))]
+#pragma warning disable SYSLIB5003 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Sve), typeof(NonScriptableAttribute))]
+#pragma warning restore SYSLIB5003 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+#pragma warning disable SYSLIB5003 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.Sve2), typeof(NonScriptableAttribute))]
+#pragma warning restore SYSLIB5003 // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.SveMaskPattern), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Arm.SvePrefetchType), typeof(NonScriptableAttribute))]
+
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Wasm.PackedSimd), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.Wasm.WasmBase), typeof(NonScriptableAttribute))]
+
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Aes), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx10v1), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx10v2), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx2), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx512BW), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx512CD), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx512DQ), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx512F), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx512Vbmi), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Avx512Vbmi2), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.AvxVnni), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.AvxVnniInt16), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.AvxVnniInt8), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Bmi1), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Bmi2), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.FloatComparisonMode), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.FloatRoundingMode), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Fma), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Gfni), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Lzcnt), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Pclmulqdq), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Popcnt), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Sse), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Sse2), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Sse3), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Sse41), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.Sse42), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.X86Base), typeof(NonScriptableAttribute))]
+[assembly: Attached(typeof(System.Runtime.Intrinsics.X86.X86Serialize), typeof(NonScriptableAttribute))]
+
+[assembly: Attached(typeof(System.ArgIterator), typeof(NonScriptableAttribute))]
+
+//[assembly: Attached(nameof(System.Runtime.Intrinsics.Vector256) + "." + nameof(System.Runtime.Intrinsics.Vector256.IsHardwareAccelerated), typeof(AlwaysAttribute), false)]
+//[assembly: Attached(nameof(System.Runtime.Intrinsics.Vector512) + "." + nameof(System.Runtime.Intrinsics.Vector512.IsHardwareAccelerated), typeof(AlwaysAttribute), false)]
+//[assembly: Attached(nameof(System.Runtime.Intrinsics.X86.Avx) + "." + nameof(System.Runtime.Intrinsics.Vector512.IsHardwareAccelerated), typeof(AlwaysAttribute), false)]
+
+

@@ -38,14 +38,14 @@ namespace BlazorJs.Sample.Pages
                     {
                         if (size == 0 || boards == null)
                         {
-                            __frame2.Markup("<h3>Enter board size</h3>", key: __key2, sequenceNumber: 887754641);
+                            __frame2.Markup("<h3>Enter board size</h3>", key: __key2, sequenceNumber: 1863524173);
                             __frame2.Component<InputNumber<int>>((__component2) =>
                             {
                                 var bindGetValue2 = size;
                                 __component2.Value = bindGetValue2;
                                 __component2.ValueChanged = EventCallback.Factory.CreateInferred(this, __value => size = __value, bindGetValue2);
                                 __component2.ValueExpression = () => size;
-                            }, key: __key2, sequenceNumber: 887754642);
+                            }, key: __key2, sequenceNumber: 1863524174);
                             __frame2.Element("button", (ref UIElementAttribute __attribute) =>
                             {
                                 __attribute.Set("type", "submit");
@@ -53,8 +53,8 @@ namespace BlazorJs.Sample.Pages
                                 __attribute.Set("@onclick", EventCallback.Factory.Create(this, (Action)CreateBoard));
                             }, (__frame3, __key3) =>
                             {
-                                __frame3.Text("Continue", key: __key3, sequenceNumber: 887754643);
-                            }, key: __key2, sequenceNumber: 887754644);
+                                __frame3.Text("Continue", key: __key3, sequenceNumber: 1863524175);
+                            }, key: __key2, sequenceNumber: 1863524176);
                         }
                         else
                         {
@@ -84,16 +84,16 @@ namespace BlazorJs.Sample.Pages
 
                                                     __component5["readonly"] = (board.IsFixed);
                                                     __component5["class"] = ($"text-center bd-0 wx-04 hx-04 {(board.IsFixed ? " bg-dark-01" : board.HasError ? " bg-error-01" : board.Entry > 0 ? " bg-success-01": " bg-primary-01")}");
-                                                }, key: __key5, sequenceNumber: 887754645);
-                                            }, key: x, sequenceNumber: 887754646);
+                                                }, key: __key5, sequenceNumber: 1863524177);
+                                            }, key: x, sequenceNumber: 1863524178);
                                         }
-                                    }, key: y, sequenceNumber: 887754647);
+                                    }, key: y, sequenceNumber: 1863524179);
                                 }
-                            }, key: __key2, sequenceNumber: 887754648);
+                            }, key: __key2, sequenceNumber: 1863524180);
                         }
                     };
-                }, key: __key1, sequenceNumber: 887754649);
-            }, sequenceNumber: 887754650);
+                }, key: __key1, sequenceNumber: 1863524181);
+            }, sequenceNumber: 1863524182);
         }
 
     }

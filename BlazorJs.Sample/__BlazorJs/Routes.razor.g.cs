@@ -23,14 +23,14 @@ namespace BlazorJs.Sample
                         {
                             __component1.RouteData = routeData;
                             __component1.DefaultLayout = typeof(Layout.MainLayout);
-                        }, key: __key1, sequenceNumber: 1107303653);
+                        }, key: __key1, sequenceNumber: -205075524);
                         __frame1.Component<FocusOnNavigate>((__component1) =>
                         {
                             __component1.RouteData = routeData;
                             __component1.Selector = "h1";
-                        }, key: __key1, sequenceNumber: 1107303654);
+                        }, key: __key1, sequenceNumber: -205075523);
                 };
-            }, sequenceNumber: 1107303655);
+            }, sequenceNumber: -205075522);
         }
 
     }

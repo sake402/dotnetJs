@@ -26,7 +26,7 @@ namespace BlazorJs.Sample.Pages
             {
                 __attribute.Set("width", "480");
                 __attribute.Set("height", "320");
-            }, null, sequenceNumber: 1316932799);
+            }, null, sequenceNumber: -2070903490);
         }
 
     }

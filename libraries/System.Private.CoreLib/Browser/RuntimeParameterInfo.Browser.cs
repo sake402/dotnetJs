@@ -1,0 +1,53 @@
+﻿using dotnetJs;
+using System;
+using System.Collections.Generic;
+using System.Text;
+
+namespace System.Reflection
+{
+    [dotnetJs.ForcePartial(typeof(RuntimeParameterInfo))]
+    internal partial class RuntimeParameterInfo_Partial : ForcedPartialBase<RuntimeParameterInfo>
+    {
+        internal ParameterModel _model;
+
+        public RuntimeParameterInfo_Partial(ParameterModel model, RuntimeType type, MemberInfo member, int position)
+        {
+            var nm = model.Name;
+            Script.Write("this.NameImpl = nm");
+            Script.Write("this.ClassImpl = type");
+            Script.Write("this.PositionImpl = position");
+            //This.NameImpl = model.Name;
+            //This.ClassImpl = type;
+            //This.PositionImpl = position;
+            ParameterAttributes attrs = ParameterAttributes.None;
+            if (model.Flags.HasFlag(ParameterFlagsModel.Out))
+                attrs |= ParameterAttributes.Out;
+            if (model.Flags.HasFlag(ParameterFlagsModel.Ref))
+                attrs |= ParameterAttributes.In;
+            if (model.Flags.HasFlag(ParameterFlagsModel.Optional))
+                attrs |= ParameterAttributes.Optional;
+            //if (model.Flags.HasFlag(ParameterFlagsModel.Params))
+            //    attrs|= ParameterAttributes.Params;
+            Script.Write("this.AttrsImpl = attrs");
+            Script.Write("this.DefaultValueImpl = null");
+            Script.Write("this.MemberImpl = member");
+            //This.AttrsImpl = attrs;
+            //This.DefaultValueImpl = defaultValue;
+            //This.MemberImpl = member;
+            //this.marshalAs = marshalAs;
+            _model = model;
+        }
+
+        [dotnetJs.MemberReplace]
+        internal int GetMetadataToken()
+        {
+            return 0;
+        }
+
+        [dotnetJs.MemberReplace]
+        internal static  Type[] GetTypeModifiers(Type type, MemberInfo member, int position, bool optional, int genericArgumentPosition = -1)
+        {
+            return Type.EmptyTypes;
+        }
+    }
+}

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "dotnetJs.Compiler": {
+      "commandName": "Project",
+      "workingDirectory": "E:\\Apps\\BlazorJs"
+    }
+  }
+}

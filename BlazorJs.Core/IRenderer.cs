@@ -20,13 +20,13 @@ namespace BlazorJs.Core
         void CreateRegion(UIFrame frame);
         void RemoveRegion(UIFrame frame);
         void CreateComponent(IComponent component);
-        void RemoveComponent(IComponent component);
+        void RemoveComponent(IComponent component); 
         void CreateMarkup(UIMarkup markup);
         void UpdateMarkup(UIMarkup markup);
         void RemoveMarkup(UIMarkup markup);
         void Flush();
     }
-
+    
     //public static partial class RendererExtension
     //{
     //    internal static void Render(this IRenderer renderer, IUIContent ui)

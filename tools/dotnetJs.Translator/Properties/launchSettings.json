@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "dotnetJs.Translator": {
+      "commandName": "Project",
+      "workingDirectory": "E:\\Apps\\BlazorJs"
+    }
+  }
+}

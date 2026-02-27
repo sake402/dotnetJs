@@ -24,12 +24,12 @@ namespace BlazorJs.Sample.Pages
 
                 __component0.ChildContent = (__frame1, __key1) =>
                 {
-                    __frame1.Text("Home", key: __key1, sequenceNumber: 224931230);
+                    __frame1.Text("Home", key: __key1, sequenceNumber: -1658846935);
                 };
-            }, sequenceNumber: 224931231);
-            __frame0.Markup("<h1>Hello, worlds!</h1>", sequenceNumber: 224931232);
-            __frame0.Text("Welcome to your new app.", sequenceNumber: 224931233);
-            __frame0.Component<Counter>(null, sequenceNumber: 224931234);
+            }, sequenceNumber: -1658846934);
+            __frame0.Markup("<h1>Hello, worlds!</h1>", sequenceNumber: -1658846933);
+            __frame0.Text("Welcome to your new app.", sequenceNumber: -1658846932);
+            __frame0.Component<Counter>(null, sequenceNumber: -1658846931);
         }
 
     }

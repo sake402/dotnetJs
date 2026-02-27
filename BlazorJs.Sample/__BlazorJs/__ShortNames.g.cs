@@ -4,6 +4,16 @@ using H5;
 
 namespace BlazorJs.Sample
 {
+    [Name("bs_a")]
+     partial class ABC
+    {
+    
+    }
+}
+
+
+namespace BlazorJs.Sample
+{
     [Name("bs_c")]
     public partial class Component1
     {
@@ -25,6 +35,16 @@ namespace BlazorJs.Sample
 {
     [Name("bs_c$4")]
     public partial class Component2
+    {
+    
+    }
+}
+
+
+namespace BlazorJs.Sample
+{
+    [Name("bs_es")]
+    public static partial class ExtensionSample
     {
     
     }

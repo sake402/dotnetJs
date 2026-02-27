@@ -11,6 +11,9 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Routing;
 using System.Reflection;
 using System.IO;
+using System.Threading;
+using Microsoft.AspNetCore.Authorization;
+using H5;
 
 //namespace System
 //{
@@ -21,7 +24,19 @@ using System.IO;
 
 namespace BlazorJs.Sample
 {
-
+    class ABC
+    {
+        [Name("B")]
+        public ABC A()
+        {
+            return this;
+        }
+        [Template("B({0}, {1})")]
+        public ABC AB(int a, int b)
+        {
+            return this;
+        }
+    }
     //public abstract class HTMLCanvasElement
     //{
     //    public abstract System.String getContext();
@@ -138,38 +153,48 @@ namespace BlazorJs.Sample
         Action a;
         async Task AA()
         {
-                        IEnumerable<PropertyInfo> properties = from property in instance.GetType().GetProperties()
-                                                               //groupby property.Name
-                                                   where !property.GetIndexParameters().Any()
-                                                   select property;
+            var sum = 1.Add(2).Add(3).Add(4);
+            ABC a;
+            a.A().AB(1, 2).C();
+            var ab = new ABC();
+            ab.AB(1, 2);
+            //Dictionary<Type, IAuthorizeData[]> mm = new Dictionary<Type, IAuthorizeData[]>();
+            //            return (0, 1);
+            //(CancellationTokenSource cts, bool disposeCts, CancellationTokenSource pendingRequestsCts) = PrepareCancellationTokenSource(cancellationToken);
+            //var useElement = parent?[0];
+            //            IEnumerable<PropertyInfo> properties = from property in instance.GetType().GetProperties()
+            //                                                   from property2 in property.GetProperties()
+            //                                                  //groupby property.Name
+            //                                       where !property.GetIndexParameters().Any()
+            //                                       select property2;
 
-            a?.Target;
-            a?[0];
-            switch (a)
-            {
-                case Func<int, Task> funcEventArgs:
-                    {
+            //a?.Target;
+            //a?[0];
+            //switch (a)
+            //{
+            //    case Func<int, Task> funcEventArgs:
+            //        {
 
-                    }
-                    break;
-            }
-            var (errorKey, error) = new KeyValuePair<string, string>();
-            using (Stream contentStream = await Task.FromResult<Stream?>(null))            
-                await JsonSerializer.DeserializeAsync(contentStream, null, default);
-            this.a = delegate
-                    {
-                    };
-            try
-            {
-            }
-            catch (ArgumentException)
-            {
-            }
-            const string pattern = @"^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.?$";
-            HTMLElement scrollContainer = null;
-            (scrollContainer ?? document.documentElement).style["overflowAnchor"] = "none";
-            var cacheKey = (ModelType: this.GetType(), this);
-            RequestCascadingParameter<Task<int>>(e => { });
+            //        }
+            //        break;
+            //}
+            //var (errorKey, error) = new KeyValuePair<string, string>();
+            //using (Stream contentStream = await Task.FromResult<Stream?>(null))            
+            //    await JsonSerializer.DeserializeAsync(contentStream, null, default);
+            //this.a = delegate
+            //        {
+            //        };
+            //try
+            //{
+            //}
+            //catch (ArgumentException)
+            //{
+            //}
+            //const string pattern = @"^((([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+(\.([a-z]|\d|[!#\$%&'\*\+\-\/=\?\^_`{\|}~]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])+)*)|((\x22)((((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(([\x01-\x08\x0b\x0c\x0e-\x1f\x7f]|\x21|[\x23-\x5b]|[\x5d-\x7e]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(\\([\x01-\x09\x0b\x0c\x0d-\x7f]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF]))))*(((\x20|\x09)*(\x0d\x0a))?(\x20|\x09)+)?(\x22)))@((([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|\d|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.)+(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])|(([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])([a-z]|\d|-|\.|_|~|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])*([a-z]|[\u00A0-\uD7FF\uF900-\uFDCF\uFDF0-\uFFEF])))\.?$";
+            //HTMLElement scrollContainer = null;
+            //(scrollContainer ?? document.documentElement).style["overflowAnchor"] = "none";
+            //var cacheKey = (ModelType: this.GetType(), this);
+            //RequestCascadingParameter<Task<int>>(e => { });
         }
         //void Interface1.A()
         //{

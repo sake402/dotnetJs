@@ -1,8 +1,0 @@
-{
-  "profiles": {
-    "BlazorJs.Compiler": {
-      "commandName": "Project",
-      "workingDirectory": "E:\\Apps\\BlazorJs"
-    }
-  }
-}

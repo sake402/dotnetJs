@@ -27,35 +27,35 @@ namespace BlazorJs.Sample.Pages
 
                 __component0.ChildContent = (__frame1, __key1) =>
                 {
-                    __frame1.Text("Counter", key: __key1, sequenceNumber: 1892846476);
+                    __frame1.Text("Counter", key: __key1, sequenceNumber: -324802999);
                 };
-            }, sequenceNumber: 1892846477);
-            __frame0.Markup("<h1>Counter</h1>", sequenceNumber: 1892846478);
+            }, sequenceNumber: -324802998);
+            __frame0.Markup("<h1>Counter</h1>", sequenceNumber: -324802997);
             __frame0.Element("p", (ref UIElementAttribute __attribute) =>
             {
                 __attribute.Set("role", "status");
             }, (__frame1, __key1) =>
             {
-                __frame1.Text("Current count: ", key: __key1, sequenceNumber: 1892846479);
-                __frame1.Content(currentCount, key: __key1, sequenceNumber: 1892846480);
-            }, sequenceNumber: 1892846481);
+                __frame1.Text("Current count: ", key: __key1, sequenceNumber: -324802996);
+                __frame1.Content(currentCount, key: __key1, sequenceNumber: -324802995);
+            }, sequenceNumber: -324802994);
             __frame0.Element("button", (ref UIElementAttribute __attribute) =>
             {
                 __attribute.Set("class", "btn btn-primary");
                 __attribute.Set("@onclick", EventCallback.Factory.Create(this, (Action)IncrementCount));
             }, (__frame1, __key1) =>
             {
-                __frame1.Text("Click me +", key: __key1, sequenceNumber: 1892846482);
-            }, sequenceNumber: 1892846483);
-            __frame0.Markup("<br>", sequenceNumber: 1892846484);
+                __frame1.Text("Click me +", key: __key1, sequenceNumber: -324802993);
+            }, sequenceNumber: -324802992);
+            __frame0.Markup("<br>", sequenceNumber: -324802991);
             __frame0.Element("button", (ref UIElementAttribute __attribute) =>
             {
                 __attribute.Set("class", "btn btn-primary");
                 __attribute.Set("@onclick", EventCallback.Factory.Create(this, (Action)DecrementCount));
             }, (__frame1, __key1) =>
             {
-                __frame1.Text("Click me -", key: __key1, sequenceNumber: 1892846485);
-            }, sequenceNumber: 1892846486);
+                __frame1.Text("Click me -", key: __key1, sequenceNumber: -324802990);
+            }, sequenceNumber: -324802989);
         }
 
     }

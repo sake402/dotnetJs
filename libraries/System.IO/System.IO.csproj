@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="$(CoreLibProject)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Compile Include="$(DotnetRuntimeRoot)src/libraries/System.Private.CoreLib/src/System/IO/src/**/*.cs" />
+		<Compile Remove="$(DotnetRuntimeRoot)src/libraries/System.IO/src/Resources/*.cs" />
+		<Content Include="$(DotnetRuntimeRoot)src/libraries/System.IO/src/Resources/Strings.resx">
+		</Content>
+	</ItemGroup>
+</Project>

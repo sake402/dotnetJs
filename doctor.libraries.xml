@@ -1,0 +1,277 @@
+<!--
+This document is used by the tool dotnetJs - - doctor to select which of the dotnet libraries to transpile to javascript
+Each line represent the path to a project in the dotnet repository to doctor a NetJs.*.csproj for
+Whenever we sync our forked dotnet runtime and aspnetcore with official repo, we must run dotnetJs - - doctor to regenerate our NetJs.*.csproj files
+-->
+<Projects>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Private.Uri\src\System.Private.Uri.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Private.Xml\src\System.Private.Xml.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Private.Xml.Linq\src\System.Private.Xml.Linq.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Runtime\src\System.Runtime.csproj">
+	</Project>
+	<!-- <Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Buffers\src\System.Buffers.csproj"> -->
+	<!-- </Project> -->
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Runtime.Numerics\src\System.Runtime.Numerics.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Runtime.InteropServices\src\System.Runtime.InteropServices.csproj">
+		<PropertyGroup>
+			<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		</PropertyGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Memory\src\System.Memory.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Win32.Primitives\src\Microsoft.Win32.Primitives.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Bcl.AsyncInterfaces\src\Microsoft.Bcl.AsyncInterfaces.csproj">
+		<ItemGroup>
+			<ProjectReference Include="$(CoreLibProject)" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Runtime.InteropServices.JavaScript\src\System.Runtime.InteropServices.JavaScript.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Collections\src\System.Collections.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Collections.Concurrent\src\System.Collections.Concurrent.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Collections.Immutable\src\System.Collections.Immutable.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Collections.NonGeneric\src\System.Collections.NonGeneric.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Collections.Specialized\src\System.Collections.Specialized.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.ObjectModel\src\System.ObjectModel.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Formats.Asn1\src\System.Formats.Asn1.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Threading\src\System.Threading.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Threading.Channels\src\System.Threading.Channels.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Threading.Overlapped\src\System.Threading.Overlapped.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Threading.Thread\src\System.Threading.Thread.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Threading.ThreadPool\src\System.Threading.ThreadPool.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Drawing.Primitives\src\System.Drawing.Primitives.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Resources.Writer\src\System.Resources.Writer.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Runtime.Serialization.Formatters\src\System.Runtime.Serialization.Formatters.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Runtime.Loader\src\System.Runtime.Loader.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Security.Cryptography\src\System.Security.Cryptography.csproj">
+		<ItemGroup>
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.GetRandomBytes.cs" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.MemoryMappedFiles\src\System.IO.MemoryMappedFiles.csproj">
+		<ItemGroup>
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.Errors.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.FTruncate.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.MMap.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.Munmap.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.Open.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.Stat.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.SysConf.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.Unlink.cs" />
+		  <Compile Include="$(NewLibrariesProjectRoot)System.Private.CoreLib\Browser\Interop.Close.cs" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.Hashing\src\System.IO.Hashing.csproj"  Remove="//ItemGroup/PackageReference@Include=System.Memory|System.Buffers">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Memory\NetJs.System.Memory.csproj" />
+			<!-- <ProjectReference Include="$(NewLibrariesProjectRoot)System.Buffers\NetJs.System.Buffers.csproj" /> -->
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.Compression\src\System.IO.Compression.csproj">
+		<PropertyGroup>
+			<SharedOpenSourcePath>$(DotnetRuntimeRoot)src\libraries\System.IO.Compression\src\</SharedOpenSourcePath>
+		</PropertyGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.Compression.Brotli\src\System.IO.Compression.Brotli.csproj">
+	  <ItemGroup>
+		<Compile Include="$(CommonPath)Interop\Windows\Interop.Libraries.cs" Link="Common\Interop\Windows\Interop.Libraries.cs" />
+	  </ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Linq\src\System.Linq.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Linq.Expressions\src\System.Linq.Expressions.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.ComponentModel\src\System.ComponentModel.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.ComponentModel.Annotations\src\System.ComponentModel.Annotations.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.ComponentModel.Primitives\src\System.ComponentModel.Primitives.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.ComponentModel.TypeConverter\src\System.ComponentModel.TypeConverter.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Console\src\System.Console.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Diagnostics.StackTrace\src\System.Diagnostics.StackTrace.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Diagnostics.Tracing\src\System.Diagnostics.Tracing.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Diagnostics.TraceSource\src\System.Diagnostics.TraceSource.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Diagnostics.DiagnosticSource\src\System.Diagnostics.DiagnosticSource.csproj" Remove="//ItemGroup/PackageReference@Include=System.Memory|System.Runtime.CompilerServices.Unsafe|Microsoft.DotNet.Build.Tasks.Templating,//Target@Name=_GenerateThisAssemblyInfo">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.Primitives\src\System.Net.Primitives.csproj">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Private.Uri\NetJs.System.Private.Uri.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.Sockets\src\System.Net.Sockets.csproj">
+		<PropertyGroup>
+		    <UnsupportedOSPlatforms>browser</UnsupportedOSPlatforms>
+		</PropertyGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.Quic\src\System.Net.Quic.csproj">
+		<PropertyGroup>
+			<SupportedOSPlatforms>windows;linux;macos</SupportedOSPlatforms>
+		</PropertyGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.Security\src\System.Net.Security.csproj" Remove="//Import">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.NameResolution\src\System.Net.NameResolution.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.NetworkInformation\src\System.Net.NetworkInformation.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Net.Http\src\System.Net.Http.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Text.Encoding.Extensions\src\System.Text.Encoding.Extensions.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Text.Encoding.CodePages\src\System.Text.Encoding.CodePages.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Text.Encodings.Web\src\System.Text.Encodings.Web.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Text.RegularExpressions\src\System.Text.RegularExpressions.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Xml.XDocument\src\System.Xml.XDocument.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Xml.XPath\src\System.Xml.XPath.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Xml.XPath.XDocument\src\System.Xml.XPath.XDocument.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Xml.XmlSerializer\src\System.Xml.XmlSerializer.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Numerics.Vectors\src\System.Numerics.Vectors.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Reflection.Emit\src\System.Reflection.Emit.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Reflection.Emit.Lightweight\src\System.Reflection.Emit.Lightweight.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Reflection.Emit.ILGeneration\src\System.Reflection.Emit.ILGeneration.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Reflection.Metadata\src\System.Reflection.Metadata.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Reflection.Primitives\src\System.Reflection.Primitives.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Security.Claims\src\System.Security.Claims.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Security.Principal.Windows\src\System.Security.Principal.Windows.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Web.HttpUtility\src\System.Web.HttpUtility.csproj">
+		<ItemGroup>
+		    <ProjectReference Include="$(NewLibrariesProjectRoot)System.Private.Uri\NetJs.System.Private.Uri.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.CSharp\src\Microsoft.CSharp.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Data.Common\src\System.Data.Common.csproj">
+		<ItemGroup>
+		    <ProjectReference Include="$(NewLibrariesProjectRoot)System.Private.Xml\NetJs.System.Private.Xml.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Transactions.Local\src\System.Transactions.Local.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Xml.ReaderWriter\src\System.Xml.ReaderWriter.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Diagnostics.Process\src\System.Diagnostics.Process.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Win32.Registry\src\Microsoft.Win32.Registry.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Diagnostics.FileVersionInfo\src\System.Diagnostics.FileVersionInfo.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.FileSystem.DriveInfo\src\System.IO.FileSystem.DriveInfo.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.Pipes\src\System.IO.Pipes.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.IO.Pipelines\src\System.IO.Pipelines.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Security.AccessControl\src\System.Security.AccessControl.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\System.Text.Json\src\System.Text.Json.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Primitives\src\Microsoft.Extensions.Primitives.csproj" Remove="//ItemGroup/PackageReference@Include=System.Memory|System.Runtime.CompilerServices.Unsafe">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Memory\NetJs.System.Memory.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Options.ConfigurationExtensions\src\Microsoft.Extensions.Options.ConfigurationExtensions.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Options\src\Microsoft.Extensions.Options.csproj">
+		<ItemGroup>
+			<ProjectReference Include="$(CoreLibProject)" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.ComponentModel.Annotations\NetJs.System.ComponentModel.Annotations.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Logging.Abstractions\src\Microsoft.Extensions.Logging.Abstractions.csproj">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Diagnostics.DiagnosticSource\NetJs.System.Diagnostics.DiagnosticSource.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Logging\src\Microsoft.Extensions.Logging.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.DependencyInjection.Abstractions\src\Microsoft.Extensions.DependencyInjection.Abstractions.csproj" Remove="//ItemGroup/PackageReference@Include=System.Threading.Tasks.Extensions">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq\NetJs.System.Linq.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq.Expressions\NetJs.System.Linq.Expressions.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.ComponentModel\NetJs.System.ComponentModel.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Diagnostics.Abstractions\src\Microsoft.Extensions.Diagnostics.Abstractions.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Diagnostics\src\Microsoft.Extensions.Diagnostics.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.DependencyInjection\src\Microsoft.Extensions.DependencyInjection.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Configuration.Abstractions\src\Microsoft.Extensions.Configuration.Abstractions.csproj">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq\NetJs.System.Linq.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq.Expression\NetJs.System.Linq.Expression.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Configuration.Binder\src\Microsoft.Extensions.Configuration.Binder.csproj">
+		<ItemGroup>
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.ComponentModel.TypeConverter\NetJs.System.ComponentModel.TypeConverter.csproj" />
+		</ItemGroup>
+	</Project>
+	<Project Include="$(DotnetGitRoot)runtime\src\libraries\Microsoft.Extensions.Configuration\src\Microsoft.Extensions.Configuration.csproj">
+	</Project>
+	<Project Include="$(DotnetGitRoot)aspnetcore\src\Components\Components\src\Microsoft.AspNetCore.Components.csproj">
+		<PropertyGroup>
+			<ImplicitUsings>enable</ImplicitUsings>
+			<EnableDefaultItems>true</EnableDefaultItems>
+		</PropertyGroup>
+		<ItemGroup>
+			<ProjectReference Include="$(CoreLibProject)" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Collections\NetJs.System.Collections.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)Microsoft.Extensions.Options\NetJs.Microsoft.Extensions.Options.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)Microsoft.Extensions.Primitives\NetJs.Microsoft.Extensions.Primitives.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)Microsoft.Extensions.Diagnostics\NetJs.Microsoft.Extensions.Diagnostics.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)Microsoft.Extensions.Logging.Abstractions\NetJs.Microsoft.Extensions.Logging.Abstractions.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)Microsoft.Extensions.DependencyInjection.Abstractions\NetJs.Microsoft.Extensions.DependencyInjection.Abstractions.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.ComponentModel\NetJs.System.ComponentModel.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Text.Encodings.Web\NetJs.System.Text.Encodings.Web.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Data.Common\NetJs.System.Data.Common.csproj" />
+			<ProjectReference Include="$(NewLibrariesProjectRoot)System.Text.Json\NetJs.System.Text.Json.csproj" />
+			<ProjectReference Include="$(LoggingGenerator)" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+			<ProjectReference Include="$(RegexGenerator)" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		</ItemGroup>
+	</Project>
+</Projects>

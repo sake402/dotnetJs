@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "dotnetJs.Compiler": {
+      "commandName": "Project",
+      "commandLineArgs": "watch -=-doctor E:\\Apps\\dotnetJs\\doctor.libraries.xml",
+      "workingDirectory": "E:\\Apps\\dotnetJs\\libraries"
+    }
+  }
+}
