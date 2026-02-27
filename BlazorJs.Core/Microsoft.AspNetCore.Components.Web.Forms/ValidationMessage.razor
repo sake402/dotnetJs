@@ -1,8 +1,0 @@
-@namespace Microsoft.AspNetCore.Components.Forms
-@using System.Collections.Generic
-@typeparam TValue
-
-@foreach (var message in CurrentEditContext.GetValidationMessages(_fieldIdentifier))
-{
-    <div class="validation-message" @attributes="@(this.As<IReadOnlyDictionary<string, object>>())" @key="message">@message</div>
-}
