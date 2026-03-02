@@ -1105,10 +1105,14 @@ namespace dotnetJs.Translator.CSharpToJavascript
 
         public override void VisitFixedStatement(FixedStatementSyntax node)
         {
-            Writer.Write(node, "/*fixed*/ ", true);
+            Writer.WriteLine(node, "/*fixed*/ ", true);
+            OpenClosure(node);
+            Writer.WriteLine(node, "{", true);
             Visit(node.Declaration);
             Writer.WriteLine(node, ";");
             Visit(node.Statement);
+            Writer.WriteLine(node, "}", true);
+            CloseClosure();
             //base.VisitFixedStatement(node);
         }
 

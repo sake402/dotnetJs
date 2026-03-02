@@ -21,7 +21,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
         public Dictionary<SyntaxTree, TranslatorSyntaxVisitor> Visitors { get; } = new Dictionary<SyntaxTree, TranslatorSyntaxVisitor>();
         public Dictionary<INamedTypeSymbol, TranslatorSyntaxVisitor> TypeVisitors { get; } = new Dictionary<INamedTypeSymbol, TranslatorSyntaxVisitor>(SymbolEqualityComparer.Default);
         public Dictionary<INamedTypeSymbol, ScriptWriter> TypeWriters { get; } = new Dictionary<INamedTypeSymbol, ScriptWriter>(SymbolEqualityComparer.Default);
-        public SymbolDescriptor Symbols { get; } = new();
+        public SymbolDescriptor Symbols { get; private set; } = new();
         public SymbolDescriptor ImportedNames { get; }
 
         bool ready;
@@ -167,6 +167,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
         {
             Compilation = compilation;
             Project = project;
+            Symbols = Symbols with { GlobalNamespace = GetAssemblyGlobalNamespace(compilation.Assembly) };
             ImportedNames = new SymbolDescriptor();
             foreach (var m in importedSymbols)
             {
@@ -221,7 +222,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             //ReversedTypeNodes = TypeNodes.ToDictionary(e => e.Value.Syntax.First(), e => e.Value);
             IEnumerable<ISymbol> GetConstructorsInType(ISymbol type)
             {
-                if (type is ITypeSymbol t)
+                if (type.Kind == SymbolKind.NamedType && type is ITypeSymbol t)
                 {
                     foreach (var child in t.GetMembers(".cctor")) //static constructor
                         if (child.Kind == SymbolKind.Method/* is IMethodSymbol method*/)
@@ -299,10 +300,13 @@ namespace dotnetJs.Translator.CSharpToJavascript
             }
             IEnumerable<ISymbol> GetAllInNamespaces(INamespaceSymbol @namespace)
             {
+                //if (deep && @namespace.Kind == SymbolKind.Namespace && @namespace is INamespaceSymbol ns)
+                //{
                 yield return @namespace;
                 foreach (var child in @namespace.GetNamespaceMembers())
                     foreach (var namespace2 in GetAllInNamespaces(child))
                         yield return namespace2;
+                //}
                 foreach (var type in @namespace.GetTypeMembers())
                     foreach (var itype in GetMembersInType(type))
                         yield return itype;
@@ -337,7 +341,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
 
                     .Select(symbol =>
                     {
-                        var names = symbol.CreateFullTypeNames(this);
+                        var names = symbol.CreateSignatures(this);
                         var originalKey = names.WithoutTypeParameter;
                         var i = usedKeys.GetValueOrDefault(names.WithoutTypeParameter);
                         if (i > 0)
@@ -354,8 +358,8 @@ namespace dotnetJs.Translator.CSharpToJavascript
                         return s.withoutTypeParameterNames;
                     }, s =>
                     {
-                        var fullNameNoMethodParameter = s.withoutTypeParameterNames.Split('(').First();
-                        var split = fullNameNoMethodParameter.Split('.');
+                        //var fullNameNoMethodParameter = s.withoutTypeParameterNames.Contains('(') ? s.withoutTypeParameterNames.Split('(').First() : s.withTypeParameterNames;
+                        //var split = fullNameNoMethodParameter.Split('.');
                         string signature;
                         if (s.symbol.Kind == SymbolKind.NamedType/* is INamespaceOrTypeSymbol ns*/)
                         {
@@ -473,6 +477,9 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 }
                 return depth;
             }
+
+            var assemblyNamespace = GetAssemblyGlobalNamespace(Compilation.Assembly);
+
             //Dictionary<string, string> usedNamespaceName = new();
             //foreach (var ns in AllSymbols.Values.Where(e => e.Symbol.Kind == SymbolKind.Namespace))
             //{
@@ -762,7 +769,13 @@ namespace dotnetJs.Translator.CSharpToJavascript
                                         {
                                             overloadedName = declaringTypeMetadata.OverloadName + "." + overloadedName;
                                             if (overloadedName.StartsWith(GlobalName + "."))
+                                            {
                                                 overloadedName = overloadedName.Substring(GlobalName.Length + 1);
+                                                if (overloadedName.StartsWith(assemblyNamespace + "."))
+                                                {
+                                                    overloadedName = overloadedName.Substring(assemblyNamespace.Length + 1);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -918,7 +931,13 @@ namespace dotnetJs.Translator.CSharpToJavascript
                                         {
                                             overloadedName = declaringTypeMetadata.OverloadName + "." + overloadedName;
                                             if (overloadedName.StartsWith(GlobalName + "."))
+                                            {
                                                 overloadedName = overloadedName.Substring(GlobalName.Length + 1);
+                                                if (overloadedName.StartsWith(assemblyNamespace + "."))
+                                                {
+                                                    overloadedName = overloadedName.Substring(assemblyNamespace.Length + 1);
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1519,7 +1538,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 }
                 if (isNullable && ((ITypeSymbol)symbol).IsValueType)
                 {
-                    var nullable = (INamedTypeSymbol)AllSymbols["System.Nullable<>"].Symbol;
+                    var nullable = (INamedTypeSymbol)GetTypeSymbol("System.Nullable<>", visitor);
                     return nullable.Construct([(ITypeSymbol)symbol]);
                 }
                 return symbol;
@@ -1584,6 +1603,33 @@ namespace dotnetJs.Translator.CSharpToJavascript
             }
             typeName = Utilities.ResolvePredefinedTypeName(typeName);
             var value = AllSymbols.GetValueOrDefault(typeName);
+            bool ForEachAssembly(Func<string, bool> iterate, string? prefixTypeName = null)
+            {
+                var currentAssembly = Compilation.Assembly;
+                var slug = GetAssemblyGlobalNamespace(currentAssembly);
+                var lTypeName = slug + "." + (prefixTypeName != null ? prefixTypeName + "." : "") + typeName;
+                var result = iterate(lTypeName);
+                if (result)
+                    return result;
+                var dependencies = Compilation.SourceModule.ReferencedAssemblySymbols;
+                foreach (var dep in dependencies)
+                {
+                    slug = GetAssemblyGlobalNamespace(dep);
+                    lTypeName = slug + "." + (prefixTypeName != null ? prefixTypeName + "." : "") + typeName;
+                    result = iterate(lTypeName);
+                    if (result)
+                        return result;
+                }
+                return false;
+            }
+            if (value == null)
+            {
+                ForEachAssembly(lTypeName =>
+                {
+                    value = AllSymbols.GetValueOrDefault(lTypeName);
+                    return value != null;
+                });
+            }
             //source = SymbolScope.Type;
             if (value?.Symbol != null)
             {
@@ -1600,6 +1646,19 @@ namespace dotnetJs.Translator.CSharpToJavascript
                     var ns = string.Join(".", splitted.Take(i + 1));
                     var im = $"{ns}.{typeName}";
                     value = AllSymbols.GetValueOrDefault(im);
+                    if (value == null)
+                    {
+                        ForEachAssembly(lTypeName =>
+                        {
+                            value = AllSymbols.GetValueOrDefault(lTypeName);
+                            if (value != null)
+                            {
+                                if (filterCandidate?.Invoke(value.Symbol) ?? true)
+                                    return true;
+                            }
+                            return false;
+                        }, ns);
+                    }
                     if (value?.Symbol != null)
                     {
                         //declaringSymbol = value.Symbol.ContainingSymbol;
@@ -1622,6 +1681,19 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 {
                     var im = $"{i}.{typeName}";
                     value = AllSymbols.GetValueOrDefault(im);
+                    if (value == null)
+                    {
+                        ForEachAssembly(lTypeName =>
+                        {
+                            value = AllSymbols.GetValueOrDefault(lTypeName);
+                            if (value != null)
+                            {
+                                if (filterCandidate?.Invoke(value.Symbol) ?? true)
+                                    return true;
+                            }
+                            return false;
+                        }, $"{i}");
+                    }
                     if (value?.Symbol != null)
                     {
                         //declaringSymbol = value.Symbol.ContainingSymbol;
@@ -1637,6 +1709,19 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 {
                     var im = $"{i}.{typeName}";
                     value = AllSymbols.GetValueOrDefault(im);
+                    if (value == null)
+                    {
+                        ForEachAssembly(lTypeName =>
+                        {
+                            value = AllSymbols.GetValueOrDefault(lTypeName);
+                            if (value != null)
+                            {
+                                if (filterCandidate?.Invoke(value.Symbol) ?? true)
+                                    return true;
+                            }
+                            return false;
+                        }, $"{i}");
+                    }
                     if (value?.Symbol != null)
                     {
                         //declaringSymbol = value.Symbol.ContainingSymbol;
@@ -2142,6 +2227,20 @@ namespace dotnetJs.Translator.CSharpToJavascript
             return value;
         }
 
+        Dictionary<string, string> assemblyGlobalNamespaceCache = new Dictionary<string, string>();
+        public string GetAssemblyGlobalNamespace(IAssemblySymbol assembly)
+        {
+            if (assemblyGlobalNamespaceCache.TryGetValue(assembly.Name, out var slug))
+                return slug;
+            slug = "$" + string.Join("", assembly.Name.Split('.').Select(c => char.ToLower(c[0])));
+            if (assemblyGlobalNamespaceCache.Values.Contains(slug))
+            {
+                throw new InvalidOperationException($"Auto generated global namespace for {assembly} clashes with an existing slug");
+            }
+            assemblyGlobalNamespaceCache[assembly.Name] = slug;
+            return slug;
+        }
+
         IMethodSymbol? _main;
         public IMethodSymbol? MainEntry
         {
@@ -2152,8 +2251,8 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 var main = Compilation.GetEntryPoint(CancellationToken.None);
                 if (main == null)
                 {
-                    main = (IMethodSymbol?)AllSymbols.GetValueOrDefault($"{Project.Evaluate("RootNamespace")}.Program.Main(System.String[])")?.Symbol;
-                    main ??= (IMethodSymbol?)AllSymbols.GetValueOrDefault($"{Project.Evaluate("RootNamespace")}.Program.Main()")?.Symbol;
+                    main = (IMethodSymbol?)TryGetTypeSymbol($"{Project.Evaluate("RootNamespace")}.Program.Main(System.String[])", null);
+                    main ??= (IMethodSymbol?)TryGetTypeSymbol($"{Project.Evaluate("RootNamespace")}.Program.Main()", null);
                 }
                 return _main = main;
             }

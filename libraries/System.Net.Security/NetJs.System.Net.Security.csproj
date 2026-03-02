@@ -108,7 +108,7 @@
   <AutoGen>True</AutoGen>
   <DependentUpon>TlsCipherSuite.tt</DependentUpon>
 </Compile>-->
-    <None Include="System\Net\Security\TlsCipherSuiteNameParser.ttinclude" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\TlsCipherSuiteNameParser.ttinclude" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != '' and '$(TargetPlatformIdentifier)' != 'windows'">
     <!--<Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\SslConnectionInfo.Unix.cs">
@@ -118,25 +118,25 @@
 </Compile>-->
   </ItemGroup>
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'windows'">
-    <None Include="System\Net\Security\SslConnectionInfo.Unix.cs">
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\SslConnectionInfo.Unix.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
       <DependentUpon>SslConnectionInfo.Unix.tt</DependentUpon>
     </None>
   </ItemGroup>
   <ItemGroup Condition="'$(AllowTlsCipherSuiteGeneration)' == 'true'">
-    <None Include="System\Net\Security\TlsCipherSuite.tt">
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\TlsCipherSuite.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>TlsCipherSuite.cs</LastGenOutput>
     </None>
-    <None Include="System\Net\Security\SslConnectionInfo.Unix.tt">
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\SslConnectionInfo.Unix.tt">
       <Generator>TextTemplatingFileGenerator</Generator>
       <LastGenOutput>SslConnectionInfo.Unix.cs</LastGenOutput>
     </None>
   </ItemGroup>
   <ItemGroup Condition="'$(AllowTlsCipherSuiteGeneration)' != 'true'">
-    <None Include="System\Net\Security\TlsCipherSuite.tt" />
-    <None Include="System\Net\Security\SslConnectionInfo.Unix.tt" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\TlsCipherSuite.tt" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\Security\SslConnectionInfo.Unix.tt" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' == 'windows'">
     <!--<Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Security\src\System\Net\CertificateValidationPal.Windows.cs" />-->

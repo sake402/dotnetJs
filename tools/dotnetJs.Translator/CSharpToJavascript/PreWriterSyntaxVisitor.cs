@@ -48,6 +48,10 @@ namespace dotnetJs.Translator.CSharpToJavascript
             return new DelegateDispose(() => { });
         }
 
+        BlockSyntax WrapInBlock(StatementSyntax expression)
+        {
+            return SyntaxFactory.Block(expression.WithLeadingTrivia(SyntaxFactory.LineFeed)).WithLeadingTrivia(SyntaxFactory.LineFeed).WithTrailingTrivia(SyntaxFactory.LineFeed);
+        }
         //StatementSyntax? currentStatement;
         //StatementSyntax? previousStatement;
         public override SyntaxNode? Visit(SyntaxNode? node)
@@ -132,6 +136,63 @@ namespace dotnetJs.Translator.CSharpToJavascript
         //    }
         //    return null;
         //}
+
+        public override SyntaxNode? VisitForStatement(ForStatementSyntax node)
+        {
+            node = (ForStatementSyntax)base.VisitForStatement(node)!;
+            if (node.Statement is not BlockSyntax)
+            {
+                var block = WrapInBlock(node.Statement);
+                node = node.ReplaceNode(node.Statement, block);
+            }
+            return node;
+        }
+
+        public override SyntaxNode? VisitForEachStatement(ForEachStatementSyntax node)
+        {
+            node = (ForEachStatementSyntax)base.VisitForEachStatement(node)!;
+            if (node.Statement is not BlockSyntax)
+            {
+                var block = WrapInBlock(node.Statement);
+                node = node.ReplaceNode(node.Statement, block);
+            }
+            return node;
+        }
+
+        public override SyntaxNode? VisitIfStatement(IfStatementSyntax node)
+        {
+            node = (IfStatementSyntax)base.VisitIfStatement(node)!;
+            //Keep statement in block so that other auto variables we need to define for the statement can remain in the block
+            if (node.Statement is not BlockSyntax)
+            {
+                var block = WrapInBlock(node.Statement);
+                node = node.ReplaceNode(node.Statement, block);
+            }
+            return node;
+        }
+
+        public override SyntaxNode? VisitElseClause(ElseClauseSyntax node)
+        {
+            node = (ElseClauseSyntax)base.VisitElseClause(node)!;
+            if (node.Statement is not BlockSyntax && node.Statement is not IfStatementSyntax)
+            {
+                var block = WrapInBlock(node.Statement);
+                node = node.ReplaceNode(node.Statement, block);
+            }
+            return node;
+        }
+
+        public override SyntaxNode? VisitWhileStatement(WhileStatementSyntax node)
+        {
+            node = (WhileStatementSyntax)base.VisitWhileStatement(node)!;
+            if (node.Statement is not BlockSyntax)
+            {
+                var block = WrapInBlock(node.Statement);
+                node = node.ReplaceNode(node.Statement, block);
+            }
+            return node;
+        }
+
         public override SyntaxNode? VisitIdentifierName(IdentifierNameSyntax node)
         {
             if (node.Identifier.ValueText.EndsWith("_Partial"))
@@ -678,6 +739,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
         //Dictionary<ConditionalAccessExpressionSyntax, string> conditionalVariables = new Dictionary<ConditionalAccessExpressionSyntax, string>();
         struct DefineBlockVariable
         {
+            public ITypeSymbol? Type;
             public ExpressionSyntax? Initializer;
             public bool InitializerTypeInferenceOnly;
             public int? InsertionIndex;
@@ -701,46 +763,70 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 List<(string, int, LocalDeclarationStatementSyntax)> declarations = new();
                 foreach (var variable in variables)
                 {
-                    var _var_ = SyntaxFactory.LocalDeclarationStatement(
-                        SyntaxFactory.VariableDeclaration(
-                            SyntaxFactory.IdentifierName(
-                                SyntaxFactory.Identifier(
-                                    SyntaxFactory.TriviaList(),
-                                    SyntaxKind.VarKeyword,
-                                    "var",
-                                    "var",
-                                    SyntaxFactory.TriviaList()
-                                )
-                            ).WithTrailingTrivia(SyntaxFactory.Space)
-                        )
-                        .WithVariables(
-                            SyntaxFactory.SingletonSeparatedList<VariableDeclaratorSyntax>(
-                                SyntaxFactory.VariableDeclarator(
-                                    SyntaxFactory.Identifier(variable.Key)
-                                )
-                                .WithInitializer(
-                                    SyntaxFactory.EqualsValueClause(
-                                        variable.Value.Initializer == null ? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression) :
-                                        variable.Value.InitializerTypeInferenceOnly ? SyntaxFactory.InvocationExpression(
-                                            SyntaxFactory.MemberAccessExpression(
-                                                SyntaxKind.SimpleMemberAccessExpression,
-                                                SyntaxFactory.IdentifierName("Global"),
-                                                SyntaxFactory.IdentifierName("TypeInference")))
-                                        .WithArgumentList(
-                                            SyntaxFactory.ArgumentList(
-                                                SyntaxFactory.SingletonSeparatedList<ArgumentSyntax>(
-                                                    SyntaxFactory.Argument(
-                                                        variable.Value.Initializer.WithoutTrivia())
+                    LocalDeclarationStatementSyntax _var_;
+                    if (variable.Value.Type != null)
+                    {
+                        _var_ = SyntaxFactory.LocalDeclarationStatement(
+                            SyntaxFactory.VariableDeclaration(
+                                SyntaxFactory.IdentifierName(variable.Value.Type.ToString()))
+                            .WithVariables(
+                                SyntaxFactory.SingletonSeparatedList<VariableDeclaratorSyntax>(
+                                    SyntaxFactory.VariableDeclarator(
+                                        SyntaxFactory.Identifier(variable.Key).WithTrailingTrivia(SyntaxFactory.Space))
+                                    .WithInitializer(
+                                        SyntaxFactory.EqualsValueClause(
+                                            (variable.Value.Initializer == null ? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression) :
+                                            variable.Value.Initializer).WithLeadingTrivia(SyntaxFactory.Space)
+                                        )
+                                    )
+                                    .WithLeadingTrivia(SyntaxFactory.Space))))
+                        .WithLeadingTrivia(SyntaxFactory.TriviaList(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab))
+                        .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+                    }
+                    else
+                    {
+                        _var_ = SyntaxFactory.LocalDeclarationStatement(
+                            SyntaxFactory.VariableDeclaration(
+                                SyntaxFactory.IdentifierName(
+                                    SyntaxFactory.Identifier(
+                                        SyntaxFactory.TriviaList(),
+                                        SyntaxKind.VarKeyword,
+                                        "var",
+                                        "var",
+                                        SyntaxFactory.TriviaList()
+                                    )
+                                ).WithTrailingTrivia(SyntaxFactory.Space)
+                            )
+                            .WithVariables(
+                                SyntaxFactory.SingletonSeparatedList<VariableDeclaratorSyntax>(
+                                    SyntaxFactory.VariableDeclarator(
+                                        SyntaxFactory.Identifier(variable.Key)
+                                    ).WithTrailingTrivia(SyntaxFactory.Space)
+                                    .WithInitializer(
+                                        SyntaxFactory.EqualsValueClause(
+                                            variable.Value.Initializer == null ? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression) :
+                                            variable.Value.InitializerTypeInferenceOnly ? SyntaxFactory.InvocationExpression(
+                                                SyntaxFactory.MemberAccessExpression(
+                                                    SyntaxKind.SimpleMemberAccessExpression,
+                                                    SyntaxFactory.IdentifierName("Global"),
+                                                    SyntaxFactory.IdentifierName("TypeInference"))
+                                                .WithLeadingTrivia(SyntaxFactory.Space))
+                                            .WithArgumentList(
+                                                SyntaxFactory.ArgumentList(
+                                                    SyntaxFactory.SingletonSeparatedList<ArgumentSyntax>(
+                                                        SyntaxFactory.Argument(
+                                                            variable.Value.Initializer.WithoutTrivia())
+                                                    )
                                                 )
-                                            )
-                                        ) : variable.Value.Initializer
+                                            ) : variable.Value.Initializer
+                                        )
                                     )
                                 )
                             )
                         )
-                    )
-                    .WithLeadingTrivia(variable.Value.Initializer?.GetLeadingTrivia())
-                    .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+                        .WithLeadingTrivia(SyntaxFactory.TriviaList(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab))
+                        .WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+                    }
                     declarations.Add((variable.Key, variable.Value.InsertionIndex ?? -1, _var_));
                 }
                 if (convertToBlock)
@@ -1071,6 +1157,11 @@ namespace dotnetJs.Translator.CSharpToJavascript
             //{
 
             //}
+            //if (node.ToFullString().Contains("type?.IsTypeBuilder()"))
+            //{
+
+            //}
+            var lhsType = GetTypeSymbol(node.Expression);
             var type = GetTypeSymbol(parentCondition ?? node);
             bool typeIsVoid = type != null && type.SpecialType == SpecialType.System_Void;
             ExpressionSyntax? whenNull = null;
@@ -1101,7 +1192,8 @@ namespace dotnetJs.Translator.CSharpToJavascript
                         }
                         else
                         {
-                            whenNull = SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression);
+                            whenNull = type.IsValueType ? SyntaxFactory.DefaultExpression(SyntaxFactory.IdentifierName(type.ToString())) :
+                                SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression);
                         }
                     }
                 }
@@ -1173,24 +1265,36 @@ namespace dotnetJs.Translator.CSharpToJavascript
             }
             currentBlockVariables.Add(varName, new DefineBlockVariable
             {
+                Type = lhsType,
                 Initializer = node.Expression,
                 InitializerTypeInferenceOnly = true,
                 InsertionIndex = insertAt
             });
 
             CSharpSyntaxNode whenNotNull;
+            var derefVariableName = varName;
+            if (lhsType != null && lhsType.IsValueType)
+            {
+                derefVariableName += ".Value";
+            }
             if (node.WhenNotNull.IsKind(SyntaxKind.ConditionalAccessExpression))
             {
-                whenNotNull = (CSharpSyntaxNode)VisitConditionalAccessExpression((ConditionalAccessExpressionSyntax)Combine(SyntaxFactory.IdentifierName(varName), node.WhenNotNull)!, parentCondition ?? node)!;
+                whenNotNull = (CSharpSyntaxNode)VisitConditionalAccessExpression((ConditionalAccessExpressionSyntax)Combine(SyntaxFactory.IdentifierName(derefVariableName), node.WhenNotNull)!, parentCondition ?? node)!;
             }
             else
             {
-                whenNotNull = Combine(SyntaxFactory.IdentifierName(varName), (ExpressionSyntax)Visit(node.WhenNotNull)!)!;
+                whenNotNull = Combine(SyntaxFactory.IdentifierName(derefVariableName), (ExpressionSyntax)Visit(node.WhenNotNull)!)!;
             }
             bool isIfStatement = node.Parent is ExpressionStatementSyntax;
+            bool hasReturn = false;
+            ITypeSymbol? conditionalType = GetTypeSymbol(node.WhenNotNull);
             if (node.Parent == null && parentCondition != null)
             {
                 isIfStatement = parentCondition.Parent is ExpressionStatementSyntax;
+            }
+            if (node.ToFullString().Contains("source._listeners?.Remove((ActivityListener) obj)"))
+            {
+
             }
             if (node.Parent.IsKind(SyntaxKind.ArrowExpressionClause))
             {
@@ -1203,9 +1307,24 @@ namespace dotnetJs.Translator.CSharpToJavascript
                     }
                 }
             }
+            //else if (node.Parent.IsKind(SyntaxKind.ParenthesizedLambdaExpression))
+            //{
+            //    if (node.Parent.Parent.IsKind(SyntaxKind.Argument))
+            //    {
+            //        var argument = (ArgumentSyntax)node.Parent.Parent;
+            //        var argInfo = GetSymbolInfo(argument.Expression);
+            //        var invocation = (InvocationExpressionSyntax?)argument.Parent.Parent;
+
+            //    }
+            //}
             CSharpSyntaxNode newNode;
             if (typeIsVoid || whenNotNull is StatementSyntax statement || isIfStatement)
             {
+                var blockedStatement = SyntaxFactory.SingletonList<StatementSyntax>(whenNotNull is StatementSyntax ss ? ss : SyntaxFactory.ExpressionStatement((ExpressionSyntax)whenNotNull));
+                if (hasReturn)
+                {
+                    //blockedStatement = SyntaxFactory.ReturnStatement(blockedStatement.Single().Ex);
+                }
                 var if_ = SyntaxFactory.IfStatement(
                     SyntaxFactory.BinaryExpression(
                         SyntaxKind.NotEqualsExpression,
@@ -1218,9 +1337,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                         ),
                         SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression)
                     ),
-                    SyntaxFactory.Block(
-                         SyntaxFactory.SingletonList<StatementSyntax>(
-                            whenNotNull is StatementSyntax ss ? ss : SyntaxFactory.ExpressionStatement((ExpressionSyntax)whenNotNull))));
+                    SyntaxFactory.Block(blockedStatement));
                 newNode = if_;
             }
             else
@@ -1232,17 +1349,33 @@ namespace dotnetJs.Translator.CSharpToJavascript
                             SyntaxFactory.ParenthesizedExpression(
                                 SyntaxFactory.AssignmentExpression(
                                     SyntaxKind.SimpleAssignmentExpression,
-                                    SyntaxFactory.IdentifierName(varName),
-                                    (ExpressionSyntax)Visit(node.Expression.WithoutLeadingTrivia().WithoutTrailingTrivia())!
+                                    SyntaxFactory.IdentifierName(varName).WithTrailingTrivia(SyntaxFactory.Space),
+                                    (ExpressionSyntax)Visit(node.Expression.WithoutLeadingTrivia().WithoutTrailingTrivia().WithLeadingTrivia(SyntaxFactory.Space))!
                                 )
-                            ),
-                            SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression)
-                        ),
-                        (ExpressionSyntax)whenNotNull,
-                        whenNull ?? SyntaxFactory.LiteralExpression(SyntaxKind.DefaultLiteralExpression)
+                            ).WithTrailingTrivia(SyntaxFactory.Space),
+                            SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression).WithLeadingTrivia(SyntaxFactory.Space)
+                        ).WithTrailingTrivia(SyntaxFactory.Space),
+                        (ExpressionSyntax)whenNotNull.WithLeadingTrivia(SyntaxFactory.Space),
+                        (whenNull ?? (ExpressionSyntax)SyntaxFactory.LiteralExpression(SyntaxKind.DefaultLiteralExpression)).WithLeadingTrivia(SyntaxFactory.Space)
                     )
                 );
-                newNode = execute;
+                if (node.Parent is StatementSyntax || node.Parent.IsKind(SyntaxKind.ArrowExpressionClause) || node.Parent.IsKind(SyntaxKind.ParenthesizedLambdaExpression))
+                {
+                    newNode = SyntaxFactory.AssignmentExpression(
+                        SyntaxKind.SimpleAssignmentExpression,
+                        SyntaxFactory.IdentifierName(
+                            SyntaxFactory.Identifier(
+                                SyntaxFactory.TriviaList(),
+                                SyntaxKind.UnderscoreToken,
+                                "_",
+                                "_",
+                                SyntaxFactory.TriviaList())),
+                        execute);
+                }
+                else
+                {
+                    newNode = execute;
+                }
             }
             return newNode;
             //}

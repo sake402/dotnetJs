@@ -57,6 +57,28 @@ namespace dotnetJs.Translator.CSharpToJavascript
                     throw new InvalidOperationException($"Cannot get return type from {memberSymbol}");
                 return (null, lhsType);
             }
+            else if (node.Parent.IsKind(SyntaxKind.YieldReturnStatement))
+            {
+                var member = node.FindClosestParent<MemberDeclarationSyntax>() ?? throw new InvalidOperationException($"Cannot find a member containig {node.Parent}");
+                var memberSymbol = _global.GetTypeSymbol(member, this/*, out _, out _*/);
+                var lhsType = (memberSymbol as IMethodSymbol)?.ReturnType ??
+                    (memberSymbol as IPropertySymbol)?.Type ??
+                    throw new InvalidOperationException($"Cannot get return type from {memberSymbol}");
+                var systemObject = (ITypeSymbol)_global.GetTypeSymbol("System.Object", this);
+                if (lhsType.SpecialType == SpecialType.System_Collections_IEnumerable)
+                    return (null, systemObject);
+                if (lhsType.SpecialType == SpecialType.System_Collections_IEnumerator)
+                    return (null, systemObject);
+                if (lhsType.SpecialType == SpecialType.System_Collections_Generic_IEnumerator_T)
+                    return (null, ((INamedTypeSymbol)lhsType).TypeArguments[0]);
+                if (lhsType.SpecialType == SpecialType.System_Collections_Generic_IEnumerable_T)
+                    return (null, ((INamedTypeSymbol)lhsType).TypeArguments[0]);
+                if (lhsType.IsEnumerable(out var ts))
+                    return (null, ts);
+                if (lhsType.IsEnumerator(out var ts2))
+                    return (null, ts2);
+                return (null, lhsType);
+            }
             else if (node.Parent.IsKind(SyntaxKind.ArrowExpressionClause))
             {
                 var property = node.FindClosestParent<PropertyDeclarationSyntax>();
@@ -136,6 +158,12 @@ namespace dotnetJs.Translator.CSharpToJavascript
             if (original != newNode)
             {
                 Debug.Assert(original.GetType() == newNode.GetType());
+                if (!original.SyntaxTree.HasCompilationUnitRoot)
+                {
+                    if (_factoryAssociationNode.TryGetValue(original, out var originalOriginal))
+                        original = (CSharpSyntaxNode)originalOriginal;
+                }
+                Debug.Assert(original.SyntaxTree.HasCompilationUnitRoot);
                 if (original.GetType() == newNode.GetType())
                 {
                     var visitor = new AssociateSyntaxFactoryNewNodeVisitor(_factoryAssociationNode, original, newNode);

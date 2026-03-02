@@ -21,12 +21,31 @@ namespace dotnetJs.Translator.CSharpToJavascript
         {
             if (HasYield(node))
             {
+                bool isObjectEnumerable = false;
+                bool isObjectEnumerator = false;
                 if (typeparameters == null)
-                    throw new InvalidOperationException("Type parameters are required for a yielding enumerable");
+                {
+                    var methodInfo = _global.GetTypeSymbol(node, this) as IMethodSymbol;
+                    if (methodInfo != null)
+                    {
+                        var returnType = methodInfo.ReturnType;
+                        if (returnType.SpecialType == SpecialType.System_Collections_IEnumerable)
+                        {
+                            isObjectEnumerable = true;
+                        }
+                        if (returnType.SpecialType == SpecialType.System_Collections_IEnumerator)
+                        {
+                            isObjectEnumerator = true;
+                        }
+                    }
+                    if (!isObjectEnumerable && !isObjectEnumerator)
+                        throw new InvalidOperationException("Type parameters are required for a yielding enumerable");
+                }
                 bool bodyIsBlock = body.Count() == 1 && body.Single().IsKind(SyntaxKind.Block);
                 if (bodyIsBlock)
                     Writer.WriteLine(node, "{", true);
-                var genericArgs = $"({string.Join(", ", typeparameters.Select(parameter =>
+                var systemObject = (ITypeSymbol)_global.GetTypeSymbol("System.Object", this);
+                var genericArgs = $"({string.Join(", ", isObjectEnumerable || isObjectEnumerator ? [systemObject.ComputeOutputTypeName(_global)] : typeparameters.Select(parameter =>
                 {
                     var symbol = _global.GetTypeSymbol(parameter, this/*, out _, out _*/);
                     return symbol.ComputeOutputTypeName(_global);
@@ -43,9 +62,14 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 VisitChildren(body);
                 //}
                 if (bodyIsBlock)
-                    Writer.WriteLine(node, ");", true); //end return
+                    Writer.WriteLine(node, ")", true); //end return
                 else
-                    Writer.WriteLine(node, "});", true); //end return
+                    Writer.WriteLine(node, "})", true); //end return
+                if (isObjectEnumerator)
+                {
+                    Writer.WriteLine(node, ".GetEnumerator()", true);
+                }
+                Writer.WriteLine(node, ";", true);
                 if (bodyIsBlock)
                     Writer.WriteLine(node, "}", true);
                 return;

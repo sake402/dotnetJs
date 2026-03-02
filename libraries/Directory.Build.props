@@ -90,7 +90,7 @@
         Inputs="@(Compile)"
         Outputs="$(IntermediateOutputPath)dotnetJsBuild.timestamp">
 		<Message Importance="high" Text="dotnetJs compiling..." />
-		<Exec Command="dotnetJs build --project &quot;$(ProjectPath)&quot; --configuration &quot;$(Configuration)&quot;" ConsoleToMsBuild="true" WorkingDirectory="$(ProjectDir)" ContinueOnError="ErrorAndStop" IgnoreExitCode="false"/>			
+		<Exec Command="dotnetJs build --project &quot;$(ProjectPath)&quot; --configuration &quot;$(Configuration)&quot;" ConsoleToMsBuild="true" YieldDuringToolExecution="true" WorkingDirectory="$(ProjectDir)" ContinueOnError="ErrorAndStop" IgnoreExitCode="false"/>			
 		<Touch Files="$(IntermediateOutputPath)dotnetJsBuild.timestamp" AlwaysCreate="true" />
 		<Message Importance="high" Text="dotnetJs compilation success!" />
 

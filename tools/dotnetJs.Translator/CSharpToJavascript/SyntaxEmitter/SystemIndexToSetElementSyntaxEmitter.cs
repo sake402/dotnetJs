@@ -38,7 +38,9 @@ namespace dotnetJs.Translator.CSharpToJavascript.SyntaxEmitter
                                 var sint = (ITypeSymbol)visitor.Global.GetTypeSymbol("System.Int32", visitor);
                                 var indexSetMethod = ((IPropertySymbol)targetType
                                     .GetMembers("this[]", visitor.Global)
-                                    .Single(e => e is IPropertySymbol m && m.Parameters.Count() == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Int32))
+                                    //TODO: First? What if we have more that matched the predicate
+                                    //We expect the ones in defived type to be first in this list thought
+                                    .First(e => e is IPropertySymbol m && m.Parameters.Count() == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Int32))
                                     .SetMethod;
                                 if (indexSetMethod != null)
                                 {
@@ -58,8 +60,16 @@ namespace dotnetJs.Translator.CSharpToJavascript.SyntaxEmitter
                                     visitor.Visit(arg);
                                     visitor.Writer.Write(node, ".");
                                     visitor.WriteMemberName(node, indexType, "GetOffset");
-                                    visitor.Writer.Write(node, $"({sourceName}.");
-                                    visitor.WriteMemberName(node, targetType, "Length");
+                                    var member = targetType.GetMembers("Length", visitor.Global).SingleOrDefault() ?? targetType.GetMembers("Count", visitor.Global).Single();
+                                    bool isStaticCall = member.IsStaticCallConvention(visitor.Global);
+                                    if (!isStaticCall)
+                                    {
+                                        visitor.Writer.Write(node, $"({sourceName}.");
+                                    }
+                                    visitor.WriteMemberName(node, targetType, member, _this: isStaticCall ? new CodeNode(() =>
+                                    {
+                                        visitor.Writer.Write(node, $"({sourceName}");
+                                    }) : null);
                                     visitor.Writer.WriteLine(node, $");");
 
                                     visitor.Writer.Write(node, $"var {rhsName} = ", true);

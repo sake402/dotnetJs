@@ -41,7 +41,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 var th = TypeHandle(elementType);
                 return new ReflectionHandleModel { Value = th.Value | (ulong)TypeHandleFlags.Array };
             }
-            var name = type.CreateFullTypeName(global);
+            var name = type.CreateFullTypeName(global, withGlobalNamespace:false);
             int typeHandle = Array.IndexOf(typeNames, name);
             if (typeHandle < 0)
                 return new ReflectionHandleModel();
@@ -86,7 +86,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             var types = assembly.GlobalNamespace
                     .GetNamespaceMembers()
                     .SelectMany(GetAllTypes);
-            typeNames = new string[] { "" }.Concat(types.Select(t => t.CreateFullTypeName(global))).ToArray();
+            typeNames = new string[] { "" }.Concat(types.Select(t => t.CreateFullTypeName(global, withGlobalNamespace:false))).ToArray();
             //make sure unknown type is index zero, System.Object is at index 1
             typeNames = typeNames.OrderBy(t =>
             t == "" ? (int)KnownTypeHandle.Unknown :
@@ -155,7 +155,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 Kind = MapTypeKind(symbol.TypeKind),
                 Flags = GetTypeFlagsModel(symbol),
                 //TypeAttributes = 0,
-                KnownType = KnownTypeFromName(symbol.CreateFullTypeName(global)),
+                KnownType = KnownTypeFromName(symbol.CreateFullTypeName(global, withGlobalNamespace: false)),
                 Properties = NullIfEmpty(symbol.GetMembers()
                             .Where(m => !m.IsExtern/*Extern methods are called via templates, not reflectable*/)
                             .Where(m => !m.DeclaredAccessibility.HasFlag(Accessibility.Internal)/*Internal methods are used by compiler only*/)
@@ -358,7 +358,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 Flags = GetMemberFlagsModel(method),
                 ReturnType = !global.ShouldExportType(method.ReturnType, null) ? default : TypeHandle(method.ReturnType),
                 Parameters = NullIfEmpty(method.Parameters.Select(FromParameterSymbol).ToArray()),
-                GenericArguments = NullIfEmpty(method.TypeArguments.Select(t => !global.ShouldExportType(t, null) ? "object" : t.CreateFullTypeName(global)).ToArray()),
+                GenericArguments = NullIfEmpty(method.TypeArguments.Select(t => !global.ShouldExportType(t, null) ? "object" : t.CreateFullTypeName(global, withGlobalNamespace: false)).ToArray()),
                 Handle = MemberHandle(method),
                 Attributes = NullIfEmpty(method.GetAttributes()
                 .Where(a => a.AttributeClass != null && global.ShouldExportType(a.AttributeClass, null))

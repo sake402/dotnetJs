@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
-#if BROWSER
 internal static partial class Interop
 {
     internal static partial class Sys
@@ -72,5 +71,3 @@ internal static partial class Interop
 
     }
 }
-
-#endif

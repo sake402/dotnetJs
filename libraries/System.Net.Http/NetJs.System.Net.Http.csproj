@@ -439,7 +439,7 @@
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Formats.Asn1\NetJs.System.Formats.Asn1.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\SR.resx" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\Resources\SR.resx" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(DotnetRuntimeRoot)src/libraries/Common/src/System/SR.cs" />

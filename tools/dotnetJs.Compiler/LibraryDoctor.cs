@@ -581,7 +581,7 @@ namespace dotnetJs.Compiler
             //    tpi.Remove();
             //}
 
-            string[] includes = ["//ItemGroup/Compile", "//ItemGroup/Compile/DependentUpon", "//ItemGroup/AsnXml", "//ItemGroup/EmbeddedResource"];
+            string[] includes = ["//ItemGroup/Compile", "//ItemGroup/ILLinkSubstitutionsXmls", "//ItemGroup/None", "//ItemGroup/Compile/DependentUpon", "//ItemGroup/AsnXml", "//ItemGroup/EmbeddedResource"];
 
             //Resolve Compile paths
             foreach (var includePath in includes)
@@ -591,15 +591,15 @@ namespace dotnetJs.Compiler
                     var include = e.Attribute("Include");
                     if (include != null)
                     {
-                        if (!include.Value.StartsWith("$("))
+                        if (!include.Value.StartsWith("$(") && !include.Value.StartsWith("@("))
                         {
                             include.Value = $"{projectFolderPathAsVariable}\\{include.Value}";
                         }
-                    }                    
+                    }
                     var remove = e.Attribute("Remove");
                     if (remove != null)
                     {
-                        if (!remove.Value.StartsWith("$("))
+                        if (!remove.Value.StartsWith("$(") && !remove.Value.StartsWith("@("))
                         {
                             remove.Value = $"{projectFolderPathAsVariable}\\{remove.Value}";
                         }

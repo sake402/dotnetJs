@@ -25,8 +25,8 @@ System.Diagnostics.DiagnosticSource</PackageDescription>
     <EnableDefaultPackageReadmeFile>false</EnableDefaultPackageReadmeFile>
   </PropertyGroup>
   <ItemGroup>
-    <ILLinkSubstitutionsXmls Include="ILLink/ILLink.Substitutions.Shared.xml" />
-    <None Include="ILLink\ILLink.Descriptors.LibraryBuild.xml" />
+    <ILLinkSubstitutionsXmls Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\ILLink/ILLink.Substitutions.Shared.xml" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\ILLink\ILLink.Descriptors.LibraryBuild.xml" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\System\Diagnostics\Activity.cs" />
@@ -91,12 +91,12 @@ System.Diagnostics.DiagnosticSource</PackageDescription>
     <Compile Include="$(CommonPath)System\HexConverter.cs" Link="Common\System\HexConverter.cs" />
     <Compile Include="$(CommonPath)System\Diagnostics\DiagnosticsHelper.cs" Link="Common\System\Diagnostics\DiagnosticsHelper.cs" />
     <Compile Include="$(CommonPath)System\Text\ValueStringBuilder.cs" Link="CoreLib\System\Text\ValueStringBuilder.cs" />
-    <None Include="DiagnosticSourceUsersGuide.md" />
-    <None Include="ActivityUserGuide.md" />
-    <None Include="FlatRequestId.md" />
-    <None Include="HierarchicalRequestId.md" />
-    <None Include="HttpCorrelationProtocol.md" />
-    <None Include="ThisAssembly.cs.in" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\DiagnosticSourceUsersGuide.md" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\ActivityUserGuide.md" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\FlatRequestId.md" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\HierarchicalRequestId.md" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\HttpCorrelationProtocol.md" />
+    <None Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\ThisAssembly.cs.in" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetFrameworkIdentifier)' == '.NETCoreApp'">
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Diagnostics.DiagnosticSource\src\System\Diagnostics\Activity.GenerateRootId.netcoreapp.cs" />

@@ -278,6 +278,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
 
         static string ComputeInvocatioNameForType(ITypeSymbol type, string? overloadName, GlobalCompilationVisitor _global)
         {
+            var assembly = type.ContainingAssembly;
             if (type.Kind == SymbolKind.ErrorType)
                 return "";
             if (type is INamedTypeSymbol tt && tt.IsNullable(out var ntt))

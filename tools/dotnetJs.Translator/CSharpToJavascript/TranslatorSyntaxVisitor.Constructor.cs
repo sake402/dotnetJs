@@ -44,10 +44,16 @@ namespace dotnetJs.Translator.CSharpToJavascript
 
         void WritePrimaryConstructor(BaseTypeDeclarationSyntax node, INamedTypeSymbol typeSymbol, IEnumerable<ParameterSyntax> primaryConstructorParameters)
         {
-            Writer.WriteLine(node, "//Primary constructor", true);
+            Writer.WriteLine(node, "//Begin primary constructor", true);
             IMethodSymbol? constructorSymbol = null;
             foreach (var parameter in primaryConstructorParameters)
             {
+                //if there is a field with same name as this primary constructor parameter, dont write the firld for the parameter
+                var possibleField = typeSymbol.GetMembers(parameter.Identifier.ValueText).SingleOrDefault();
+                if (possibleField != null && possibleField.Kind == SymbolKind.Field)
+                {
+                    continue;
+                }
                 var parameterSymbol = _global.GetTypeSymbol(parameter, this/*, out _, out _*/);
                 constructorSymbol = parameterSymbol.ContainingSymbol as IMethodSymbol;
                 if (parameterSymbol.Kind == SymbolKind.Property || parameterSymbol.Kind == SymbolKind.Method)
@@ -137,6 +143,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 i++;
             }
             Writer.WriteLine(node, "}", true);
+            Writer.WriteLine(node, "//End primary constructor", true);
         }
 
         void WriteConstructorDeclaration(BaseMethodDeclarationSyntax node, IMethodSymbol constructorSymbol, IEnumerable<ParameterSyntax> parameters, ConstructorInitializerSyntax? baseInitializer)
@@ -265,7 +272,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             CodeNode? suffixArguments = null,
             MethodOverloadResult overloadResult = default)
         {
-            var typeMetadata = _global.GetRequiredMetadata(typeSymbol);
+            var typeMetadata = typeSymbol.Kind != SymbolKind.TypeParameter ? _global.GetRequiredMetadata(typeSymbol) : null;
             void CallDefaultConstructor()
             {
                 Writer.Write(node, "new ");
@@ -276,7 +283,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 if (targetConstructor?.IsExtern ?? false)
                     Writer.Write(node, typeSymbol.Name);
                 else
-                    Writer.Write(node, typeMetadata.InvocationName ?? typeSymbol.Name);
+                    Writer.Write(node, typeMetadata?.InvocationName ?? typeSymbol.Name);
                 //if (genericArgs != null)
                 //{
                 //    Writer.Write(node, "(");
@@ -296,7 +303,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 }
                 Writer.Write(node, "()");
             }
-            if (targetConstructor.IsExtern)
+            if (targetConstructor.IsExtern/* || typeSymbol.Kind == SymbolKind.TypeParameter*/)
             {
                 CallDefaultConstructor();
             }
@@ -462,14 +469,14 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 }
                 else
                 {
-                    var meta = _global.GetRequiredMetadata(typeSymbol);
-                    var constructorMeta = _global.GetRequiredMetadata(targetConstructor);
                     if (!hasInitializer)
                     {
                         WriteConstructorCall(node, typeSymbol, targetConstructor, genericArgs, arguments, overloadResult: overloadResult);
                     }
                     else
                     {
+                        var meta = _global.GetRequiredMetadata(typeSymbol);
+                        var constructorMeta = _global.GetRequiredMetadata(targetConstructor);
                         WrapInExpression((classTargetName, instanceName) =>
                         {
                             Writer.WriteLine(node, $"//new {meta.InvocationName ?? typeSymbol.Name}()", true);

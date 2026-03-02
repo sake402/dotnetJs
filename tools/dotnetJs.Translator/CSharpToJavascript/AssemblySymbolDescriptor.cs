@@ -1,11 +1,11 @@
 ﻿namespace dotnetJs.Translator.CSharpToJavascript
 {
-    public struct SymbolDescriptor
+    public struct AssemblySymbolDescriptor
     {
-        public SymbolDescriptor()
+        public AssemblySymbolDescriptor()
         {
         }
-        public string? GlobalNamespace { get; set; }
+
         public Dictionary<string, string> Types { get; set; } = new();
         public Dictionary<string, Dictionary<string, string>> Members { get; set; } = new();
         public List<ILLinkerAssembly> LinkerSubstitutions { get; set; } = new();

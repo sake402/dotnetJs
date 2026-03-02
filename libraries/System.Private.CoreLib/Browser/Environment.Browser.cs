@@ -14,7 +14,7 @@ namespace System
         {
             return 1;
         }
-
+        
         [dotnetJs.MemberReplace(nameof(Exit))]
         public static void ExitImpl(int exitCode)
         {
@@ -32,7 +32,7 @@ namespace System
         {
 
         }
-
-        public static string Version => "";
+        
+        public static string Version => "1.0";
     }
 }

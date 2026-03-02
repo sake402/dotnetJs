@@ -314,7 +314,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             return new string(newChars, 0, cLen);
         }
 
-        public static void __CreateFullTypeName((StringBuilder WithTypeParameter, StringBuilder WithoutTypeParameter) builder, ISymbol current, GlobalCompilationVisitor global)
+        public static void __CreateSignatures((StringBuilder WithTypeParameter, StringBuilder WithoutTypeParameter) builder, ISymbol current, GlobalCompilationVisitor global, bool withGlobalNamespace = true)
         {
             //if (current is ITypeParameterSymbol)
             if (current.Kind == SymbolKind.TypeParameter/* is ITypeParameterSymbol*/)
@@ -323,21 +323,59 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 //builder.WithoutTypeParameter.Append(current.Name);
                 return;
             }
+            bool isArray = false;
             //if (current is IArrayTypeSymbol tt)
             if (current.Kind == SymbolKind.ArrayType/* is IArrayTypeSymbol tt*/)
             {
+                isArray = true;
                 var tt = Unsafe.As<IArrayTypeSymbol>(current);
-                __CreateFullTypeName(builder, tt.ElementType, global);
-                builder.WithTypeParameter.Append("[]");
-                builder.WithoutTypeParameter.Append("[]");
-                return;
+                current = tt.ElementType;
             }
             var parent = current.ContainingType ?? (ISymbol)current.ContainingNamespace;
             if (parent != null /*&& parent.Name.Length > 0 && !ReferenceEquals(parent, global.Compilation.GlobalNamespace)*/)
             {
-                __CreateFullTypeName(builder, parent, global);
-                builder.WithTypeParameter.Append(".");
-                builder.WithoutTypeParameter.Append(".");
+                //__CreateFullTypeName(builder, parent, global);
+                //    if (!ReferenceEquals(parent, global.Compilation.GlobalNamespace))
+                //    {
+                //        builder.WithTypeParameter.Append(".");
+                //        builder.WithoutTypeParameter.Append(".");
+                //    }
+                var assembly = current.ContainingAssembly;
+                ISymbol[] pathToRoot = new ISymbol[64];
+                int i = 0;
+                while (parent != null)
+                {
+                    if (parent.Kind == SymbolKind.Assembly)
+                        break;
+                    if (ReferenceEquals(parent, global.Compilation.GlobalNamespace))
+                    {
+                        break;
+                    }
+                    if (ReferenceEquals(parent, assembly))
+                    {
+                        break;
+                    }
+                    if (ReferenceEquals(parent, assembly?.GlobalNamespace))
+                    {
+                        break;
+                    }
+                    pathToRoot[i++] = parent;
+                    parent = parent.ContainingSymbol;
+                }
+                if (withGlobalNamespace && assembly != null)
+                    pathToRoot[i++] = assembly;
+                int done = 0;
+                while (i > 0)
+                {
+                    var lcurrent = pathToRoot[i - 1];
+                    var lName = lcurrent.Kind == SymbolKind.Assembly ? global.GetAssemblyGlobalNamespace(Unsafe.As<IAssemblySymbol>(lcurrent)) : lcurrent.Name.Replace(".", "$");
+                    builder.WithTypeParameter.Append(lName);
+                    builder.WithoutTypeParameter.Append(lName);
+                    builder.WithTypeParameter.Append(".");
+                    builder.WithoutTypeParameter.Append(".");
+                    i--;
+                    done++;
+                }
             }
             var nName = current.Name.Replace(".", "$");
             //if (ReferenceEquals(current, global.Compilation.GlobalNamespace))
@@ -365,7 +403,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                                 builder.WithTypeParameter.Append(",");
                                 builder.WithoutTypeParameter.Append(",");
                             }
-                            __CreateFullTypeName(builder, tps[i], global);
+                            __CreateSignatures(builder, tps[i], global);
                         }
                     }
                     builder.WithTypeParameter.Append(">");
@@ -389,7 +427,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                                 builder.WithTypeParameter.Append(",");
                                 builder.WithoutTypeParameter.Append(",");
                             }
-                            __CreateFullTypeName(builder, tps[i], global);
+                            __CreateSignatures(builder, tps[i], global);
                         }
                     }
                     builder.WithTypeParameter.Append(">");
@@ -408,7 +446,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                             builder.WithoutTypeParameter.Append(",");
                         }
                         var p = msp[ix];
-                        __CreateFullTypeName(builder, p.Type, global);
+                        __CreateSignatures(builder, p.Type, global);
                     }
                 }
                 builder.WithTypeParameter.Append(")");
@@ -432,17 +470,22 @@ namespace dotnetJs.Translator.CSharpToJavascript
                                 builder.WithoutTypeParameter.Append(",");
                             }
                             var p = msp[ix];
-                            __CreateFullTypeName(builder, p.Type, global);
+                            __CreateSignatures(builder, p.Type, global);
                         }
                     }
                     builder.WithTypeParameter.Append(")");
                     builder.WithoutTypeParameter.Append(")");
                 }
             }
+            if (isArray)
+            {
+                builder.WithTypeParameter.Append("[]");
+                builder.WithoutTypeParameter.Append("[]");
+            }
         }
 
         //static Dictionary<ISymbol, (string WithTypeParameter, string WithoutTypeParameter)> cacheFullName = new Dictionary<ISymbol, (string, string)>(SymbolEqualityComparer.Default);
-        public static (string WithTypeParameter, string WithoutTypeParameter) CreateFullTypeNames(this ISymbol type, GlobalCompilationVisitor global)
+        public static (string WithTypeParameter, string WithoutTypeParameter) CreateSignatures(this ISymbol type, GlobalCompilationVisitor global)
         {
             if (type.Kind == SymbolKind.NamedType)
             {
@@ -457,12 +500,12 @@ namespace dotnetJs.Translator.CSharpToJavascript
             }
             StringBuilder withTypeParameterBuilder = new StringBuilder(1024);
             StringBuilder withoutTypeParameterBuilder = new StringBuilder(1024);
-            __CreateFullTypeName((withTypeParameterBuilder, withoutTypeParameterBuilder), type, global);
+            __CreateSignatures((withTypeParameterBuilder, withoutTypeParameterBuilder), type, global);
             (string WithTypeParameter, string WithoutTypeParameter) values = (withTypeParameterBuilder.ToString(), withoutTypeParameterBuilder.ToString());
             return values;
         }
 
-        public static string CreateFullTypeName(this ISymbol type, GlobalCompilationVisitor global, bool withTypeParameterNames = false)
+        public static string CreateFullTypeName(this ISymbol type, GlobalCompilationVisitor global, bool withTypeParameterNames = false, bool withGlobalNamespace = true)
         {
             if (type is INamedTypeSymbol tt && tt.IsNullable(out var nt))
             {
@@ -473,7 +516,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             }
             StringBuilder withTypeParameterBuilder = new StringBuilder(1024);
             StringBuilder withoutTypeParameterBuilder = new StringBuilder(1024);
-            __CreateFullTypeName((withTypeParameterBuilder, withoutTypeParameterBuilder), type, global);
+            __CreateSignatures((withTypeParameterBuilder, withoutTypeParameterBuilder), type, global, withGlobalNamespace);
             (string WithTypeParameter, string WithoutTypeParameter) values = (withTypeParameterBuilder.ToString(), withoutTypeParameterBuilder.ToString());
             //cacheFullName[type] = values;
             if (withTypeParameterNames)
@@ -1075,9 +1118,29 @@ namespace dotnetJs.Translator.CSharpToJavascript
             return false;
         }
 
+        public static bool IsEnumerator(this ITypeSymbol type, out ITypeSymbol? argumentType)
+        {
+            if (type.IsType("System.Collections.Generic.IEnumerator<>", true))
+            {
+                argumentType = ((INamedTypeSymbol)type).TypeArguments.Single();
+                return true;
+            }
+            argumentType = null;
+            return false;
+        }
+
         public static bool IsEnumerable(this ITypeSymbol type)
         {
             if (type.IsType("System.Collections.IEnumerable"))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public static bool IsEnumerator(this ITypeSymbol type)
+        {
+            if (type.IsType("System.Collections.IEnumerator"))
             {
                 return true;
             }
@@ -1499,7 +1562,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             if (deep && found != null)
             {
                 //every type inherits from object and has ToString and GetHashCode, even if not explicitly defined
-                var obj = (ITypeSymbol)global.AllSymbols["System.Object"].Symbol;
+                var obj = (ITypeSymbol)global.GetTypeSymbol("System.Object", null);
                 foreach (var m in string.IsNullOrEmpty(name) ? obj.GetMembers() : obj.GetMembers(name))
                     if (ShouldReturn(m))
                         yield return m;

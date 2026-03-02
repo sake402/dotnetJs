@@ -25,7 +25,9 @@ namespace dotnetJs.Translator.CSharpToJavascript.SyntaxEmitter
                             var sint = (ITypeSymbol)visitor.Global.GetTypeSymbol("System.Int32", visitor);
                             var indexGetMethod = ((IPropertySymbol)targetType
                                 .GetMembers("this[]", visitor.Global)
-                                .Single(e => e is IPropertySymbol m && m.Parameters.Count() == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Int32))
+                                //TODO: First? What if we have more that matched the predicate
+                                //We expect the ones in defived type to be first in this list thought
+                                .First(e => e is IPropertySymbol m && m.Parameters.Count() == 1 && m.Parameters[0].Type.SpecialType == SpecialType.System_Int32))
                                 .GetMethod;
                             if (indexGetMethod != null)
                             {

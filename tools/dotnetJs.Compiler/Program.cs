@@ -139,6 +139,34 @@ else if (args.Length > 0 && args[0] == "watch")
                 TryProcessProject(project);
             };
 
+            FileSystemWatcher csProjWatcher = new FileSystemWatcher(Path.GetDirectoryName(project.FullPath)!);
+            csProjWatcher.NotifyFilter =
+                 NotifyFilters.Attributes
+                 | NotifyFilters.CreationTime
+                 | NotifyFilters.DirectoryName
+                 | NotifyFilters.FileName
+                 | NotifyFilters.LastAccess
+                 | NotifyFilters.LastWrite
+                | NotifyFilters.Security
+                | NotifyFilters.Size
+                ;
+            csProjWatcher.Filter = "*.csproj";
+            csProjWatcher.IncludeSubdirectories = true;
+            csProjWatcher.EnableRaisingEvents = true;
+            csProjWatcher.Changed += (s, e) =>
+            {
+                TryProcessProject(project);
+            };
+            csProjWatcher.Created += (s, e) =>
+            {
+                TryProcessProject(project);
+            };
+            csProjWatcher.Renamed += (s, e) =>
+            {
+                TryProcessProject(project);
+            };
+
+
             contexts[project] = new ProjectContext(razorWatcher, csWatcher);
         }
 
