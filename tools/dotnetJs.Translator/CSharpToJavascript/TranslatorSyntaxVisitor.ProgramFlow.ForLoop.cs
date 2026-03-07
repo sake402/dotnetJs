@@ -34,7 +34,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 //If we can get the enumerator directly on the target, we dont need to call the interface method
                 //This is espcially useful if the target doesn't actually implement the IEnumerable Interface
                 var directGetEnumerator = enumerationTargetRhsTypeSymbol.TypeKind != TypeKind.Interface ?
-                    (IMethodSymbol?)(enumerationTargetRhsTypeSymbol.GetMembers("GetEnumerator").FirstOrDefault()) : null;
+                    (IMethodSymbol?)(enumerationTargetRhsTypeSymbol.GetMembers("GetEnumerator", _global).FirstOrDefault()) : null;
                 if (directGetEnumerator != null)
                 {
                     //var directGetENumeratorMetadata = _global.GetRequiredMetadata(directGetEnumerator);

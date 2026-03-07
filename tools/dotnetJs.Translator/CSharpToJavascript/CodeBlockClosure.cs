@@ -19,11 +19,11 @@ namespace dotnetJs.Translator.CSharpToJavascript
             Parent = parent;
         }
 
-        
+
         public CodeBlockClosure FindHierachy<T>() where T : CSharpSyntaxNode
         {
             var current = this;
-            while(current != null)
+            while (current != null)
             {
                 if (current.Syntax is T t)
                     return current;
@@ -72,7 +72,8 @@ namespace dotnetJs.Translator.CSharpToJavascript
                     {
                     });
                 }
-                throw new InvalidOperationException($"Attempt to redefine an existing symbol {identifier} = {cd.Item1.TypeSyntaxOrSymbol} as {type.TypeSyntaxOrSymbol}. Initially defined at {cd.Item2}.{cd.Item3}:{cd.Item4}");
+                if (identifier != "_") //discard can be redefined/reused in a scope
+                    throw new InvalidOperationException($"Attempt to redefine an existing symbol {identifier} = {cd.Item1.TypeSyntaxOrSymbol} as {type.TypeSyntaxOrSymbol}. Initially defined at {cd.Item2}.{cd.Item3}:{cd.Item4}");
             }
             _identifiers[identifier] = (type, file, memberName, lineNumber);
             return new DelegateDispose(() =>
@@ -80,7 +81,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
                 _identifiers.Remove(identifier);
             });
         }
-        public CodeBlockClosure? Parent { get;}
+        public CodeBlockClosure? Parent { get; }
         public string? Name { get; set; }
         public Dictionary<string, string> Tags { get; } = new Dictionary<string, string>();
         public string? JumpStartLabelName { get; set; }

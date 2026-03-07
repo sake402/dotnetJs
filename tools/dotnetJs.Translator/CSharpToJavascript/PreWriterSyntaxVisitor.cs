@@ -137,6 +137,35 @@ namespace dotnetJs.Translator.CSharpToJavascript
         //    return null;
         //}
 
+        bool NeedsWapInBLock(StatementSyntax statement)
+        {
+            if (statement.Parent is IfStatementSyntax ifs)
+            {
+                return ifs.Statement is not BlockSyntax;
+            }
+            else if (statement.Parent is ElseClauseSyntax els)
+            {
+                return els.Statement is not BlockSyntax;
+            }
+            else if (statement.Parent is ForStatementSyntax fors)
+            {
+                return fors.Statement is not BlockSyntax;
+            }
+            else if (statement.Parent is ForEachStatementSyntax fe)
+            {
+                return fe.Statement is not BlockSyntax;
+            }
+            else if (statement.Parent is WhileStatementSyntax wh)
+            {
+                return wh.Statement is not BlockSyntax;
+            }
+            else if (statement.Parent is DoStatementSyntax dos)
+            {
+                return dos.Statement is not BlockSyntax;
+            }
+            return false;
+        }
+
         public override SyntaxNode? VisitForStatement(ForStatementSyntax node)
         {
             node = (ForStatementSyntax)base.VisitForStatement(node)!;

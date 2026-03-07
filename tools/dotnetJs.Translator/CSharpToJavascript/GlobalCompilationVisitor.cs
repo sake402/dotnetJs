@@ -2235,7 +2235,7 @@ namespace dotnetJs.Translator.CSharpToJavascript
             slug = "$" + string.Join("", assembly.Name.Split('.').Select(c => char.ToLower(c[0])));
             if (assemblyGlobalNamespaceCache.Values.Contains(slug))
             {
-                throw new InvalidOperationException($"Auto generated global namespace for {assembly} clashes with an existing slug");
+                //throw new InvalidOperationException($"Auto generated global namespace for {assembly} clashes with an existing slug");
             }
             assemblyGlobalNamespaceCache[assembly.Name] = slug;
             return slug;
