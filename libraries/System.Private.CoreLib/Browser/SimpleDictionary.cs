@@ -1,4 +1,4 @@
-using dotnetJs;
+using NetJs;
 using System;
 
 namespace System
@@ -60,7 +60,7 @@ namespace System
         [Template("s.split({by})")]
         static extern string[] NativeSplit(this string s, string by);
         [IgnoreGeneric]
-        public static void SetNested<T>(this SimpleDictionary<T> dic, string name, T value, bool throwIfExisting = true)
+        public static void SetNested<T>(this SimpleDictionary<T> dic, string name, T value, bool throwIfExisting = true, Action<T>? onAccess = null)
         {
             unchecked
             {
@@ -84,7 +84,16 @@ namespace System
                 var typeName = names[names.Length - 1];
                 if (throwIfExisting && dic.ContainsKey(typeName))
                     throw new InvalidOperationException();
-                dic[typeName] = value;
+                if (onAccess != null)
+                {
+                    // this is a bit hacky, but it allows us to call onAccess when the value is accessed, without having to create a wrapper object
+                    Script.Write("Object.defineProperty(dic, typeName, {{  get:function(){{ onAccess(value); return value;  }} }})");
+                    //dic[typeName] = Script.Write<T>("{{ get {{ onAccess(value); return value; }} }}");
+                }
+                else
+                {
+                    dic[typeName] = value;
+                }
             }
         }
 

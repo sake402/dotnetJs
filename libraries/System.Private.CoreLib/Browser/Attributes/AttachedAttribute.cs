@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Attach an attribute indirectly to a type/member defined, but we dont want to attach the attribute directly

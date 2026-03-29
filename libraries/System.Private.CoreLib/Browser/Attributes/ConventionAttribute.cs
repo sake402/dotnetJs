@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Controls a type or type members case notation in the script output.

@@ -6,7 +6,7 @@ namespace System.Threading
 {
     internal partial class TimerQueue
     {
-        [dotnetJs.MemberReplace(nameof(MainThreadScheduleTimer))]
+        [NetJs.MemberReplace(nameof(MainThreadScheduleTimer))]
         private static unsafe void MainThreadScheduleTimerImpl(void* callback, int shortestDueTimeMs)
         {
             var call = *(Action*)callback;

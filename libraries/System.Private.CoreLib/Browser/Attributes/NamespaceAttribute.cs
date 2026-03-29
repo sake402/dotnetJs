@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Specifies a custom namespace for the built entity.

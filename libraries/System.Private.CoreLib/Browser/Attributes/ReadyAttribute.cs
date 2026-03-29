@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Makes the method to be called once the page is loaded. If using jQuery2, triggers jQuery's event,

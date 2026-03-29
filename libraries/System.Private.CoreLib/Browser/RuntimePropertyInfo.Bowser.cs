@@ -1,8 +1,10 @@
-﻿using dotnetJs;
+﻿using NetJs;
 
 namespace System.Reflection
 {
-    [dotnetJs.ForcePartial(typeof(RuntimePropertyInfo))]
+    [NetJs.ForcePartial(typeof(RuntimePropertyInfo))]
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
     internal sealed partial class RuntimePropertyInfo_Partial : ForcedPartialBase<RuntimePropertyInfo>
     {
         internal PropertyModel _model;
@@ -11,7 +13,7 @@ namespace System.Reflection
             _model = model;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static void get_property_info(RuntimePropertyInfo prop, ref MonoPropertyInfo info, PInfo req_info)
         {
             MonoPropertyInfo minfo = default!;
@@ -24,13 +26,13 @@ namespace System.Reflection
             info = minfo;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static Type[] GetTypeModifiers(RuntimePropertyInfo prop, bool optional, int genericArgumentPosition = -1)
         {
             return Type.EmptyTypes;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static object get_default_value(RuntimePropertyInfo prop)
         {
             var model = prop.As<RuntimePropertyInfo_Partial>()._model;
@@ -38,14 +40,14 @@ namespace System.Reflection
             return prototype![model.Name]!;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static int get_metadata_token(RuntimePropertyInfo monoProperty)
         {
             var model = monoProperty.As<RuntimePropertyInfo_Partial>()._model;
             return (int)model.Handle.Value;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static PropertyInfo internal_from_handle_type(IntPtr event_handle, IntPtr type_handle)
         {
             return (PropertyInfo)AppDomain.GetMember(new ReflectionHandleModel { Value = (uint)event_handle })!;

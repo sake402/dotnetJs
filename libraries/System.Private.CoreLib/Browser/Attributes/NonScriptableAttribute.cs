@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// This attribute can be placed on types in system script assemblies that should not

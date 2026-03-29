@@ -5,10 +5,10 @@ using System.Text;
 
 namespace System.Reflection
 {
-    [dotnetJs.ForcePartial(typeof(LoaderAllocatorScout))]
+    [NetJs.ForcePartial(typeof(LoaderAllocatorScout))]
     internal sealed partial class LoaderAllocatorScout_Partial
     {
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static bool Destroy(IntPtr native)
         {
             Marshal.Remove(native);

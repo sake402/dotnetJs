@@ -1,17 +1,17 @@
-﻿using dotnetJs;
+﻿using NetJs;
 
 namespace System
 {
-    [dotnetJs.ForcePartial(typeof(Char))]
-    [dotnetJs.StaticCallConvention]
+    [NetJs.ForcePartial(typeof(Char))]
+    [NetJs.StaticCallConvention]
     public readonly struct Char_Partial //: ForcedPartialBase<Char>
     {
-        [dotnetJs.MemberReplace("m_value")]
-        [dotnetJs.Template("{this}")]
+        [NetJs.MemberReplace("m_value")]
+        [NetJs.Template("{this}")]
         private readonly char m_value;
 
-        [dotnetJs.MemberReplace(nameof(GetHashCode))]
-        [dotnetJs.Template("{global.}" + dotnetJs.Constants.GetHashCodeName + "({this:!super})")] //make sure we dont pass super keyword in here. JS doesnt support it
+        [NetJs.MemberReplace(nameof(GetHashCode))]
+        [NetJs.Template("{global.}" + NetJs.Constants.GetHashCodeName + "({this:!super})")] //make sure we dont pass super keyword in here. JS doesnt support it
         public int GetHashCodeImplChar()
         {
             return this.As<char>();

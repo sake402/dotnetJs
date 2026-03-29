@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -7,11 +7,10 @@ using System.Text;
 
 namespace System.Reflection
 {
-    [dotnetJs.ForcePartial(typeof(RuntimeAssembly))]
-    [dotnetJs.Name(nameof(RuntimeAssembly))]
-    [dotnetJs.Boot]
-    [dotnetJs.Reflectable(false)]
-    [dotnetJs.OutputOrder(int.MinValue + 1)] //make sure we emit this type immediately after AppDomain
+    [NetJs.ForcePartial(typeof(RuntimeAssembly))]
+    [NetJs.Name(nameof(RuntimeAssembly))]
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
     internal sealed partial class RuntimeAssembly_Partial : ForcedPartialBase<RuntimeAssembly>
     {
         internal RuntimeModule_Partial _module;
@@ -29,7 +28,7 @@ namespace System.Reflection
         /// Define a proxy to a type/prototype not yet created. 
         /// </summary>
         /// <param name="fullTypeName"></param>
-        [dotnetJs.Name(dotnetJs.Constants.AssemblyTypeProxyName)]
+        [NetJs.Name(NetJs.Constants.AssemblyTypeProxyName)]
         public void TypeProxy(string fullTypeName)
         {
             if (!AppDomain.GlobalPrototypeRegistry.ContainsKey(fullTypeName))
@@ -43,7 +42,7 @@ namespace System.Reflection
             }
         }
 
-        [dotnetJs.Name(dotnetJs.Constants.AssemblyClassName)]
+        [NetJs.Name(NetJs.Constants.AssemblyClassName)]
         public Union<TypePrototype, TypePrototypeProvider> DefineType(string fullTypeName, TypePrototypeProvider provider)
         {
             provider.As<object>()["$fn"] = fullTypeName;
@@ -133,19 +132,38 @@ namespace System.Reflection
                 //remove the typeStub just before we insert the real type
                 AppDomain.GlobalPrototypeRegistry.RemoveNested(jsName);
             }
+            bool staticInitialized = false;
             //dont try so set inner types, they are managed and readonly static within the containing type
             if (!typeMetadata.Flags.TypeHasFlag(TypeFlagsModel.IsNested))
-                AppDomain.GlobalPrototypeRegistry.SetNested(jsName, prototype ?? provider.As<TypePrototype>());
+            {
+                AppDomain.GlobalPrototypeRegistry.SetNested(jsName, prototype ?? provider.As<TypePrototype>(), onAccess: (mtype) =>
+                {
+                    if (!staticInitialized)
+                    {
+                        type.StaticInitialize();
+                        staticInitialized = true;
+                    }
+                });
+            }
             if (!isInterfaceMixin && !isGenericDefinition)
                 AppDomain.SetupDefaults(type);
             //if assembly was already built before we make this new type, build it immediately
-            if (isCompleted)
-                type.Complete();
+            //if (isCompleted)
+            //type.Complete();
+            //Initialize nested types immetialty. If we are crreating it, it means we want to use it immediately
+            if (typeMetadata.Flags.TypeHasFlag(TypeFlagsModel.IsNested))
+            {
+                if (!staticInitialized)
+                {
+                    type.StaticInitialize();
+                    staticInitialized = true;
+                }
+            }
             return prototype ?? provider.As<TypePrototype>();
         }
 
         //static SimpleDictionary<TypePrototype> mixinCache = new SimpleDictionary<TypePrototype>();
-        [dotnetJs.Name("$mix")]
+        [NetJs.Name("$mix")]
         TypePrototype Mixin(string fullTypeName, TypePrototype[] genericArgumemnts, TypePrototype? mix, ParameterlessTypePrototypeProvider getPrototype)
         {
             unchecked
@@ -211,7 +229,7 @@ namespace System.Reflection
             }
         }
 
-        [dotnetJs.Name(Constants.InterfaceMixin)]
+        [NetJs.Name(Constants.InterfaceMixin)]
         public TypePrototype InterfaceMixin(string fullName, TypePrototype[] mixes, ParameterlessTypePrototypeProvider getPrototype)
         {
             if (mixes.Length != 1)
@@ -222,7 +240,7 @@ namespace System.Reflection
             }
         }
 
-        [dotnetJs.Name(Constants.GenericInterfaceMixin)]
+        [NetJs.Name(Constants.GenericInterfaceMixin)]
         public TypePrototype GenericInterfaceMixin(string fullName, TypePrototype[] mixes, ParameterlessTypePrototypeProvider getPrototype)
         {
             if (mixes.Length < 2)
@@ -233,7 +251,7 @@ namespace System.Reflection
             }
         }
 
-        [dotnetJs.Name(dotnetJs.Constants.GenericType)]
+        [NetJs.Name(NetJs.Constants.GenericType)]
         public TypePrototype GenericType(string fullName, TypePrototype[] genericArgs, ParameterlessTypePrototypeProvider getPrototype)
         {
             return Mixin(fullName, genericArgs, null, getPrototype);
@@ -300,7 +318,7 @@ namespace System.Reflection
         }
 
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetEntryPoint(QCallAssembly assembly, ObjectHandleOnStack res)
         {
             var massembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
@@ -309,7 +327,7 @@ namespace System.Reflection
             res.GetObjectHandleOnStack<MethodInfo?>() = method;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetManifestResourceNames(QCallAssembly assembly_h, ObjectHandleOnStack res)
         {
             var assembly = assembly_h.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
@@ -317,21 +335,21 @@ namespace System.Reflection
             res.GetObjectHandleOnStack<string[]?>() = names;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetExportedTypes(QCallAssembly assembly_h, ObjectHandleOnStack res)
         {
             var assembly = assembly_h.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
             res.GetObjectHandleOnStack<Type[]?>() = assembly._types.Filter(e => e._model.Flags.TypeHasFlag(TypeFlagsModel.IsPublic));
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetTopLevelForwardedTypes(QCallAssembly assembly_h, ObjectHandleOnStack res)
         {
             var assembly = assembly_h.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
             res.GetObjectHandleOnStack<Type[]?>() = [];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetInfo(QCallAssembly assembly, ObjectHandleOnStack res, int kind)
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
@@ -356,7 +374,7 @@ namespace System.Reflection
             }
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static bool GetManifestResourceInfoInternal(QCallAssembly assembly, string name, ManifestResourceInfo info)
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
@@ -364,13 +382,13 @@ namespace System.Reflection
             if (manifest != null)
             {
                 //info.ResourceLocation = ResourceLocation.Embedded;
-                dotnetJs.Script.Debugger();
+                NetJs.Script.Debugger();
                 return true;
             }
             return false;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static IntPtr /* byte* */ GetManifestResourceInternal(QCallAssembly assembly, string name, out int size, ObjectHandleOnStack module)
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
@@ -385,31 +403,31 @@ namespace System.Reflection
             return IntPtr.Zero;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetManifestModuleInternal(QCallAssembly assembly, ObjectHandleOnStack res)
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
             res.GetObjectHandleOnStack<RuntimeModule_Partial>() = runtimeAssembly._module;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetModulesInternal(QCallAssembly assembly, ObjectHandleOnStack res)
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
             res.GetObjectHandleOnStack<RuntimeModule_Partial[]>() = [runtimeAssembly._module];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static extern IntPtr InternalGetReferencedAssemblies(Assembly assembly);
 
-        [dotnetJs.MemberReplace(nameof(RuntimeAssembly.GetReferencedAssemblies))]
+        [NetJs.MemberReplace(nameof(RuntimeAssembly.GetReferencedAssemblies))]
         internal static AssemblyName[] GetReferencedAssembliesOverride(Assembly assembly)
         {
             var runtimeAssembly = assembly.As<RuntimeAssembly_Partial>();
             return runtimeAssembly._model.ReferencedAssembliesHandle.Map(h => AppDomain.GetAssemblyName(h)).Filter(h => h != null).Map(n => new AssemblyName(n!));
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static unsafe bool InternalTryGetRawMetadata(QCallAssembly assembly, out byte* blob, out int length)
         {
             throw new NotSupportedException();

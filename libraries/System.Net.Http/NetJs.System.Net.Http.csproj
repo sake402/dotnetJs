@@ -14,7 +14,6 @@
   <PropertyGroup>
     <TargetPlatformIdentifier>$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)'))</TargetPlatformIdentifier>
     <GeneratePlatformNotSupportedAssemblyMessage Condition="'$(TargetPlatformIdentifier)' == ''">SR.PlatformNotSupported_NetHttp</GeneratePlatformNotSupportedAssemblyMessage>
-    <FeatureWasmManagedThreads Condition="'$(TargetPlatformIdentifier)' == 'browser' and '$(WasmEnableThreads)' == 'true'">true</FeatureWasmManagedThreads>
     <DefineConstants Condition="'$(TargetPlatformIdentifier)' == 'osx' or '$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'tvos' or '$(TargetPlatformIdentifier)' == 'maccatalyst'">$(DefineConstants);SYSNETHTTP_NO_OPENSSL</DefineConstants>
     <DefineConstants Condition="'$(TargetPlatformIdentifier)' == 'android' or '$(TargetPlatformIdentifier)' == 'ios' or '$(TargetPlatformIdentifier)' == 'maccatalyst' or '$(TargetPlatformIdentifier)' == 'tvos'">$(DefineConstants);TARGET_MOBILE</DefineConstants>
     <DefineConstants Condition="'$(TargetPlatformIdentifier)' == 'android'">$(DefineConstants);TARGET_ANDROID</DefineConstants>
@@ -23,7 +22,6 @@
     <DefineConstants Condition="'$(TargetPlatformIdentifier)' == 'tvos'">$(DefineConstants);TARGET_TVOS</DefineConstants>
     <DefineConstants Condition="'$(TargetPlatformIdentifier)' == 'browser'">$(DefineConstants);TARGET_BROWSER</DefineConstants>
     <DefineConstants Condition="'$(TargetPlatformIdentifier)' == 'wasi'">$(DefineConstants);TARGET_WASI</DefineConstants>
-    <DefineConstants Condition="'$(FeatureWasmManagedThreads)' == 'true'">$(DefineConstants);FEATURE_WASM_MANAGED_THREADS</DefineConstants>
     <EmitCompilerGeneratedFiles Condition="'$(Configuration)' == 'Debug' and '$(TargetPlatformIdentifier)' == 'browser'">true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != ''">
@@ -135,6 +133,7 @@
     <Compile Include="$(CommonPath)System\Net\Http\UriRedactionHelper.cs" Link="Common\System\Net\Http\UriRedactionHelper.cs" />
     <Compile Include="$(CommonPath)System\Text\SimpleRegex.cs" Link="Common\System\Text\SimpleRegex.cs" />
     <Compile Include="$(CommonPath)System\HexConverter.cs" Link="Common\System\HexConverter.cs" />
+    <Compile Include="$(CommonPath)System\LocalAppContextSwitches.Common.cs" Link="Common\System\LocalAppContextSwitches.Common.cs" />
     <Compile Include="$(CommonPath)System\Net\ArrayBuffer.cs" Link="Common\System\Net\ArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\MultiArrayBuffer.cs" Link="Common\System\Net\MultiArrayBuffer.cs" />
     <Compile Include="$(CommonPath)System\Net\Http\aspnetcore\Http2\Hpack\H2StaticTable.cs" Link="Common\System\Net\Http\aspnetcore\Http2\Hpack\H2StaticTable.cs" />
@@ -161,6 +160,7 @@
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\SocketsHttpHandler\AuthenticationHelper.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\SocketsHttpHandler\AuthenticationHelper.Digest.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\SocketsHttpHandler\AuthenticationHelper.NtAuth.cs" />
+    <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\LocalAppContextSwitches.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\SocketsHttpHandler\ChunkedEncodingReadStream.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\SocketsHttpHandler\ChunkedEncodingWriteStream.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Net.Http\src\System\Net\Http\SocketsHttpHandler\ConnectHelper.cs" />
@@ -408,7 +408,6 @@
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Threading.Channels\NetJs.System.Threading.Channels.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Threading.ThreadPool\NetJs.System.Threading.ThreadPool.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.IO.Compression.Brotli\NetJs.System.IO.Compression.Brotli.csproj" />
-    <ProjectReference Include="$(NewLibrariesProjectRoot)System.IO.Compression.Zstandard\NetJs.System.IO.Compression.Zstandard.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(TargetPlatformIdentifier)' != 'browser' and '$(TargetPlatformIdentifier)' != 'wasi' ">
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Collections\NetJs.System.Collections.csproj" />

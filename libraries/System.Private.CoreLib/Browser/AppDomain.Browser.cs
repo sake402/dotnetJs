@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -6,9 +6,9 @@ using System.Text;
 
 namespace System
 {
-    [dotnetJs.Boot]
-    [dotnetJs.Reflectable(false)]
-    [dotnetJs.OutputOrder(int.MinValue)] //make sure we emit this type first
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
+    [NetJs.OutputOrder(int.MinValue+2)] 
     public sealed partial class AppDomain
     {
         internal static SimpleDictionary<AssemblyModel> _reflectionMetadata = new SimpleDictionary<AssemblyModel>();

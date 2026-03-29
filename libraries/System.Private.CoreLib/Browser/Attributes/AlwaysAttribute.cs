@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Defina a method, property or field that always returns this value. Allows compiler to optimize/remove branches.

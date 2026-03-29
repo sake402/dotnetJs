@@ -4,7 +4,7 @@
     {
         protected extern T This
         {
-            [dotnetJs.Name("this")]
+            [NetJs.Name("this")]
             get;
         }
         //protected extern dynamic DynamicThis

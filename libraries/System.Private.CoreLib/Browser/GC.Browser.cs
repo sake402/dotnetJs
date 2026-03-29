@@ -7,86 +7,86 @@ namespace System
 {
     public static partial class GC
     {
-        [dotnetJs.MemberReplace(nameof(GetCollectionCount))]
+        [NetJs.MemberReplace(nameof(GetCollectionCount))]
         private static int GetCollectionCountImpl(int generation)
         {
             return 1;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetMaxGeneration))]
+        [NetJs.MemberReplace(nameof(GetMaxGeneration))]
         private static int GetMaxGenerationImpl()
         {
             return 1;
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalCollect))]
+        [NetJs.MemberReplace(nameof(InternalCollect))]
         private static void InternalCollectImpl(int generation)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(AddPressure))]
+        [NetJs.MemberReplace(nameof(AddPressure))]
         private static void AddPressureImpl(ulong bytesAllocated)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(RemovePressure))]
+        [NetJs.MemberReplace(nameof(RemovePressure))]
         private static void RemovePressureImpl(ulong bytesRemoved)
         {
 
         }
 
         // TODO: Move following to ConditionalWeakTable
-        [dotnetJs.MemberReplace(nameof(register_ephemeron_array))]
+        [NetJs.MemberReplace(nameof(register_ephemeron_array))]
         internal static void register_ephemeron_arrayImpl(Ephemeron[] array)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(get_ephemeron_tombstone))]
+        [NetJs.MemberReplace(nameof(get_ephemeron_tombstone))]
         private static object get_ephemeron_tombstoneImpl()
         {
             throw new PlatformNotSupportedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetAllocatedBytesForCurrentThread))]
+        [NetJs.MemberReplace(nameof(GetAllocatedBytesForCurrentThread))]
         public static long GetAllocatedBytesForCurrentThreadImpl()
         {
             return 0;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetGeneration))]
+        [NetJs.MemberReplace(nameof(GetGeneration))]
         public static int GetGenerationImpl(object obj)
         {
             return 1;
         }
 
-        [dotnetJs.MemberReplace(nameof(WaitForPendingFinalizers))]
+        [NetJs.MemberReplace(nameof(WaitForPendingFinalizers))]
         public static void WaitForPendingFinalizersImpl()
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(_SuppressFinalize))]
+        [NetJs.MemberReplace(nameof(_SuppressFinalize))]
         private static void _SuppressFinalizeImpl(object o)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(_ReRegisterForFinalize))]
+        [NetJs.MemberReplace(nameof(_ReRegisterForFinalize))]
         private static void _ReRegisterForFinalizeImpl(object o)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(GetTotalMemory))]
+        [NetJs.MemberReplace(nameof(GetTotalMemory))]
         public static long GetTotalMemoryImpl(bool forceFullCollection)
         {
             return 0;
         }
 
-        [dotnetJs.MemberReplace(nameof(_GetGCMemoryInfo))]
+        [NetJs.MemberReplace(nameof(_GetGCMemoryInfo))]
         private static void _GetGCMemoryInfoImpl(out long highMemoryLoadThresholdBytes,
                                         out long memoryLoadBytes,
                                         out long totalAvailableMemoryBytes,
@@ -102,7 +102,7 @@ namespace System
             fragmentedBytes = 0;
         }
 
-        [dotnetJs.MemberReplace(nameof(AllocPinnedArray))]
+        [NetJs.MemberReplace(nameof(AllocPinnedArray))]
         private static Array AllocPinnedArrayImpl(Type t, int length)
         {
             return Array._Create(t, [length], null, null, 0);

@@ -7,7 +7,7 @@ namespace System.Diagnostics
 {
     public partial class StackTrace
     {
-        [dotnetJs.MemberReplace(nameof(GetTrace))]
+        [NetJs.MemberReplace(nameof(GetTrace))]
         internal static void GetTraceImpl(ObjectHandleOnStack ex, ObjectHandleOnStack res, int skipFrames, bool needFileInfo)
         {
             res.GetObjectHandleOnStack<MonoStackFrame[]?>() = [];

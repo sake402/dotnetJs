@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
@@ -10,10 +10,13 @@ using System.Threading;
 
 namespace System
 {
-    [dotnetJs.ForcePartial(typeof(RuntimeTypeHandle))]
+    [NetJs.ForcePartial(typeof(RuntimeTypeHandle))]
+    //[NetJs.Boot]
+    //[NetJs.Reflectable(false)]
+    //[NetJs.OutputOrder(int.MinValue + 1)] //make sure we emit this type immediately after AppDomain
     public partial struct RuntimeTypeHandle_Partial
     {
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static CorElementType GetCorElementType(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
@@ -54,7 +57,7 @@ namespace System
             return CorElementType.ELEMENT_TYPE_VOID;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static TypeAttributes GetAttributes(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
@@ -86,76 +89,76 @@ namespace System
             return att;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static int GetMetadataToken(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return (int)runtimeType._model.Handle.Value;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void GetGenericTypeDefinition_impl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<Type?>() = runtimeType._parentGenericTypeDefinition;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static bool HasInstantiation(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return runtimeType._model.Flags.HasFlag(TypeFlagsModel.IsGenericType);// && runtimeType._typeArguments != null;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static bool IsInstanceOfType(QCallTypeHandle type, [NotNullWhen(true)] object? o)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return o.Is(runtimeType);
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static bool HasReferences(QCallTypeHandle type)
         {
             return true;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static int GetArrayRank(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return runtimeType._arrayTypeRank;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static void GetAssembly(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<Assembly?>() = runtimeType._assembly;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static void GetElementType(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<Type?>() = runtimeType._arrayElementType;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static void GetModule(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<Module?>() = runtimeType._assembly.As<RuntimeAssembly_Partial>()._module.As<Module>();
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static IntPtr GetMonoClass(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return (IntPtr)runtimeType._model.Handle.Value;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static bool type_is_assignable_from(QCallTypeHandle a, QCallTypeHandle b)
         {
             var ra = a.QCallTypeHandleToRuntimeType();
@@ -163,14 +166,14 @@ namespace System
             return RuntimeType.IsAssignableInternal(ra, rb);
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static bool IsGenericTypeDefinition(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return runtimeType.IsGenericType && runtimeType._typeArguments == null;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static bool is_subclass_of(QCallTypeHandle childType, QCallTypeHandle baseType)
         {
             var _childType = childType.QCallTypeHandleToRuntimeType();
@@ -178,14 +181,14 @@ namespace System
             return RuntimeType.IsSubClassOfInternal(_childType, _baseType);
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static bool IsByRefLike(QCallTypeHandle type)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             return mtype._model.Flags.TypeHasFlag(TypeFlagsModel.IsByRef);
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void internal_from_name(IntPtr name, ref StackCrawlMark stackMark, ObjectHandleOnStack res, bool throwOnError, bool ignoreCase)
         {
             var str = (string)System.Runtime.InteropServices.Marshal.MarshalObject(name);

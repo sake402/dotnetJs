@@ -259,6 +259,7 @@
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq\NetJs.System.Linq.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Memory\NetJs.System.Memory.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Net.Security\NetJs.System.Net.Security.csproj" />
+    <ProjectReference Include="$(NewLibrariesProjectRoot)System.Numerics.Vectors\NetJs.System.Numerics.Vectors.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.ObjectModel\NetJs.System.ObjectModel.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Resources.Writer\NetJs.System.Resources.Writer.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Runtime\NetJs.System.Runtime.csproj" />

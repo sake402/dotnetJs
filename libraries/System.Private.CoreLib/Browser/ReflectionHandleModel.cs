@@ -10,13 +10,13 @@ namespace System
         public const ulong TypeMask = 0xFFFF0000;
         public const int MemberShift = 32;
         public const ulong MemberMask = 0xFFFF00000000;
-        [dotnetJs.Name("v")]
+        [NetJs.Name("v")]
         [JsonPropertyName("v")]
         public ulong Value { get; set; }
         [JsonIgnore]
         public int Assembly
         {
-            [dotnetJs.Template("{this}.v & 0xFFFF")]
+            [NetJs.Template("{this}.v & 0xFFFF")]
             get
             {
                 return (int)(Value & AssemblyMask);
@@ -26,7 +26,7 @@ namespace System
         [JsonIgnore]
         public int Type
         {
-            [dotnetJs.Template("({this}.v & 0xFFFF0000) >> 16")]
+            [NetJs.Template("({this}.v & 0xFFFF0000) >> 16")]
             get
             {
                 return (int)((Value & TypeMask) >> TypeShift);
@@ -36,7 +36,7 @@ namespace System
         [JsonIgnore]
         public int Member
         {
-            [dotnetJs.Template("({this}.v & 0xFFFF00000000) >> 32")]
+            [NetJs.Template("({this}.v & 0xFFFF00000000) >> 32")]
             get
             {
                 return (int)((Value & MemberMask) >> MemberShift);
@@ -46,7 +46,7 @@ namespace System
         [JsonIgnore]
         public int AssemblyAndType
         {
-            [dotnetJs.Template("({this}.v & (0xFFFF | 0xFFFF0000))")]
+            [NetJs.Template("({this}.v & (0xFFFF | 0xFFFF0000))")]
             get
             {
                 return (int)(Value & (AssemblyMask | TypeMask));

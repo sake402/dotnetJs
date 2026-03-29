@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Applies to interface if it's implementation is done outside dotnetJs type system (class implementation doesn't provide aliases for interface members implementations)

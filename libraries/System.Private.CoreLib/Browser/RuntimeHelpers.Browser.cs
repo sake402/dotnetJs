@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -100,38 +100,38 @@ namespace System.Runtime.CompilerServices
             return hash;
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalGetHashCode))]
+        [NetJs.MemberReplace(nameof(InternalGetHashCode))]
         private static int InternalGetHashCodeImpl(object? o)
         {
-            return dotnetJs.Script.Write<int>("$.$getHashCode(o)");
+            return NetJs.Script.Write<int>("$.$getHashCode(o)");
         }
 
-        [dotnetJs.MemberReplace(nameof(GetObjectValue))]
+        [NetJs.MemberReplace(nameof(GetObjectValue))]
         public static object? GetObjectValueImpl(object? obj)
         {
             return obj;
         }
 
-        [dotnetJs.MemberReplace(nameof(PrepareMethod))]
+        [NetJs.MemberReplace(nameof(PrepareMethod))]
         private static unsafe void PrepareMethodImpl(IntPtr method, IntPtr* instantiations, int ninst)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(GetUninitializedObjectInternal))]
+        [NetJs.MemberReplace(nameof(GetUninitializedObjectInternal))]
         private static object GetUninitializedObjectInternalImpl(IntPtr type)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(InitializeArray))]
+        [NetJs.MemberReplace(nameof(InitializeArray))]
         private static void InitializeArrayImpl(Array array, IntPtr fldHandle)
         {
 
         }
 
 
-        [dotnetJs.MemberReplace(nameof(GetSpanDataFrom))]
+        [NetJs.MemberReplace(nameof(GetSpanDataFrom))]
         private static unsafe ref byte GetSpanDataFromImpl(
             IntPtr fldHandle,
             IntPtr targetTypeHandle,
@@ -140,37 +140,37 @@ namespace System.Runtime.CompilerServices
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(RunClassConstructor))]
+        [NetJs.MemberReplace(nameof(RunClassConstructor))]
         private static void RunClassConstructorImpl(IntPtr type)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(RunModuleConstructor))]
+        [NetJs.MemberReplace(nameof(RunModuleConstructor))]
         private static void RunModuleConstructorImpl(IntPtr module)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(SufficientExecutionStack))]
+        [NetJs.MemberReplace(nameof(SufficientExecutionStack))]
         private static bool SufficientExecutionStackImpl()
         {
             return true;
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalBox))]
+        [NetJs.MemberReplace(nameof(InternalBox))]
         private static object InternalBoxImpl(QCallTypeHandle type, ref byte target)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(SizeOf))]
+        [NetJs.MemberReplace(nameof(SizeOf))]
         private static int SizeOfImpl(QCallTypeHandle handle)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.IgnoreGeneric]
+        [NetJs.IgnoreGeneric]
         public class Lazy<T>
         {
             bool hasValue;
@@ -182,7 +182,7 @@ namespace System.Runtime.CompilerServices
                 this.get = get;
             }
 
-            [dotnetJs.Name(Constants.LazyVariableValueName)]
+            [NetJs.Name(Constants.LazyVariableValueName)]
             public T Value
             {
                 get
@@ -196,19 +196,19 @@ namespace System.Runtime.CompilerServices
             }
         }
 
-        [dotnetJs.IgnoreGeneric]
+        [NetJs.IgnoreGeneric]
         public static Lazy<T> LazyValue<T>(Func<T> getT)
         {
             return new Lazy<T>(getT);
         }
 
-        [dotnetJs.Template("{handle}._ptr.$v")]
+        [NetJs.Template("{handle}._ptr.$v")]
         internal static extern RuntimeAssembly QCallAssemblyHandleToRuntimeType(this QCallAssembly handle);
-        [dotnetJs.Template("{handle}._ptr.$v")]
+        [NetJs.Template("{handle}._ptr.$v")]
         internal static extern RuntimeModule QCallModuleHandleToRuntimeType(this QCallModule handle);
-        [dotnetJs.Template("{handle}._ptr.$v")]
+        [NetJs.Template("{handle}._ptr.$v")]
         internal static extern RuntimeType QCallTypeHandleToRuntimeType(this QCallTypeHandle handle);
-        [dotnetJs.Template("{handle}._ptr")]
+        [NetJs.Template("{handle}._ptr")]
         internal static extern ref T GetObjectHandleOnStack<T>(this ObjectHandleOnStack handle);
     }
 }

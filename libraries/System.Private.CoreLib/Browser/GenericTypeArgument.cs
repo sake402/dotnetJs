@@ -1,4 +1,4 @@
-using dotnetJs;
+using NetJs;
 
 namespace System.Reflection
 {
@@ -7,7 +7,6 @@ namespace System.Reflection
     /// </summary>
     [Boot]
     [Reflectable(false)]
-    [OutputOrder(int.MinValue + 13)]
     class GenericTypeArgument
     {
 

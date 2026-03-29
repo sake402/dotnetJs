@@ -1,9 +1,9 @@
 using System;
 using System.Collections;
 
-namespace dotnetJs
+namespace NetJs
 {
-    [dotnetJs.Convention(Member = dotnetJs.ConventionMember.Field | dotnetJs.ConventionMember.Method, Notation = dotnetJs.Notation.CamelCase)]
+    [NetJs.Convention(Member = NetJs.ConventionMember.Field | NetJs.ConventionMember.Method, Notation = NetJs.Notation.CamelCase)]
     public sealed class Validation
     {
         public static bool IsNull(object value) => value == null;

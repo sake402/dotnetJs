@@ -927,5 +927,18 @@ namespace System
             }
         }
 
+
+
+        /// <summary>
+        /// Argument must represent a function pointer type.
+        /// </summary>
+        internal static string Argument_MustBeFunctionPointer
+        {
+            get
+            {
+                return ResourceManager.GetString("Argument_MustBeFunctionPointer", resourceCulture);
+            }
+        }
+
     }
 }

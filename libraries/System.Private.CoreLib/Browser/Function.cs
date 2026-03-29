@@ -1,4 +1,4 @@
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Placeholder used by generator lamdas

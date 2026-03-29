@@ -1,4 +1,4 @@
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Provides access to the arguments of the current function.

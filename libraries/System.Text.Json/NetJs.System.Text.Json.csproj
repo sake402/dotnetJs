@@ -27,6 +27,7 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="$(CommonPath)System\Text\Json\PooledByteBufferWriter.cs" Link="Common\System\Text\Json\PooledByteBufferWriter.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\..\Common\JsonCamelCaseNamingPolicy.cs" Link="Common\System\Text\Json\JsonCamelCaseNamingPolicy.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\..\Common\JsonNamingPolicy.cs" Link="Common\System\Text\Json\JsonNamingPolicy.cs" />
+    <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\..\Common\JsonPascalCaseNamingPolicy.cs" Link="Common\System\Text\Json\JsonPascalCaseNamingPolicy.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\..\Common\JsonAttribute.cs" Link="Common\System\Text\Json\Serialization\JsonAttribute.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\..\Common\JsonCommentHandling.cs" Link="Common\System\Text\Json\JsonCommentHandling.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\..\Common\JsonConstants.cs" Link="Common\System\Text\Json\JsonConstants.cs" />
@@ -116,6 +117,7 @@ The System.Text.Json library is built-in as part of the shared framework in .NET
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonIgnoreAttribute.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonIncludeAttribute.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonNumberHandlingAttribute.cs" />
+    <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonNamingPolicyAttribute.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonPolymorphicAttribute.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonPropertyNameAttribute.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Text.Json\src\System\Text\Json\Serialization\Attributes\JsonRequiredAttribute.cs" />

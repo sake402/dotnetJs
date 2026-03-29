@@ -8,7 +8,7 @@ namespace System
 {
     public partial class Enum
     {
-        [dotnetJs.MemberReplace(nameof(GetEnumValuesAndNames))]
+        [NetJs.MemberReplace(nameof(GetEnumValuesAndNames))]
         private static void GetEnumValuesAndNamesImpl(QCallTypeHandle enumType, out ulong[] values, out string[] names)
         {
             var prototype = enumType.QCallTypeHandleToRuntimeType()._prototype.As<EnumPrototype>();
@@ -16,7 +16,7 @@ namespace System
             values = prototype.Map.Values.As<ulong[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalGetCorElementType))]
+        [NetJs.MemberReplace(nameof(InternalGetCorElementType))]
         private static CorElementType InternalGetCorElementTypeImpl(QCallTypeHandle enumType)
         {
             var prototype = enumType.QCallTypeHandleToRuntimeType()._prototype.As<EnumPrototype>();
@@ -24,7 +24,7 @@ namespace System
             return RuntimeTypeHandle.GetCorElementType(new QCallTypeHandle(ref type));
         }
         
-        [dotnetJs.MemberReplace(nameof(InternalGetUnderlyingType))]
+        [NetJs.MemberReplace(nameof(InternalGetUnderlyingType))]
         private static void InternalGetUnderlyingTypeImpl(QCallTypeHandle enumType, ObjectHandleOnStack res)
         {
             var prototype = enumType.QCallTypeHandleToRuntimeType()._prototype.As<EnumPrototype>();

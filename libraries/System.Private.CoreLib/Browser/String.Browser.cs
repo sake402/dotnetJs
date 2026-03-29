@@ -5,31 +5,31 @@ using System.Text.RegularExpressions;
 
 namespace System
 {
-    [dotnetJs.StaticCallConvention]
+    [NetJs.StaticCallConvention]
     public partial class String
     {
-        [dotnetJs.Template("{this}.indexOf({value})")]
+        [NetJs.Template("{this}.indexOf({value})")]
         public extern int NativeIndexOf(string value);
-        [dotnetJs.Template("{this}.indexOf({value}, {start})")]
+        [NetJs.Template("{this}.indexOf({value}, {start})")]
         public extern int NativeIndexOf(string value, int start);
-        [dotnetJs.Template("{this}.replace({pattern}, {value})")]
-        public extern string NativeReplace(dotnetJs.Union<string, RegExp> pattern, string value);
-        [dotnetJs.Template("{this}.replaceAll({pattern}, {value})")]
-        public extern string NativeReplaceAll(dotnetJs.Union<string, RegExp> pattern, string value);
-        [dotnetJs.Template("{this}.split({separator})")]
-        public extern string[] NativeSplit(dotnetJs.Union<string, RegExp> separator);
-        [dotnetJs.Template("{this}.endsWith({pattern})")]
+        [NetJs.Template("{this}.replace({pattern}, {value})")]
+        public extern string NativeReplace(NetJs.Union<string, RegExp> pattern, string value);
+        [NetJs.Template("{this}.replaceAll({pattern}, {value})")]
+        public extern string NativeReplaceAll(NetJs.Union<string, RegExp> pattern, string value);
+        [NetJs.Template("{this}.split({separator})")]
+        public extern string[] NativeSplit(NetJs.Union<string, RegExp> separator);
+        [NetJs.Template("{this}.endsWith({pattern})")]
         public extern bool NativeEndsWith(string pattern);
 
-        [dotnetJs.Template("String.fromCharCode({code})")]
+        [NetJs.Template("String.fromCharCode({code})")]
         public static extern string NativeFromCharCode(int code);
-        [dotnetJs.Template("String.fromCharCode({code1}, {code2})")]
+        [NetJs.Template("String.fromCharCode({code1}, {code2})")]
         public static extern string NativeFromCharCode(int code1, int code2);
-        [dotnetJs.Template("String.fromCharCode.apply(null, {code})")]
+        [NetJs.Template("String.fromCharCode.apply(null, {code})")]
         public static extern string NativeFromCharCode(int[] codes);
-        [dotnetJs.Template("String.fromCharCode.apply(null, {code})")]
+        [NetJs.Template("String.fromCharCode.apply(null, {code})")]
         public static extern string NativeFromCharCode(char[] codes);
-        [dotnetJs.Template("{this}.charCodeAt({i})")]
+        [NetJs.Template("{this}.charCodeAt({i})")]
         public extern char NativeCharCodeAt(int i);
         
         //[dotnetJs.MemberReplace("ctor(char[])")]
@@ -80,28 +80,28 @@ namespace System
         //    return Ctor(value);
         //}
         
-        [dotnetJs.MemberReplace(nameof(Length))]
-        [dotnetJs.StaticCallConvention(false)]
-        [dotnetJs.Name("length")]
+        [NetJs.MemberReplace(nameof(Length))]
+        [NetJs.StaticCallConvention(false)]
+        [NetJs.Name("length")]
         public extern int IntrinsicLength
         {
-            [dotnetJs.Template("{this}.length")]
+            [NetJs.Template("{this}.length")]
             get;
         }
 
-        [dotnetJs.MemberReplace(nameof(FastAllocateString))]
+        [NetJs.MemberReplace(nameof(FastAllocateString))]
         internal static string FastAllocateStringImpl(int length)
         {
             return new char[length].As<string>();
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalIsInterned))]
+        [NetJs.MemberReplace(nameof(InternalIsInterned))]
         private static string InternalIsInternedImpl(string str)
         {
             return str;
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalIntern))]
+        [NetJs.MemberReplace(nameof(InternalIntern))]
         private static string InternalInternImpl(string str)
         {
             return str;

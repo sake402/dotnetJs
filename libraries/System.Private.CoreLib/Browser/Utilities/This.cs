@@ -1,4 +1,4 @@
-namespace dotnetJs
+namespace NetJs
 {
     [External]
     [Name("this")]

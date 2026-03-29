@@ -1608,6 +1608,24 @@ namespace System
 
 
         /// <summary>
+        /// The open generic converter type '{1}' specified on '{0}' cannot be instantiated because the target type is not a generic type with a matching number of type parameters.
+        /// </summary>
+        internal static string SerializationConverterOnAttributeOpenGenericNotCompatible
+        {
+            get
+            {
+                return ResourceManager.GetString("SerializationConverterOnAttributeOpenGenericNotCompatible", resourceCulture);
+            }
+        }
+
+
+        internal static string FormatSerializationConverterOnAttributeOpenGenericNotCompatible(object arg1, object arg2)
+        {
+            return string.Format(SerializationConverterOnAttributeOpenGenericNotCompatible, arg1, arg2);
+        }
+
+
+        /// <summary>
         /// The converter specified on '{0}' does not derive from JsonConverter or have a public parameterless constructor.
         /// </summary>
         internal static string SerializationConverterOnAttributeInvalid

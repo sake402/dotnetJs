@@ -1,10 +1,10 @@
-﻿using dotnetJs;
+﻿using NetJs;
 
 namespace System.Text.RegularExpressions
 {
-    [dotnetJs.External]
-    [dotnetJs.Name("RegExp")]
-    [dotnetJs.Convention(Member = dotnetJs.ConventionMember.Field | dotnetJs.ConventionMember.Method | dotnetJs.ConventionMember.Property, Notation = dotnetJs.Notation.CamelCase)]
+    [NetJs.External]
+    [NetJs.Name("RegExp")]
+    [NetJs.Convention(Member = NetJs.ConventionMember.Field | NetJs.ConventionMember.Method | NetJs.ConventionMember.Property, Notation = NetJs.Notation.CamelCase)]
     public class RegExp
     {
         [Template("new RegExp({pattern})")]
@@ -45,9 +45,9 @@ namespace System.Text.RegularExpressions
         public extern bool Test(string? s);
     }
 
-    [dotnetJs.External]
-    [dotnetJs.Name("RegexMatch")]
-    [dotnetJs.Convention(Member = dotnetJs.ConventionMember.Field | dotnetJs.ConventionMember.Method | dotnetJs.ConventionMember.Property, Notation = dotnetJs.Notation.CamelCase)]
+    [NetJs.External]
+    [NetJs.Name("RegexMatch")]
+    [NetJs.Convention(Member = NetJs.ConventionMember.Field | NetJs.ConventionMember.Method | NetJs.ConventionMember.Property, Notation = NetJs.Notation.CamelCase)]
     public class RegexMatch
     {
         public int Index { get; set; }

@@ -35,7 +35,6 @@
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.IO.Hashing\NetJs.System.IO.Hashing.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.IO.Compression\NetJs.System.IO.Compression.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.IO.Compression.Brotli\NetJs.System.IO.Compression.Brotli.csproj" />
-    <ProjectReference Include="$(NewLibrariesProjectRoot)System.IO.Compression.Zstandard\NetJs.System.IO.Compression.Zstandard.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq\NetJs.System.Linq.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq.Expressions\NetJs.System.Linq.Expressions.csproj" />
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.ComponentModel\NetJs.System.ComponentModel.csproj" />

@@ -66,11 +66,7 @@
      -->
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.StdinReady.cs" Link="Common\Interop\Unix\Interop.StdinReady.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.ReadStdinUnbuffered.cs" Link="Common\Interop\Unix\Interop.ReadStdinUnbuffered.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Poll.cs" Link="Common\Interop\Unix\Interop.Poll.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\Interop.Poll.Structs.cs" Link="Common\Interop\Unix\Interop.Poll.Structs.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Read.cs" Link="Common\Interop\Unix\Interop.Read.cs" />
     <Compile Include="$(CommonPath)System\Text\EncodingHelper.Unix.cs" Link="Common\System\Text\EncodingHelper.Unix.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Write.cs" Link="Common\Interop\Unix\Interop.Write.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\Interop.Libraries.cs" Link="Common\Interop\Unix\Interop.Libraries.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\Interop.Errors.cs" Link="Common\Interop\Unix\Interop.Errors.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\Interop.IOErrors.cs" Link="Common\Interop\Unix\Interop.IOErrors.cs" />
@@ -129,6 +125,7 @@
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Console\src\System\ConsolePal.Unix.ConsoleStream.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Console\src\System\TerminalFormatStrings.cs" />
     <Compile Include="$(CommonPath)System\Console\ConsoleUtils.cs" Link="Common\System\Console\ConsoleUtils.cs" />
+    <Compile Include="$(CommonPath)System\NullableBool.cs" Link="Common\System\NullableBool.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Console\src\System\TermInfo.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Console\src\System\TermInfo.WellKnownStrings.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Console\src\System\TermInfo.Database.cs" />
@@ -149,16 +146,12 @@
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.IsATty.cs" Link="Common\Interop\Unix\Interop.IsATty.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Open.cs" Link="Common\Interop\Unix\Interop.Open.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.OpenFlags.cs" Link="Common\Interop\Unix\Interop.OpenFlags.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Poll.cs" Link="Common\Interop\Unix\Interop.Poll.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\Interop.Poll.Structs.cs" Link="Common\Interop\Unix\Interop.Poll.Structs.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.GetEUid.cs" Link="Common\Interop\Unix\Interop.GetEUid.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.GetPwUid.cs" Link="Common\Interop\Unix\Interop.GetPwUid.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.SetTerminalInvalidationHandler.cs" Link="Common\Interop\Unix\Interop.SetTerminalInvalidationHandler.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.SetSignalForBreak.cs" Link="Common\Interop\Unix\Interop.SetSignalForBreak.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.SNPrintF.cs" Link="Common\Interop\Unix\Interop.SNPrintF.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Stat.cs" Link="Common\Interop\Unix\Interop.Stat.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Read.cs" Link="Common\Interop\Unix\Interop.Read.cs" />
-    <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.Write.cs" Link="Common\Interop\Unix\Interop.Write.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.GetWindowWidth.cs" Link="Common\Interop\Unix\Interop.GetWindowWidth.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.InitializeTerminalAndSignalHandling.cs" Link="Common\Interop\Unix\Interop.InitializeTerminalAndSignalHandling.cs" />
     <Compile Include="$(CommonPath)Interop\Unix\System.Native\Interop.ReadStdinUnbuffered.cs" Link="Common\Interop\Unix\Interop.ReadStdinUnbuffered.cs" />

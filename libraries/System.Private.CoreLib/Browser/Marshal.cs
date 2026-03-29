@@ -1,8 +1,9 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -58,7 +59,7 @@ namespace System.Runtime.InteropServices
         }
 
         static int lastPInvokeError;
-        [dotnetJs.MemberReplace(nameof(GetLastPInvokeError))]
+        [NetJs.MemberReplace(nameof(GetLastPInvokeError))]
         public static int GetLastPInvokeErrorImpl()
         {
             return lastPInvokeError;
@@ -68,37 +69,37 @@ namespace System.Runtime.InteropServices
         /// Set the last platform invoke error on the current thread
         /// </summary>
         /// <param name="error">Error to set</param>
-        [dotnetJs.MemberReplace(nameof(SetLastPInvokeError))]
+        [NetJs.MemberReplace(nameof(SetLastPInvokeError))]
         public static void SetLastPInvokeErrorImpl(int error)
         {
             lastPInvokeError = error;
         }
 
-        [dotnetJs.MemberReplace(nameof(DestroyStructure))]
+        [NetJs.MemberReplace(nameof(DestroyStructure))]
         public static void DestroyStructureImpl(IntPtr ptr, Type structuretype)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(OffsetOf))]
+        [NetJs.MemberReplace(nameof(OffsetOf))]
         public static IntPtr OffsetOfImpl(Type t, string fieldName)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(StructureToPtr) + "(object, IntPtr, bool)")]
+        [NetJs.MemberReplace(nameof(StructureToPtr) + "(object, IntPtr, bool)")]
         public static void StructureToPtrImpl(object structure, IntPtr ptr, bool fDeleteOld)
         {
             MarshalObject(structure, ptr, fDeleteOld);
         }
 
-        [dotnetJs.MemberReplace(nameof(PtrToStructureHelper))]
+        [NetJs.MemberReplace(nameof(PtrToStructureHelper))]
         private static void PtrToStructureHelperImpl(IntPtr ptr, object structure, bool allowValueClasses)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(GetDelegateForFunctionPointerInternal) + "(QCallTypeHandle, IntPtr, ObjectHandleOnStack)")]
+        [NetJs.MemberReplace(nameof(GetDelegateForFunctionPointerInternal) + "(QCallTypeHandle, IntPtr, ObjectHandleOnStack)")]
         private static void GetDelegateForFunctionPointerInternalImpl(QCallTypeHandle t, IntPtr ptr, ObjectHandleOnStack res)
         {
             Delegate? d = null;
@@ -117,7 +118,7 @@ namespace System.Runtime.InteropServices
             res.GetObjectHandleOnStack<Delegate?>() = d;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetFunctionPointerForDelegateInternal))]
+        [NetJs.MemberReplace(nameof(GetFunctionPointerForDelegateInternal))]
         private static IntPtr GetFunctionPointerForDelegateInternalImpl(Delegate d)
         {
             if (d.Method != null)
@@ -127,13 +128,13 @@ namespace System.Runtime.InteropServices
             return MarshalObject(d);
         }
 
-        [dotnetJs.MemberReplace(nameof(PrelinkInternal))]
+        [NetJs.MemberReplace(nameof(PrelinkInternal))]
         private static void PrelinkInternalImpl(MethodInfo m)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(SizeOfHelper))]
+        [NetJs.MemberReplace(nameof(SizeOfHelper))]
         private static int SizeOfHelperImpl(QCallTypeHandle t, bool throwIfNotMarshalable)
         {
             throw new NotImplementedException();

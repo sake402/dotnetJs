@@ -1,5 +1,5 @@
 ﻿
-using dotnetJs;
+using NetJs;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 

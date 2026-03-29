@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text;
 
-namespace dotnetJs.TranslationTest
+namespace NetJs.Tests
 {
     class ArrayTests
     {

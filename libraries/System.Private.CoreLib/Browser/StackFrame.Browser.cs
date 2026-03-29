@@ -7,7 +7,7 @@ namespace System.Diagnostics
 {
     public partial class StackFrame
     {
-        [dotnetJs.MemberReplace(nameof(GetFrameInfo))]
+        [NetJs.MemberReplace(nameof(GetFrameInfo))]
         private static  bool GetFrameInfoImpl(int skipFrames, bool needFileInfo,
                                         ObjectHandleOnStack out_method, ObjectHandleOnStack out_file,
                                         out int ilOffset, out int nativeOffset, out int line, out int column)

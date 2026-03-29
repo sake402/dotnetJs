@@ -3,7 +3,7 @@ using System.Text;
 
 namespace System.Reflection
 {
-    [dotnetJs.ForcePartial(typeof(CustomAttribute))]
+    [NetJs.ForcePartial(typeof(CustomAttribute))]
     internal static partial class CustomAttribute_Partial
     {
         static object? ConvertAttributeType(object value, Type type)
@@ -79,7 +79,7 @@ namespace System.Reflection
             return attributesModel;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static Attribute[] GetCustomAttributesInternal(ICustomAttributeProvider obj, Type attributeType, bool pseudoAttrs)
         {
             var attHandle = attributeType.As<RuntimeType>()._model.Handle;
@@ -87,14 +87,14 @@ namespace System.Reflection
             return attributesModel?.Filter(a => a.TypeHandle.Value == attHandle.Value).Map(a => CreateAttribute(a, attributeType)) ?? [];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static CustomAttributeData[] GetCustomAttributesDataInternal(ICustomAttributeProvider obj)
         {
             AttributeModel[]? attributesModel = GetAttributeModel(obj);
             return attributesModel?.Map(a => CreateAttributeData(a)) ?? [];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static bool IsDefinedInternal(ICustomAttributeProvider obj, Type AttributeType)
         {
             var attHandle = AttributeType.As<RuntimeType>()._model.Handle;

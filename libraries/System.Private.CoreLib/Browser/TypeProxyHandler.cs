@@ -1,14 +1,13 @@
-﻿using dotnetJs;
+﻿using NetJs;
 
 namespace System.Reflection
 {
     /// <summary>
-    /// For types that nneds to reference itself(defined via typeproxy)
+    /// For types that needs to reference itself(defined via typeproxy)
     /// This is simply a JS proxy handler that forwards request to the proxy to the System.Type/Prototype itself
     /// </summary>
     [Boot]
     [Reflectable(false)]
-    [OutputOrder(int.MinValue + 12)]
     class TypeProxyHandler
     {
         public TypeProxyHandler(string fullName)

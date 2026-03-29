@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 using System.IO;
 using System.Diagnostics;
 
-namespace dotnetJs.TranslationTest
+namespace NetJs.Tests
 {
     public static class Program
     {
@@ -21,7 +21,7 @@ namespace dotnetJs.TranslationTest
         //{
         //    return _EmptyArray<T>.Value;
         //}
-
+        
         //static class _EmptyArray<T>
         //{
         //    internal static readonly T[] Value = new T[0];
@@ -47,7 +47,7 @@ namespace dotnetJs.TranslationTest
 
         //}
 
-        public static void Main(string[] args)
+        public static void Main()
         {
             int start = Environment.TickCount;
             BooleanTests.Run();

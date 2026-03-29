@@ -1,0 +1,164 @@
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace NetJs.Translator
+{
+    public static class Utility
+    {
+        public static TValue? GetValueOrDefault<TKey, TValue>(this IDictionary<TKey, TValue> dic, TKey key)
+        {
+            TValue? value = default!;
+            dic.TryGetValue(key, out value);
+            return value;
+        }
+
+        public static bool TryAdd<TKey, TValue>(this IDictionary<TKey, TValue> dic, TKey key, TValue value)
+        {
+            if (!dic.ContainsKey(key))
+            {
+                dic[key] = value;
+            }
+            return false;
+        }
+
+        public static bool TryPop<TValue>(this Stack<TValue> stack, out TValue value)
+        {
+            if (stack.Count > 0)
+            {
+                value = stack.Pop();
+                return true;
+            }
+            value = default!;
+            return false;
+        }
+
+        public static bool TryPeek<TValue>(this Stack<TValue> stack, out TValue value)
+        {
+            if (stack.Count > 0)
+            {
+                value = stack.ElementAt(0);
+                return true;
+            }
+            value = default!;
+            return false;
+        }
+
+        public static IEnumerable<TSource> DistinctBy<TSource, TKey>(
+            this IEnumerable<TSource> source,
+            Func<TSource, TKey> keySelector)
+        {
+            HashSet<TKey> seenKeys = new HashSet<TKey>();
+            foreach (TSource element in source)
+            {
+                if (seenKeys.Add(keySelector(element)))
+                {
+                    yield return element;
+                }
+            }
+        }
+
+        public static string GetFolder(this IProject project)
+        {
+            return System.IO.Path.GetDirectoryName(project.FullPath)!;
+        }
+        public static string GetFolderName(this IProject project)
+        {
+            return System.IO.Path.GetDirectoryName(project.FullPath)!.Split('/', '\\').Last();
+        }
+        public static string GetName(this IProject project)
+        {
+            return System.IO.Path.GetFileNameWithoutExtension(project.FullPath);
+        }
+
+        public static string GetRelativePath(this string fromPath, string toPath)
+        {
+            if (!fromPath.EndsWith("\\"))
+                fromPath += "\\";
+            if (string.IsNullOrEmpty(fromPath)) throw new ArgumentNullException("fromPath");
+            if (string.IsNullOrEmpty(toPath)) throw new ArgumentNullException("toPath");
+
+            Uri fromUri = new Uri(fromPath);
+            Uri toUri = new Uri(toPath);
+
+            if (fromUri.Scheme != toUri.Scheme) { return toPath; } // path can't be made relative.
+
+            Uri relativeUri = fromUri.MakeRelativeUri(toUri);
+            string relativePath = Uri.UnescapeDataString(relativeUri.ToString());
+
+            if (toUri.Scheme.Equals("file", StringComparison.InvariantCultureIgnoreCase))
+            {
+                relativePath = relativePath.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+            }
+
+            return relativePath;
+        }
+
+        public static IEnumerable<TResult> FastCast<TResult>(this IEnumerable source) where TResult : class
+        {
+            foreach (object obj in source)
+            {
+                yield return Unsafe.As<TResult>(obj);
+            }
+        }
+
+        public static TSource MaxBy<TSource, TKey>(this IEnumerable<TSource> source, Func<TSource, TKey> keySelector)
+        {
+            if (source == null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+            if (keySelector == null)
+            {
+                throw new ArgumentNullException(nameof(keySelector));
+            }
+
+            using (IEnumerator<TSource> enumerator = source.GetEnumerator())
+            {
+                if (!enumerator.MoveNext())
+                {
+                    throw new InvalidOperationException("Sequence contains no elements.");
+                }
+
+                TSource maxElement = enumerator.Current;
+                TKey maxKey = keySelector(maxElement);
+                IComparer<TKey> comparer = Comparer<TKey>.Default; // Uses the default comparer for TKey
+
+                while (enumerator.MoveNext())
+                {
+                    TSource currentElement = enumerator.Current;
+                    TKey currentKey = keySelector(currentElement);
+
+                    if (comparer.Compare(currentKey, maxKey) > 0)
+                    {
+                        maxElement = currentElement;
+                        maxKey = currentKey;
+                    }
+                }
+                return maxElement;
+            }
+        }
+
+
+        static int depth;
+        public static void Profile(this string message, Action action)
+        {
+            Console.WriteLine();
+            Console.Write(string.Join("", Enumerable.Range(1, depth).Select(i => "    ")) + message + "...");
+            Stopwatch sw = new();
+            sw.Start();
+            depth++;
+            action();
+            depth--;
+            sw.Stop();
+            Console.Write("  " + sw.ElapsedMilliseconds + "ms");
+        }
+
+    }
+}

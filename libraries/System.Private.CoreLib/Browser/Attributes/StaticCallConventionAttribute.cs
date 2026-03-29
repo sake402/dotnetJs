@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Call a method using static conventions. Eg Array a; a.GetValue(...) => System.Array.GetValue.call(a, ...)

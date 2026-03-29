@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -7,10 +7,9 @@ using System.Text;
 
 
 namespace System
-{   
-    [dotnetJs.Boot] 
-    [dotnetJs.Reflectable(false)]
-    [dotnetJs.OutputOrder(int.MinValue + 14)]
+{
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
     internal unsafe partial class RuntimeType
     {
         internal TypeModel _model;
@@ -204,7 +203,8 @@ namespace System
             }
         }
 
-        internal void Complete()
+
+        internal void StaticInitialize()
         {
             if (_prototype != null)
             {
@@ -213,6 +213,10 @@ namespace System
                 if (Script.IsDefined(_prototype[Constants.StaticConstructorName]))
                     _prototype.StaticConstructor();
             }
+        }
+        internal void Complete()
+        {
+            StaticInitialize();
         }
 
         static bool MemberFilter(MemberInfo i, BindingFlags bindingAttr, Type[]? parameterTypes = null)
@@ -431,10 +435,10 @@ namespace System
             }) ?? Array.Empty<RuntimeType>();
         }
         //static SimpleDictionary<RuntimeType> types = new SimpleDictionary<RuntimeType>();
-        
+
         // Returns the type from which the current type directly inherits from (without reflection quirks).
         // The parent type is null for interfaces, pointers, byrefs and generic parameters.
-        [dotnetJs.MemberReplace(nameof(GetParentType) + "(QCallTypeHandle, ObjectHandleOnStack)")]
+        [NetJs.MemberReplace(nameof(GetParentType) + "(QCallTypeHandle, ObjectHandleOnStack)")]
         private static void GetParentTypeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var runtimeType = RuntimeHelpers.QCallTypeHandleToRuntimeType(type);
@@ -448,13 +452,13 @@ namespace System
             RuntimeHelpers.GetObjectHandleOnStack<RuntimeType?>(res) = null;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetCorrespondingInflatedMethod))]
+        [NetJs.MemberReplace(nameof(GetCorrespondingInflatedMethod))]
         private static MemberInfo GetCorrespondingInflatedMethodImpl(QCallTypeHandle type, MemberInfo generic)
         {
             return generic;
         }
 
-        [dotnetJs.MemberReplace(nameof(make_array_type))]
+        [NetJs.MemberReplace(nameof(make_array_type))]
         private static void make_array_typeImpl(QCallTypeHandle type, int rank, ObjectHandleOnStack res)
         {
             var tp = type.QCallTypeHandleToRuntimeType();
@@ -465,7 +469,7 @@ namespace System
             res.GetObjectHandleOnStack<Type>() = genericArrayType;
         }
 
-        [dotnetJs.MemberReplace(nameof(make_byref_type))]
+        [NetJs.MemberReplace(nameof(make_byref_type))]
         private static void make_byref_typeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var tp = type.QCallTypeHandleToRuntimeType();
@@ -474,7 +478,7 @@ namespace System
             res.GetObjectHandleOnStack<Type>() = genericArrayType;
         }
 
-        [dotnetJs.MemberReplace(nameof(make_pointer_type))]
+        [NetJs.MemberReplace(nameof(make_pointer_type))]
         private static void make_pointer_typeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var tp = type.QCallTypeHandleToRuntimeType();
@@ -483,79 +487,79 @@ namespace System
             res.GetObjectHandleOnStack<Type>() = genericArrayType;
         }
 
-        [dotnetJs.MemberReplace(nameof(MakeGenericType))]
+        [NetJs.MemberReplace(nameof(MakeGenericType))]
         private static void MakeGenericTypeImpl(Type gt, Type[] types, ObjectHandleOnStack res)
         {
             var genericArrayType = gt.As<RuntimeType>().MakeGenericTypeInternal(types.As<RuntimeType[]>());
             res.GetObjectHandleOnStack<Type>() = genericArrayType;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetMethodsByName))]
+        [NetJs.MemberReplace(nameof(GetMethodsByName))]
         internal RuntimeMethodInfo[] GetMethodsByNameOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
             return GetMembersInternal(MemberTypes.Method, bindingAttr, name).As<RuntimeMethodInfo[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetConstructors_internal))]
+        [NetJs.MemberReplace(nameof(GetConstructors_internal))]
         private RuntimeConstructorInfo[] GetConstructors_internalOverride(BindingFlags bindingAttr, RuntimeType reflectedType)
         {
             return GetMembersInternal(MemberTypes.Constructor, bindingAttr).As<RuntimeConstructorInfo[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetPropertiesByName))]
+        [NetJs.MemberReplace(nameof(GetPropertiesByName))]
         private RuntimePropertyInfo[] GetPropertiesByNameOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
             return GetMembersInternal(MemberTypes.Property, bindingAttr).As<RuntimePropertyInfo[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetFields_internal))]
+        [NetJs.MemberReplace(nameof(GetFields_internal))]
         private RuntimeFieldInfo[] GetFields_internalOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
             return GetMembersInternal(MemberTypes.Method, bindingAttr, name).As<RuntimeFieldInfo[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetEvents_internal))]
+        [NetJs.MemberReplace(nameof(GetEvents_internal))]
         private RuntimeFieldInfo[] GetEvents_internalOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
             return GetMembersInternal(MemberTypes.Event, bindingAttr, name).As<RuntimeFieldInfo[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetInterfaces))]
+        [NetJs.MemberReplace(nameof(GetInterfaces))]
         private static void GetInterfacesImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<RuntimeType[]?>() = mtype._model.Interfaces?.Map(i => RuntimeType.GetTypeFromHandle(i) ?? throw new InvalidOperationException()) ?? [];
         }
 
-        [dotnetJs.MemberReplace(nameof(GetNestedTypes_internal))]
+        [NetJs.MemberReplace(nameof(GetNestedTypes_internal))]
         private RuntimeType[] GetNestedTypes_internalOverride(string? displayName, BindingFlags bindingAttr, MemberListType listType)
         {
             return _model.NestedTypes?.Map(i => RuntimeType.GetTypeFromHandle(i) ?? throw new InvalidOperationException())
                 .Filter(nt => (displayName == null || nt.Name.Contains(displayName)) && MemberFilter(nt, bindingAttr, null)) ?? [];
         }
 
-        [dotnetJs.MemberReplace(nameof(GetDeclaringType))]
+        [NetJs.MemberReplace(nameof(GetDeclaringType))]
         private static void GetDeclaringTypeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<Type?>() = mtype._model.DeclaringType != null ? RuntimeType.GetTypeFromHandle(mtype._model.DeclaringType.Value) : null;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetName))]
+        [NetJs.MemberReplace(nameof(GetName))]
         private static void GetNameImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<string?>() = mtype.InternalName;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetNamespace))]
+        [NetJs.MemberReplace(nameof(GetNamespace))]
         private static void GetNamespaceImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<string?>() = mtype.InternalNamespace;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetInterfaceMapData))]
+        [NetJs.MemberReplace(nameof(GetInterfaceMapData))]
         private static void GetInterfaceMapDataImpl(QCallTypeHandle t, QCallTypeHandle iface, out MethodInfo[] targets, out MethodInfo[] methods)
         {
             var targetType = t.QCallTypeHandleToRuntimeType();
@@ -564,7 +568,7 @@ namespace System
             methods = interfaceType.GetMembersInternal(MemberTypes.Method).As<MethodInfo[]>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetPacking))]
+        [NetJs.MemberReplace(nameof(GetPacking))]
         private static void GetPackingImpl(QCallTypeHandle type, out int packing, out int size)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
@@ -572,21 +576,21 @@ namespace System
             size = 0;
         }
 
-        [dotnetJs.MemberReplace(nameof(CreateInstanceInternal))]
+        [NetJs.MemberReplace(nameof(CreateInstanceInternal))]
         private static object CreateInstanceInternalImpl(QCallTypeHandle type)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
-            return dotnetJs.Script.Write<object>("(new mtype._prototype).$ctor()");
+            return NetJs.Script.Write<object>("(new mtype._prototype).$ctor()");
         }
 
-        [dotnetJs.MemberReplace(nameof(GetDeclaringMethod))]
+        [NetJs.MemberReplace(nameof(GetDeclaringMethod))]
         private static void GetDeclaringMethodImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<MethodInfo?>() = null;
         }
 
-        [dotnetJs.MemberReplace(nameof(getFullName))]
+        [NetJs.MemberReplace(nameof(getFullName))]
         internal static void getFullNameImpl(QCallTypeHandle type, ObjectHandleOnStack res, bool full_name, bool assembly_qualified)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
@@ -594,45 +598,45 @@ namespace System
             res.GetObjectHandleOnStack<string?>() = name;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetGenericArgumentsInternal))]
+        [NetJs.MemberReplace(nameof(GetGenericArgumentsInternal))]
         private static void GetGenericArgumentsInternalImpl(QCallTypeHandle type, ObjectHandleOnStack res, bool runtimeArray)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             res.GetObjectHandleOnStack<Type[]>() = mtype.GetGenericArgumentsInternalImpl();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetGenericParameterPosition))]
+        [NetJs.MemberReplace(nameof(GetGenericParameterPosition))]
         private static int GetGenericParameterPositionImpl(QCallTypeHandle type)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
             return mtype._genericParameterPosition;
         }
 
-        [dotnetJs.MemberReplace(nameof(IsUnmanagedFunctionPointerInternal))]
+        [NetJs.MemberReplace(nameof(IsUnmanagedFunctionPointerInternal))]
         internal static bool IsUnmanagedFunctionPointerInternalImpl(QCallTypeHandle type)
         {
             return false;
         }
 
-        [dotnetJs.MemberReplace(nameof(FunctionPointerReturnAndParameterTypes))]
+        [NetJs.MemberReplace(nameof(FunctionPointerReturnAndParameterTypes))]
         internal static IntPtr FunctionPointerReturnAndParameterTypesImpl(QCallTypeHandle type)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetFunctionPointerTypeModifiers))]
+        [NetJs.MemberReplace(nameof(GetFunctionPointerTypeModifiers))]
         internal static Type[] GetFunctionPointerTypeModifiersImpl(QCallTypeHandle type, int position, bool optional)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetCallingConventionFromFunctionPointerInternal))]
+        [NetJs.MemberReplace(nameof(GetCallingConventionFromFunctionPointerInternal))]
         internal static byte GetCallingConventionFromFunctionPointerInternalImpl(QCallTypeHandle type)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetGenericParameterConstraints))]
+        [NetJs.MemberReplace(nameof(GetGenericParameterConstraints))]
         public Type[] GetGenericParameterConstraintsOverride()
         {
             if (!IsGenericParameter)
@@ -641,7 +645,7 @@ namespace System
             return _typeConstraints ?? Type.EmptyTypes;
         }
 
-        [dotnetJs.MemberReplace(nameof(GetGenericParameterAttributes))]
+        [NetJs.MemberReplace(nameof(GetGenericParameterAttributes))]
         private GenericParameterAttributes GetGenericParameterAttributesOverride()
         {
             var flags = GenericParameterAttributes.None;

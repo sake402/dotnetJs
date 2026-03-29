@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// TemplateAttribute is instruction to replace method calling (in expression) by required code

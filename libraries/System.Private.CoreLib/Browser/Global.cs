@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 
 [Convention(Member = ConventionMember.Field | ConventionMember.Method, Notation = Notation.CamelCase)]

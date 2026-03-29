@@ -1,11 +1,13 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace System.Reflection
 {
-    [dotnetJs.ForcePartial(typeof(RuntimeParameterInfo))]
+    [NetJs.ForcePartial(typeof(RuntimeParameterInfo))]
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
     internal partial class RuntimeParameterInfo_Partial : ForcedPartialBase<RuntimeParameterInfo>
     {
         internal ParameterModel _model;
@@ -38,13 +40,13 @@ namespace System.Reflection
             _model = model;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal int GetMetadataToken()
         {
             return 0;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static  Type[] GetTypeModifiers(Type type, MemberInfo member, int position, bool optional, int genericArgumentPosition = -1)
         {
             return Type.EmptyTypes;

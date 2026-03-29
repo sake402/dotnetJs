@@ -23,7 +23,7 @@
     <DefineConstants Condition="'$(Configuration)' == 'Debug'">$(DefineConstants);DESIGNTIMEINTERFACES</DefineConstants>
   </PropertyGroup>
   <Import Project="$(CommonPath)System\Security\Cryptography\Asn1\AsnXml.targets" Condition="'$(GeneratePlatformNotSupportedAssemblyMessage)' == ''" />
-  <Import Project="$(CommonPath)System\Security\Cryptography\Asn1Reader\System.Security.Cryptography.Asn1Reader.Shared.projitems" Condition="'$(GeneratePlatformNotSupportedAssemblyMessage)' == ''" />
+  <Import Project="$(CommonPath)System\Security\Cryptography\AsnWriter\System.Security.Cryptography.AsnWriter.Shared.projitems" Condition="'$(GeneratePlatformNotSupportedAssemblyMessage)' == ''" />
   <ItemGroup Condition="'$(GeneratePlatformNotSupportedAssemblyMessage)' == ''">
     <Compile Include="$(CommonPath)DisableRuntimeMarshalling.cs" Link="Common\DisableRuntimeMarshalling.cs" />
     <Compile Include="$(CommonPath)Internal\Cryptography\PkcsHelpers.cs" Link="Common\Internal\Cryptography\PkcsHelpers.cs" />
@@ -1023,7 +1023,7 @@
     <Compile Include="$(CommonPath)System\Security\Cryptography\RSAAndroid.cs" Link="Common\System\Security\Cryptography\RSAAndroid.cs" />
     <Compile Include="$(CommonPath)System\Security\Cryptography\SlhDsaImplementation.NotSupported.cs" Link="Common\System\Security\Cryptography\SlhDsaImplementation.NotSupported.cs" />
     <Compile Include="$(CommonPath)System\Security\Cryptography\SP800108HmacCounterKdfImplementationManaged.cs" Link="Common\System\Security\Cryptography\SP800108HmacCounterKdfImplementationManaged.cs" />
-    <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Security.Cryptography\src\System\Security\Cryptography\AesImplementation.OpenSsl.cs" />
+    <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Security.Cryptography\src\System\Security\Cryptography\AesImplementation.Android.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Security.Cryptography\src\System\Security\Cryptography\AesCcm.Android.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Security.Cryptography\src\System\Security\Cryptography\AesGcm.Android.cs" />
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\System.Security.Cryptography\src\System\Security\Cryptography\AsnFormatter.Managed.cs" />

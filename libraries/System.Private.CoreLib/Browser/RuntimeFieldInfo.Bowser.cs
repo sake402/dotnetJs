@@ -1,8 +1,10 @@
-﻿using dotnetJs;
+﻿using NetJs;
 
 namespace System.Reflection
 {
-    [dotnetJs.ForcePartial(typeof(RuntimeFieldInfo))]
+    [NetJs.ForcePartial(typeof(RuntimeFieldInfo))]
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
     internal sealed partial class RuntimeFieldInfo_Partial : ForcedPartialBase<RuntimeFieldInfo>
     {
         internal FieldModel _model;
@@ -15,7 +17,7 @@ namespace System.Reflection
             _model = model;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal object? UnsafeGetValue(object obj)
         {
             if (_model.Flags.TypeHasFlag(MemberFlagsModel.IsStatic))
@@ -26,7 +28,7 @@ namespace System.Reflection
             return obj![_model.Name];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private object? GetValueInternal(object? obj)
         {
             if (_model.Flags.TypeHasFlag(MemberFlagsModel.IsStatic))
@@ -37,25 +39,25 @@ namespace System.Reflection
             return obj![_model.Name];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private Type ResolveType()
         {
             return AppDomain.GetType(_model.FieldType)!;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private Type GetParentType(bool declaring)
         {
             return AppDomain.GetType(_model.DeclaringType)!;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal int GetFieldOffset()
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void SetValueInternal(FieldInfo fi, object? obj, object? value)
         {
             var field = fi.As<RuntimeFieldInfo_Partial>();
@@ -67,20 +69,20 @@ namespace System.Reflection
             obj![field._model.Name] = value;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         public object GetRawConstantValue()
         {
             var prototype = AppDomain.GetType(_model.FieldType)!._prototype;
             return prototype![_model.Name]!;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static int get_metadata_token(RuntimeFieldInfo monoField)
         {
             return (int)monoField.As<RuntimeFieldInfo_Partial>()._model.Handle.Value;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private  Type[] GetTypeModifiers(bool optional, int genericArgumentPosition = -1)
         {
             return Type.EmptyTypes;

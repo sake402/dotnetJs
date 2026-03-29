@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     /// <summary>
     /// Specifies full path name of the entity (namespace+entity), when emitting JavaScript-equivalent

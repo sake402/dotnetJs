@@ -16,7 +16,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq\NetJs.System.Linq.csproj" />
-    <ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq.Expression\NetJs.System.Linq.Expression.csproj" />
+    <ProjectReference Include="$(NewLibrariesProjectRoot)System.Linq.Expressions\NetJs.System.Linq.Expressions.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="$(DotnetRuntimeRoot)src\libraries\Microsoft.Extensions.Configuration.Abstractions\src\ConfigurationDebugViewContext.cs" />

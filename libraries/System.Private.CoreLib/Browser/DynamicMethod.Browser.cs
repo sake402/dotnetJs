@@ -6,7 +6,7 @@ namespace System.Reflection.Emit
 {
     public sealed partial class DynamicMethod
     {
-        [dotnetJs.MemberReplace(nameof(create_dynamic_method))]
+        [NetJs.MemberReplace(nameof(create_dynamic_method))]
         private static void create_dynamic_methodImpl(DynamicMethod m, string name, MethodAttributes attributes, CallingConventions callingConvention)
         {
             throw new NotImplementedException();

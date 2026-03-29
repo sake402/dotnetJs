@@ -1,8 +1,10 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System.Runtime.CompilerServices;
 
 namespace System.Reflection
 {
+    [NetJs.Boot]
+    [NetJs.Reflectable(false)]
     internal sealed unsafe partial class RuntimeConstructorInfo
     {
         internal ConstructorModel _model;
@@ -15,19 +17,19 @@ namespace System.Reflection
             _model = model;
         }
 
-        [dotnetJs.MemberReplace(nameof(InvokeClassConstructor))]
+        [NetJs.MemberReplace(nameof(InvokeClassConstructor))]
         internal static void InvokeClassConstructorIImpl(QCallTypeHandle type)
         {
 
         }
 
-        [dotnetJs.MemberReplace(nameof(InternalInvoke))]
+        [NetJs.MemberReplace(nameof(InternalInvoke))]
         internal object InternalInvokeImpl(object? obj, IntPtr* args, out Exception? exc)
         {
             throw new NotImplementedException();
         }
 
-        [dotnetJs.MemberReplace(nameof(get_metadata_token))]
+        [NetJs.MemberReplace(nameof(get_metadata_token))]
         internal static int get_metadata_tokenImpl(RuntimeConstructorInfo method)
         {
             return (int)method._model.Handle.Value;

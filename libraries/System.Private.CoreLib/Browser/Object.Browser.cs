@@ -1,5 +1,5 @@
 ﻿
-using dotnetJs;
+using NetJs;
 using System.Runtime.CompilerServices;
 
 namespace System
@@ -8,47 +8,47 @@ namespace System
     {
         public extern object? this[string name]
         {
-            [dotnetJs.External]
+            [NetJs.External]
             get;
-            [dotnetJs.External]
+            [NetJs.External]
             set;
         }
 
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
         public virtual extern string ToLocaleString();
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
         public virtual extern object? ValueOf();
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
         public virtual extern bool HasOwnProperty(object v);
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
         public virtual extern bool IsPrototypeOf(object v);
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
         public virtual extern bool PropertyIsEnumerable(object v);
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
-        [dotnetJs.Template("Object.getOwnPropertyNames({obj})")]
-        [dotnetJs.Unbox(true)]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
+        [NetJs.Template("Object.getOwnPropertyNames({obj})")]
+        [NetJs.Unbox(true)]
         public static extern string[] GetOwnPropertyNames(object obj);
 
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
-        [dotnetJs.Template("{T}.prototype")]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
+        [NetJs.Template("{T}.prototype")]
         public static extern TypePrototype GetPrototype<T>();
-        [dotnetJs.Convention(dotnetJs.Notation.CamelCase)]
-        [dotnetJs.Template("Object.getPrototypeOf({value})")]
+        [NetJs.Convention(NetJs.Notation.CamelCase)]
+        [NetJs.Template("Object.getPrototypeOf({value})")]
         public static extern TypePrototype GetPrototypeOf(object value);
 
 
-        [dotnetJs.Template("{global.}$clone({this:!super})")]
-        [dotnetJs.MemberReplace(nameof(MemberwiseClone))]
+        [NetJs.Template("{global.}$clone({this:!super})")]
+        [NetJs.MemberReplace(nameof(MemberwiseClone))]
         protected extern object IntrisicMemberwiseClone();
 
-        [dotnetJs.MemberReplace(nameof(GetType))]
-        [dotnetJs.StaticCallConvention]
+        [NetJs.MemberReplace(nameof(GetType))]
+        [NetJs.StaticCallConvention]
         public Type IntrisicGetType()
         {
             var value = this;
@@ -57,10 +57,10 @@ namespace System
             var prototype = Object.GetPrototypeOf(value);
             if (prototype.Type != null)
                 return prototype.Type;
-            prototype = dotnetJs.Script.Write<TypePrototype>("value.constructor");
+            prototype = NetJs.Script.Write<TypePrototype>("value.constructor");
             if (prototype?.Type != null)
                 return prototype.Type;
-            var jsType = dotnetJs.Script.TypeOf(value);
+            var jsType = NetJs.Script.TypeOf(value);
             switch (jsType)
             {
                 case "number":
@@ -72,15 +72,15 @@ namespace System
             }
             return typeof(object);
         }
-        [dotnetJs.MemberReplace(nameof(ToString))]
+        [NetJs.MemberReplace(nameof(ToString))]
         //[dotnetJs.StaticCallConvention]
-        [dotnetJs.Template("{global.}" + dotnetJs.Constants.ToStringName + "({this:!super}, \"\")")] //make sure we dont pass super keyword in here. JS doesnt support it
+        [NetJs.Template("{global.}" + NetJs.Constants.ToStringName + "({this:!super}, \"\")")] //make sure we dont pass super keyword in here. JS doesnt support it
         public virtual string ToStringImpl()
         {
             return GetType().ToString();
         }
-        [dotnetJs.MemberReplace(nameof(GetHashCode))]
-        [dotnetJs.Template("{global.}" + dotnetJs.Constants.GetHashCodeName + "({this:!super})")] //make sure we dont pass super keyword in here. JS doesnt support it
+        [NetJs.MemberReplace(nameof(GetHashCode))]
+        [NetJs.Template("{global.}" + NetJs.Constants.GetHashCodeName + "({this:!super})")] //make sure we dont pass super keyword in here. JS doesnt support it
         public virtual int GetHashCodeImpl()
         {
             return RuntimeHelpers.GetHashCode(this);

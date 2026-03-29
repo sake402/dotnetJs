@@ -1,14 +1,14 @@
 ﻿namespace System
 {
-    [dotnetJs.External]
-    [dotnetJs.IgnoreGeneric]
-    [dotnetJs.Name("WeakRef")]
+    [NetJs.External]
+    [NetJs.IgnoreGeneric]
+    [NetJs.Name("WeakRef")]
     public class WeakRef<T>
     {
         public extern WeakRef(T value);
         public T Value
         {
-            [dotnetJs.Template("{this}.deref()")]
+            [NetJs.Template("{this}.deref()")]
             get;
         }
     }

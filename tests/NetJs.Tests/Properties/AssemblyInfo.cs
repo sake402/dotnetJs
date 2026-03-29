@@ -1,5 +1,5 @@
 ﻿
-using dotnetJs;
+using NetJs;
 
 
 [assembly: AssemblyHandle(12)]

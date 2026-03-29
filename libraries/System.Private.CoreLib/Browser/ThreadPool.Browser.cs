@@ -6,7 +6,7 @@ namespace System.Threading
 {
     public static partial class ThreadPool
     {
-        [dotnetJs.MemberReplace(nameof(MainThreadScheduleBackgroundJob))]
+        [NetJs.MemberReplace(nameof(MainThreadScheduleBackgroundJob))]
         internal static unsafe void MainThreadScheduleBackgroundJobImpl(void* callback)
         {
             var call = *(Action*)callback;

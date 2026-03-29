@@ -6,7 +6,7 @@ using System.Globalization;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace dotnetJs.TranslationTest
+namespace NetJs.Tests
 {
     internal class StringTests
     {

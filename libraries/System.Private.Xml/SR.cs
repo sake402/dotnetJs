@@ -831,7 +831,7 @@ namespace System
 
 
         /// <summary>
-        /// '{0}' is not a valid BinHex text sequence.
+        /// '{0}' is not a valid BinHex character.
         /// </summary>
         internal static string Xml_InvalidBinHexValue
         {
@@ -849,7 +849,7 @@ namespace System
 
 
         /// <summary>
-        /// '{0}' is not a valid BinHex text sequence. The sequence must contain an even number of characters.
+        /// BinHex text is not valid. The sequence must contain an even number of characters.
         /// </summary>
         internal static string Xml_InvalidBinHexValueOddCount
         {
@@ -859,11 +859,6 @@ namespace System
             }
         }
 
-
-        internal static string FormatXml_InvalidBinHexValueOddCount(object arg1)
-        {
-            return string.Format(Xml_InvalidBinHexValueOddCount, arg1);
-        }
 
 
         /// <summary>
@@ -880,7 +875,7 @@ namespace System
 
 
         /// <summary>
-        /// '{0}' is not a valid Base64 text sequence.
+        /// '{0}' is not a valid Base64 character.
         /// </summary>
         internal static string Xml_InvalidBase64Value
         {

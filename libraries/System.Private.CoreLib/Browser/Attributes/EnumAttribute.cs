@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace dotnetJs
+namespace NetJs
 {
     [NonScriptable]
     [AttributeUsage(AttributeTargets.Enum)]

@@ -1,0 +1,2208 @@
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Operations;
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.SymbolStore;
+using System.Runtime.CompilerServices;
+
+namespace NetJs.Translator.CSharpToJavascript
+{
+
+    public static class Utilities
+    {
+        public static bool IsExtern(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "extern");
+        }
+
+        public static bool IsStatic(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "static");
+        }
+
+        public static bool IsConst(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "const");
+        }
+
+        public static bool IsReadOnly(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "readonly");
+        }
+
+        public static bool IsPartial(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "partial");
+        }
+
+        public static bool IsPrivate(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "private");
+        }
+
+        public static bool IsPublic(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "public");
+        }
+
+        public static bool IsAsync(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "async");
+        }
+
+        public static bool IsAbstract(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "abstract");
+        }
+
+        public static bool IsVirtual(this SyntaxTokenList modifiers)
+        {
+            return modifiers.Any(e => e.ValueText == "virtual");
+        }
+
+        //get a type defined within another type/method
+        public static BaseTypeDeclarationSyntax? GetTypeIn(this MemberDeclarationSyntax member, string typeName)
+        {
+            return (BaseTypeDeclarationSyntax?)member.ChildNodes().FirstOrDefault(c => c is BaseTypeDeclarationSyntax t && t.Identifier.ValueText == typeName);
+        }
+
+        public static T? FindClosestParent<T>(this SyntaxNode source, Func<T, bool>? isCandidate = null)
+        {
+            var current = source;
+            while (current != null)
+            {
+                if (current is T t && (isCandidate?.Invoke(t) ?? true))
+                    return t;
+                current = current.Parent;
+            }
+            return default;
+        }
+
+        public static IEnumerable<T> FindDescendant<T>(this SyntaxNode source, Func<T, bool>? isCandidate = null, Func<SyntaxNode, bool>? continueDescendant = null)
+        {
+            var children = source.ChildNodes();
+            foreach (var c in children)
+            {
+                if (c is T t && (isCandidate?.Invoke(t) ?? true))
+                    yield return t;
+                if (continueDescendant?.Invoke(c) ?? true)
+                {
+                    foreach (var v in FindDescendant<T>(c, isCandidate, continueDescendant))
+                    {
+                        yield return v;
+                    }
+                }
+            }
+        }
+
+        public static bool ChildIsBlock(this SyntaxNode node)
+        {
+            return node.ChildNodes().Count() == 1 && node.ChildNodes().Single() is BlockSyntax;
+        }
+
+        public static string ResolveIdentifierName(SyntaxToken token)
+        {
+            if (token.Text == "constructor")
+                return "$constructor";
+            if (token.Text == "function")
+                return "$function";
+            if (token.Text == "arguments")
+                return "$arguments";
+            return token.Text.Replace("@", "$");
+        }
+
+        public static string ResolveTypeName(SyntaxToken type)
+        {
+            var t = type.ToFullString().Trim().TrimEnd('?').Replace("@", "$");
+            if (t.EndsWith("[]"))
+            {
+                return $"dotnetJs.TypeArray({t.Substring(0, t.Length - 2)})";
+            }
+            return t;
+        }
+
+        public static string SimplifyName(this TypeSyntax type, out GenericNameSyntax? genericName)
+        {
+            string simpleName;
+            if (type is QualifiedNameSyntax qn1)
+            {
+                GenericNameSyntax? left = null;
+                GenericNameSyntax? right = null;
+                simpleName = $"{SimplifyName(qn1.Left, out left)}{qn1.DotToken}{SimplifyName(qn1.Right, out right)}";
+                genericName = left ?? right;
+            }
+            else if (type is GenericNameSyntax g1)
+            {
+                simpleName = $"{g1.Identifier.ValueText}<{string.Join(",", Enumerable.Range(1, g1.Arity).Select(e => ""))}>";
+                genericName = g1;
+            }
+            else
+            {
+                genericName = null;
+                simpleName = type.ToString();
+            }
+            return simpleName;
+        }
+
+        public static (List<string> Types, List<string>? Names)? ResolveTupleTypes(this string name)
+        {
+            if (name.StartsWith("(") && name.EndsWith(")"))
+            {
+                var chars = name.ToArray();
+                //int cLen = 0;
+                //var newChars = new char[chars.Length];
+                int genericDepth = 0;
+                int tupleDepth = 0;
+                string currentTupleTypeName = "";
+                string currentTupleName = "";
+                bool isCollectingName = false;
+                var tupleTypesList = new List<string>();
+                List<string>? tupleNameList = null; ;
+                int collectedTypeIndex = -1;
+                void Collect(int i)
+                {
+                    if (isCollectingName)
+                        currentTupleName += chars[i];
+                    else
+                        currentTupleTypeName += chars[i];
+                }
+                void CollectType()
+                {
+                    Debug.Assert(currentTupleTypeName.Length > 0);
+                    collectedTypeIndex = tupleTypesList.Count;
+                    tupleTypesList.Add(currentTupleTypeName.Trim());
+                    currentTupleTypeName = "";
+                }
+                void CollectName()
+                {
+                    Debug.Assert(collectedTypeIndex >= 0);
+                    while (tupleTypesList.Count < collectedTypeIndex)
+                    {
+                        tupleTypesList.Add("");
+                    }
+                    tupleNameList ??= new List<string>();
+                    tupleNameList.Add(currentTupleName.Trim());
+                    currentTupleName = "";
+                    isCollectingName = false;
+                    collectedTypeIndex = -1;
+                }
+                for (int i = 0; i < chars.Length; i++)
+                {
+                    if (chars[i] == '(')
+                    {
+                        if (tupleDepth > 0)
+                            Collect(i);
+                        tupleDepth++;
+                    }
+                    else if (chars[i] == ')')
+                    {
+                        tupleDepth--;
+                        if (tupleDepth > 0)
+                            Collect(i);
+                        if (tupleDepth == 0)
+                        {
+                            if (isCollectingName)
+                                CollectName();
+                            else
+                                CollectType();
+                        }
+                    }
+                    else
+                    {
+                        if (tupleDepth == 1 && chars[i] == ' ' && currentTupleTypeName.Length > 0 && genericDepth == 0)
+                        {
+                            CollectType();
+                            isCollectingName = true;
+                        }
+                        else if (tupleDepth == 1 && chars[i] == ',' && genericDepth == 0)
+                        {
+                            if (isCollectingName)
+                                CollectName();
+                            else
+                                CollectType();
+                        }
+                        else
+                        {
+                            Collect(i);
+                        }
+                        if (chars[i] == '<')
+                        {
+                            genericDepth++;
+                        }
+                        else if (chars[i] == '>')
+                        {
+                            genericDepth--;
+                        }
+                    }
+                }
+                return (tupleTypesList, tupleNameList);
+            }
+            return null;
+        }
+        public static string RemoveGenericParameterNames(this string name, out string[]? genericTypes)
+        {
+            genericTypes = null;
+            var chars = name.ToArray();
+            int cLen = 0;
+            var newChars = new char[chars.Length];
+            int genericDepth = 0;
+            int tupleDepth = 0;
+            string currentGenericName = "";
+            var genericTypesList = new List<string>();
+            for (int i = 0; i < chars.Length; i++)
+            {
+                if (chars[i] == '<')
+                {
+                    if (genericDepth == 0)
+                        newChars[cLen++] = chars[i];
+                    else
+                        currentGenericName += chars[i];
+                    genericDepth++;
+                }
+                else if (chars[i] == '>')
+                {
+                    genericDepth--;
+                    if (genericDepth == 0)
+                        newChars[cLen++] = chars[i];
+                    else
+                        currentGenericName += chars[i];
+                    if (genericDepth == 0)
+                    {
+                        genericTypesList.Add(currentGenericName.Trim());
+                        currentGenericName = "";
+                    }
+                }
+                else
+                {
+                    if (genericDepth == 0)
+                    {
+                        newChars[cLen++] = chars[i];
+                    }
+                    else if (genericDepth == 1)
+                    {
+                        if (tupleDepth == 0 && chars[i] == ',')
+                        {
+                            newChars[cLen++] = chars[i];
+                            genericTypesList.Add(currentGenericName.Trim());
+                            currentGenericName = "";
+                        }
+                        else
+                        {
+                            currentGenericName += chars[i];
+                        }
+                    }
+                    else
+                    {
+                        currentGenericName += chars[i];
+                    }
+                    if (chars[i] == '(')
+                    {
+                        tupleDepth++;
+                    }
+                    else if (chars[i] == ')')
+                    {
+                        tupleDepth--;
+                    }
+                }
+            }
+            if (genericTypesList.Count > 0)
+            {
+                genericTypes = genericTypesList.ToArray();
+            }
+            return new string(newChars, 0, cLen);
+        }
+
+        public static void __CreateSignatures((StringBuilder WithTypeParameter, StringBuilder WithoutTypeParameter) builder, ISymbol current, GlobalCompilationVisitor global, bool withGlobalNamespace = true)
+        {
+            //if (current is ITypeParameterSymbol)
+            if (current.Kind == SymbolKind.TypeParameter/* is ITypeParameterSymbol*/)
+            {
+                builder.WithTypeParameter.Append(current.Name);
+                //builder.WithoutTypeParameter.Append(current.Name);
+                return;
+            }
+            bool isArray = false;
+            //if (current is IArrayTypeSymbol tt)
+            if (current.Kind == SymbolKind.ArrayType/* is IArrayTypeSymbol tt*/)
+            {
+                isArray = true;
+                var tt = Unsafe.As<IArrayTypeSymbol>(current);
+                current = tt.ElementType;
+            }
+            var parent = current.ContainingType ?? (ISymbol)current.ContainingNamespace;
+            if (parent != null /*&& parent.Name.Length > 0 && !ReferenceEquals(parent, global.Compilation.GlobalNamespace)*/)
+            {
+                //__CreateFullTypeName(builder, parent, global);
+                //    if (!ReferenceEquals(parent, global.Compilation.GlobalNamespace))
+                //    {
+                //        builder.WithTypeParameter.Append(".");
+                //        builder.WithoutTypeParameter.Append(".");
+                //    }
+                var assembly = current.ContainingAssembly;
+                ISymbol[] pathToRoot = new ISymbol[64];
+                int i = 0;
+                while (parent != null)
+                {
+                    if (parent.Kind == SymbolKind.Assembly)
+                        break;
+                    if (ReferenceEquals(parent, global.Compilation.GlobalNamespace))
+                    {
+                        break;
+                    }
+                    if (ReferenceEquals(parent, assembly))
+                    {
+                        break;
+                    }
+                    if (ReferenceEquals(parent, assembly?.GlobalNamespace))
+                    {
+                        break;
+                    }
+                    pathToRoot[i++] = parent;
+                    parent = parent.ContainingSymbol;
+                }
+                if (withGlobalNamespace && assembly != null)
+                    pathToRoot[i++] = assembly;
+                int done = 0;
+                while (i > 0)
+                {
+                    var lcurrent = pathToRoot[i - 1];
+                    var lName = lcurrent.Kind == SymbolKind.Assembly ? global.GetAssemblyGlobalNamespace(Unsafe.As<IAssemblySymbol>(lcurrent)) : lcurrent.Name.Replace(".", "$");
+                    builder.WithTypeParameter.Append(lName);
+                    builder.WithoutTypeParameter.Append(lName);
+                    builder.WithTypeParameter.Append(".");
+                    builder.WithoutTypeParameter.Append(".");
+                    i--;
+                    done++;
+                }
+            }
+            var nName = current.Name.Replace(".", "$");
+            //if (ReferenceEquals(current, global.Compilation.GlobalNamespace))
+            //{
+            //    nName = "$";
+            //}
+            builder.WithTypeParameter.Append(nName);
+            builder.WithoutTypeParameter.Append(nName);
+            //}
+            //if (current is INamedTypeSymbol ts && ts.Arity > 0)
+            if (current.Kind == SymbolKind.NamedType/* is INamedTypeSymbol ts && ts.Arity > 0*/)
+            {
+                var ts = Unsafe.As<INamedTypeSymbol>(current);
+                if (ts.Arity > 0)
+                {
+                    builder.WithTypeParameter.Append("<");
+                    builder.WithoutTypeParameter.Append("<");
+                    var tps = ts.TypeArguments;
+                    unchecked
+                    {
+                        for (int i = 0; i < tps.Length; i++)
+                        {
+                            if (i > 0)
+                            {
+                                builder.WithTypeParameter.Append(",");
+                                builder.WithoutTypeParameter.Append(",");
+                            }
+                            __CreateSignatures(builder, tps[i], global);
+                        }
+                    }
+                    builder.WithTypeParameter.Append(">");
+                    builder.WithoutTypeParameter.Append(">");
+                }
+            }
+            else if (current.Kind == SymbolKind.Method/* is IMethodSymbol ms*/)
+            {
+                var ms = Unsafe.As<IMethodSymbol>(current);
+                if (ms.Arity > 0)
+                {
+                    builder.WithTypeParameter.Append("<");
+                    builder.WithoutTypeParameter.Append("<");
+                    var tps = ms.TypeParameters;
+                    unchecked
+                    {
+                        for (int i = 0; i < tps.Length; i++)
+                        {
+                            if (i > 0)
+                            {
+                                builder.WithTypeParameter.Append(",");
+                                builder.WithoutTypeParameter.Append(",");
+                            }
+                            __CreateSignatures(builder, tps[i], global);
+                        }
+                    }
+                    builder.WithTypeParameter.Append(">");
+                    builder.WithoutTypeParameter.Append(">");
+                }
+                builder.WithTypeParameter.Append("(");
+                builder.WithoutTypeParameter.Append("(");
+                var msp = ms.Parameters;
+                unchecked
+                {
+                    for (int ix = 0; ix < msp.Length; ix++)
+                    {
+                        if (ix > 0)
+                        {
+                            builder.WithTypeParameter.Append(",");
+                            builder.WithoutTypeParameter.Append(",");
+                        }
+                        var p = msp[ix];
+                        __CreateSignatures(builder, p.Type, global);
+                    }
+                }
+                builder.WithTypeParameter.Append(")");
+                builder.WithoutTypeParameter.Append(")");
+            }
+            else if (current.Kind == SymbolKind.Property/* is IPropertySymbol property && property.IsIndexer*/)
+            {
+                var property = Unsafe.As<IPropertySymbol>(current);
+                if (property.IsIndexer)
+                {
+                    builder.WithTypeParameter.Append("(");
+                    builder.WithoutTypeParameter.Append("(");
+                    var msp = property.Parameters;
+                    unchecked
+                    {
+                        for (int ix = 0; ix < msp.Length; ix++)
+                        {
+                            if (ix > 0)
+                            {
+                                builder.WithTypeParameter.Append(",");
+                                builder.WithoutTypeParameter.Append(",");
+                            }
+                            var p = msp[ix];
+                            __CreateSignatures(builder, p.Type, global);
+                        }
+                    }
+                    builder.WithTypeParameter.Append(")");
+                    builder.WithoutTypeParameter.Append(")");
+                }
+            }
+            if (isArray)
+            {
+                builder.WithTypeParameter.Append("[]");
+                builder.WithoutTypeParameter.Append("[]");
+            }
+        }
+
+        //static Dictionary<ISymbol, (string WithTypeParameter, string WithoutTypeParameter)> cacheFullName = new Dictionary<ISymbol, (string, string)>(SymbolEqualityComparer.Default);
+        public static (string WithTypeParameter, string WithoutTypeParameter) CreateSignatures(this ISymbol type, GlobalCompilationVisitor global)
+        {
+            if (type.Kind == SymbolKind.NamedType)
+            {
+                var tt = Unsafe.As<INamedTypeSymbol>(type);
+                if (/*type is INamedTypeSymbol tt &&*/ tt.IsNullable(out var nt))
+                {
+                    if (!nt!.IsValueType)
+                    {
+                        type = nt;
+                    }
+                }
+            }
+            StringBuilder withTypeParameterBuilder = new StringBuilder(1024);
+            StringBuilder withoutTypeParameterBuilder = new StringBuilder(1024);
+            __CreateSignatures((withTypeParameterBuilder, withoutTypeParameterBuilder), type, global);
+            (string WithTypeParameter, string WithoutTypeParameter) values = (withTypeParameterBuilder.ToString(), withoutTypeParameterBuilder.ToString());
+            return values;
+        }
+
+        public static string CreateFullTypeName(this ISymbol type, GlobalCompilationVisitor global, bool withTypeParameterNames = false, bool withGlobalNamespace = true)
+        {
+            if (type is INamedTypeSymbol tt && tt.IsNullable(out var nt))
+            {
+                if (!nt!.IsValueType)
+                {
+                    type = nt;
+                }
+            }
+            StringBuilder withTypeParameterBuilder = new StringBuilder(1024);
+            StringBuilder withoutTypeParameterBuilder = new StringBuilder(1024);
+            __CreateSignatures((withTypeParameterBuilder, withoutTypeParameterBuilder), type, global, withGlobalNamespace);
+            (string WithTypeParameter, string WithoutTypeParameter) values = (withTypeParameterBuilder.ToString(), withoutTypeParameterBuilder.ToString());
+            //cacheFullName[type] = values;
+            if (withTypeParameterNames)
+                return values.WithTypeParameter;
+            return values.WithoutTypeParameter;
+        }
+
+        //public static string _CreateFullTypeName(this ISymbol type, GlobalCompilationVisitor global, bool withTypeParameterNames = false)
+        //{
+        //    StringBuilder? previousName = null;
+        //    ISymbol current = type;
+        //    while (!string.IsNullOrEmpty(current?.Name))
+        //    {
+        //        StringBuilder currentName = new StringBuilder(1024);
+        //        //if (current is IPropertySymbol pt && pt.ExplicitInterfaceImplementations.Any())
+        //        //{
+        //        //    name = pt.ExplicitInterfaceImplementations.First().Name + "$" + pt.Name;
+        //        //}
+        //        //else if (current is IMethodSymbol mms && mms.ExplicitInterfaceImplementations.Any())
+        //        //{
+        //        //    name = mms.ExplicitInterfaceImplementations.First().Name + "$" + mms.Name;
+        //        //}
+        //        //else if (current is IFieldSymbol fs && fs.ExplicitInterfaceImplementations.Any())
+        //        //{
+        //        //    name = fs.ExplicitInterfaceImplementations.First().Name + "$" + fs.Name;
+        //        //}
+        //        //else
+        //        //{
+        //        currentName.Append(current.Name.Replace(".", "$"));
+        //        //}
+        //        if (current is INamedTypeSymbol ts && ts.Arity > 0)
+        //        {
+        //            //if (!checkIgnoreAttribute || !global.HasAttribute(type, typeof(IgnoreGenericAttribute).FullName, null, false, out _))
+        //            //{
+        //            if (withTypeParameterNames)
+        //            {
+        //                currentName.Append("<");
+        //                var tps = ts.TypeParameters;
+        //                unchecked
+        //                {
+        //                    for (int i = 0; i < tps.Length; i++)
+        //                    {
+        //                        if (i > 0)
+        //                            currentName.Append(",");
+        //                        currentName.Append(CreateFullTypeName(tps[i], global, true/*, checkIgnoreAttribute*/));
+        //                    }
+        //                }
+        //                currentName.Append(">");
+        //                //name.Append($"<{string.Join(",", ts.TypeParameters.Select(e => CreateFullTypeName(e, global, true/*, checkIgnoreAttribute*/)))}>");
+        //            }
+        //            else
+        //            {
+        //                currentName.Append("<");
+        //                var tps = ts.TypeParameters;
+        //                for (int i = 0; i < tps.Length; i++)
+        //                {
+        //                    if (i > 0)
+        //                        currentName.Append(",");
+        //                }
+        //                currentName.Append(">");
+        //                //name.Append($"<{string.Join(",", Enumerable.Range(1, ts.Arity).Select(e => ""))}>");
+        //            }
+        //            //name += "$$" + ts.Arity;
+        //            //}
+        //        }
+        //        else if (current is IMethodSymbol ms)
+        //        {
+        //            if (ms.Arity > 0)
+        //            {
+        //                //if (!checkIgnoreAttribute || !global.HasAttribute(type, typeof(IgnoreGenericAttribute).FullName, null, false, out _))
+        //                //{
+        //                if (withTypeParameterNames)
+        //                {
+        //                    currentName.Append("<");
+        //                    var tps = ms.TypeParameters;
+        //                    unchecked
+        //                    {
+        //                        for (int i = 0; i < tps.Length; i++)
+        //                        {
+        //                            if (i > 0)
+        //                                currentName.Append(",");
+        //                            currentName.Append(CreateFullTypeName(tps[i], global, true/*, checkIgnoreAttribute*/));
+        //                        }
+        //                    }
+        //                    currentName.Append(">");
+        //                    //name.Append($"<{string.Join(",", ms.TypeParameters.Select(e => CreateFullTypeName(e, global, true)))}>");
+        //                }
+        //                else
+        //                {
+        //                    currentName.Append("<");
+        //                    var tps = ms.TypeParameters;
+        //                    for (int i = 0; i < tps.Length; i++)
+        //                    {
+        //                        if (i > 0)
+        //                            currentName.Append(",");
+        //                    }
+        //                    currentName.Append(">");
+        //                    //name.Append($"<{string.Join(",", Enumerable.Range(1, ms.Arity).Select(e => ""))}>");
+        //                }
+        //                //}
+        //            }
+        //            currentName.Append("(");
+        //            var msp = ms.Parameters;
+        //            unchecked
+        //            {
+        //                for (int ix = 0; ix < msp.Length; ix++)
+        //                {
+        //                    if (ix > 0)
+        //                        currentName.Append(", ");
+        //                    var p = msp[ix];
+        //                    currentName.Append(p.Type.CreateFullTypeName(global));
+        //                }
+        //            }
+        //            currentName.Append(")");
+        //        }
+        //        //var newBuilder = new StringBuilder();
+        //        //newBuilder.Append(name);
+        //        if (previousName != null)
+        //        {
+        //            currentName.Append(".");
+        //            currentName.Append(previousName);
+        //        }
+        //        previousName = currentName;
+        //        //ret = name + (!string.IsNullOrEmpty(ret) ? "." + ret : "");
+        //        if (type is ITypeParameterSymbol) //type parameters a denoted by placeholders, expected to be replaced when used
+        //            return previousName.ToString();
+        //        current = current.ContainingType ?? (ISymbol)current.ContainingNamespace;
+        //    }
+        //    return previousName?.ToString().ResolvePredefinedTypeName() ?? "";
+        //}
+
+        public static string CreateFullNamespace(this NamespaceDeclarationSyntax type)
+        {
+            string? parent = null;
+            if (type.Parent is NamespaceDeclarationSyntax ns)
+            {
+                parent = CreateFullNamespace(ns);
+            }
+            var ret = parent + type.Name.ToFullString().Trim();
+            return ret;
+        }
+
+        public static string? CreateFullMemberName(this MemberDeclarationSyntax type)
+        {
+            string? parent = null;
+            if (type.Parent is BaseTypeDeclarationSyntax ts)
+            {
+                parent = CreateFullMemberName(ts) + ".";
+            }
+            else if (type.Parent is NamespaceDeclarationSyntax ns)
+            {
+                parent = CreateFullNamespace(ns) + ".";
+            }
+            string? name = null;
+            switch (type)
+            {
+                case NamespaceDeclarationSyntax ns:
+                    {
+                        name = CreateFullNamespace(ns);
+                        break;
+                    }
+                case BaseTypeDeclarationSyntax bt:
+                    {
+                        name = bt.Identifier.ValueText.TrimEnd('?');
+                        if (bt.HasAnyAttribute([typeof(ForcePartialAttribute).FullName], out var atts2))
+                        {
+                            var att = atts2.Values.Single().Single();
+                            var typeOf = (TypeOfExpressionSyntax)att.ArgumentList!.Arguments[0].Expression;
+                            var typeName = typeOf.Type.ToString();
+                            name = typeName;
+                        }
+                        break;
+                    }
+                case MethodDeclarationSyntax mt:
+                    {
+                        if (mt.ExplicitInterfaceSpecifier != null)
+                        {
+                            name = mt.ExplicitInterfaceSpecifier.Name + "$" + mt.Identifier.ValueText;
+                        }
+                        else
+                        {
+                            name = mt.Identifier.ValueText;
+                        }
+                        break;
+                    }
+                case ConstructorDeclarationSyntax ctor:
+                    {
+                        name = ".ctor";
+                        break;
+                    }
+                case PropertyDeclarationSyntax pt:
+                    {
+                        if (pt.ExplicitInterfaceSpecifier != null)
+                        {
+                            name = pt.ExplicitInterfaceSpecifier.Name + "$" + pt.Identifier.ValueText;
+                        }
+                        else
+                        {
+                            name = pt.Identifier.ValueText;
+                        }
+                        break;
+                    }
+                case EnumMemberDeclarationSyntax:
+                    return null;
+                case FieldDeclarationSyntax:
+                    return null;
+                case DelegateDeclarationSyntax:
+                    return null;
+                case IndexerDeclarationSyntax:
+                    return null;
+                case EventFieldDeclarationSyntax:
+                    return null;
+                case OperatorDeclarationSyntax:
+                    return null;
+                case ConversionOperatorDeclarationSyntax:
+                    return null;
+                //case FieldDeclarationSyntax fd:
+                //    {
+                //        name = fd.Declaration.Variables.Identifier.ValueText.Trim().TrimEnd('?');
+                //        break;
+                //    }
+                default:
+                    return null;
+            }
+            if (type is TypeDeclarationSyntax t && t.Arity > 0)
+            {
+                name += $"<{string.Join(",", Enumerable.Range(1, t.Arity).Select(e => ""))}>";
+            }
+            else if (type is MethodDeclarationSyntax m)
+            {
+                if (m.Arity > 0)
+                {
+                    name += $"<{string.Join(",", Enumerable.Range(1, m.Arity).Select(e => ""))}>";
+                }
+                name += "(";
+                int i = 0;
+                foreach (var p in m.ParameterList.Parameters)
+                {
+                    if (i > 0)
+                        name += ", ";
+                    name += p.Type?.ToString();
+                    i++;
+                }
+                name += ")";
+            }
+            var ret = parent + name;
+            return ret;
+        }
+
+        public static string ComputeOutputTypeName(this ISymbol type, GlobalCompilationVisitor global)
+        {
+            if (type is ITypeParameterSymbol tp)
+            {
+                return tp.Name;
+            }
+            if (type is ITypeSymbol tt && tt.IsArray(out var elementType))
+            {
+                return $"{global.GlobalName}.{Constants.TypeArray}({ComputeOutputTypeName(elementType, global)})";
+            }
+            var sym = global.GetMetadata(type);
+            if (sym != null)
+            {
+                if (type is INamedTypeSymbol)
+                    return sym.InvocationName ?? type.Name;
+                return sym.OverloadName ?? type.Name;
+            }
+            //if (type is INamedTypeSymbol nt && nt.Arity > 0)
+            //{
+            //    if (!global.HasAttribute(type, typeof(IgnoreGenericAttribute).FullName, null, false, out _))
+            //    {
+            //        var original = nt.OriginalDefinition;
+            //        var originalName = original.CreateFullTypeName(global).Trim().Split('<')[0].ResolvePredefinedTypeName();// ComputeOutputTypeName(original, global);
+            //        return $"{originalName}({string.Join(", ", nt.TypeArguments.Select(t => ComputeOutputTypeName(t, global)))})";
+            //    }
+            //}
+            return type.CreateFullTypeName(global).Trim().ResolvePredefinedTypeName();
+        }
+
+        public static bool IsPredefinedTypeName(this string? name)
+        {
+            switch (name)
+            {
+                case "void":
+                    return true;
+                case "object":
+                    return true;
+                case "bool":
+                    return true;
+                case "char":
+                    return true;
+                case "byte":
+                    return true;
+                case "sbyte":
+                    return true;
+                case "double":
+                    return true;
+                case "float":
+                    return true;
+                case "short":
+                    return true;
+                case "ushort":
+                    return true;
+                case "int":
+                    return true;
+                case "uint":
+                    return true;
+                case "long":
+                    return true;
+                case "ulong":
+                    return true;
+                case "decimal":
+                    return true;
+                case "string":
+                    return true;
+                default:
+                    break;
+            }
+            return false;
+        }
+
+        public static string ResolvePredefinedTypeName(this string name)
+        {
+            switch (name)
+            {
+                case "void":
+                    name = "System.Void";
+                    break;
+                case "object":
+                    name = "System.Object";
+                    break;
+                case "bool":
+                    name = "System.Boolean";
+                    break;
+                case "char":
+                    name = "System.Char";
+                    break;
+                case "byte":
+                    name = "System.Byte";
+                    break;
+                case "sbyte":
+                    name = "System.SByte";
+                    break;
+                case "double":
+                    name = "System.Double";
+                    break;
+                case "float":
+                    name = "System.Single";
+                    break;
+                case "short":
+                    name = "System.Int16";
+                    break;
+                case "ushort":
+                    name = "System.UInt16";
+                    break;
+                case "nint":
+                case "int":
+                    name = "System.Int32";
+                    break;
+                case "nuint":
+                case "uint":
+                    name = "System.UInt32";
+                    break;
+                case "long":
+                    name = "System.Int64";
+                    break;
+                case "ulong":
+                    name = "System.UInt64";
+                    break;
+                case "decimal":
+                    name = "System.Decimal";
+                    break;
+                case "string":
+                    name = "System.String";
+                    break;
+                default:
+
+                    break;
+            }
+            return name;
+        }
+
+        public static string ResolvePredefinedTypeName(this PredefinedTypeSyntax type)
+        {
+            return type.Keyword.ValueText.ResolvePredefinedTypeName();
+        }
+
+        public static string ResolveTypeName(this TypeSyntax type, GlobalCompilationVisitor _global, bool stripGenericName = false)
+        {
+            if (type is PredefinedTypeSyntax pt)
+            {
+                return pt.ResolvePredefinedTypeName();
+            }
+            if (type is TupleTypeSyntax tuple)
+            {
+
+            }
+            string t;
+            if (type is GenericNameSyntax g && !stripGenericName)
+            {
+                t = g.Identifier.ValueText + $"({string.Join(", ", g.TypeArgumentList.Arguments.Select(a => a.ResolveTypeName(_global, stripGenericName)))})";
+            }
+            else
+            {
+                if (stripGenericName)
+                {
+                    t = type.ToFullString().Split('<')[0].Trim().Replace("?", "");
+                }
+                else
+                {
+                    t = type.ToFullString().Replace("<", "(").Replace(">", ")").Trim().Replace("?", "");
+                }
+            }
+            if (t.EndsWith("[]"))
+            {
+                return $"$.typearray({t.Substring(0, t.Length - 2)})";
+            }
+            return t;
+        }
+
+        public static string ResolveTypeName(this TypeParameterSyntax type)
+        {
+            return type.Identifier.ToString().Replace("<", "(").Replace(">", ")");
+        }
+
+        public static string ResolveMethodName(MethodDeclarationSyntax node)
+        {
+            var name = node.Identifier.ValueText;
+            string? methodOverload = null;
+            if (node.Parent is TypeDeclarationSyntax type)
+            {
+                var overloads = type.Members.Where(m => m is MethodDeclarationSyntax).Cast<MethodDeclarationSyntax>().Where(e => e.Identifier.ValueText == name);
+                if (overloads.Count() > 1)
+                {
+                    var index = Array.IndexOf(overloads.ToArray(), node);
+                    if (index > 0)
+                        methodOverload = "$$" + index;
+                }
+            }
+            return $"{node.Identifier.Text.Trim()}{methodOverload}";
+        }
+
+        public static bool IsType(this ITypeSymbol type, string fullName, bool matchGenerics = false)
+        {
+            if (type.ContainingNamespace == null)
+                return false;
+            var name = $"{type.ContainingNamespace}.{type.Name}{(matchGenerics && (type as INamedTypeSymbol)?.Arity > 0 ? $"<{(string.Join(",", Enumerable.Range(1, (type as INamedTypeSymbol)!.Arity).Select(e => "")))}>" : "")}";
+            return fullName == name;
+        }
+
+        public static bool IsArray(this ITypeSymbol symbol, out ITypeSymbol elementType)
+        {
+            if (symbol is IArrayTypeSymbol arr)
+            {
+                elementType = arr.ElementType;
+                return true;
+            }
+            if (symbol.IsType("System.Array<>", true))
+            {
+                elementType = ((INamedTypeSymbol)symbol).TypeArguments[0];
+                return true;
+            }
+            elementType = null!;
+            return false;
+        }
+
+        public static bool IsPointer(this ITypeSymbol symbol, out ITypeSymbol pointedType)
+        {
+            if (symbol.Kind == SymbolKind.PointerType)
+            {
+                var pointer = (IPointerTypeSymbol)symbol;
+                pointedType = pointer.PointedAtType;
+                return true;
+            }
+            pointedType = null!;
+            return false;
+        }
+
+        //public static bool IsGenericType(this ITypeSymbol type, string fullName, out IEnumerable<ITypeSymbol> genericArgs)
+        //{
+        //    genericArgs = [];
+        //    if (type.ContainingNamespace == null)
+        //    {
+        //        return false;
+        //    }
+        //    bool ret = fullName.StartsWith(type.ContainingNamespace.Name) && fullName.EndsWith(type.Name);
+        //    if (ret)
+        //    {
+        //        genericArgs = ((INamedTypeSymbol)type).TypeArguments;
+        //    }
+        //    return ret;
+        //}
+
+        public static ITypeSymbol GetOriginalRootDefinition(this ITypeSymbol type)
+        {
+#pragma warning disable RS1024 // Symbols should be compared for equality
+            while (type.OriginalDefinition != type)
+            {
+                if (type.OriginalDefinition is INamedTypeSymbol nt && nt.Arity > 0 && nt.TypeArguments.All(a => a.Name == ""))
+                {
+                    break;
+                }
+                type = type.OriginalDefinition;
+            }
+#pragma warning restore RS1024 // Symbols should be compared for equality
+            return type;
+        }
+
+        //[return: MemberNotNullWhen(true, nameof(argumentTypes))]
+        public static bool IsDelegate(this ITypeSymbol type, out ITypeSymbol? returnType, out IEnumerable<ITypeSymbol>? argumentTypes)
+        {
+            if (type.TypeKind == TypeKind.Delegate)
+            {
+                returnType = ((INamedTypeSymbol)type).DelegateInvokeMethod!.ReturnType;
+                argumentTypes = ((INamedTypeSymbol)type).DelegateInvokeMethod!.Parameters.Select(t => t.Type).ToList();
+                return true;
+            }
+            returnType = null;
+            argumentTypes = null;
+            return false;
+        }
+
+        //[return: MemberNotNullWhen(true, nameof(argumentTypes))]
+        public static bool IsFunction(this ITypeSymbol type, out ITypeSymbol? returnType, out IEnumerable<ITypeSymbol>? argumentTypes)
+        {
+            if (type.IsType("dotnetJs.Function"))
+            {
+                var targsCount = ((INamedTypeSymbol)type).TypeArguments.Count();
+                returnType = ((INamedTypeSymbol)type).TypeArguments.Last();
+                argumentTypes = ((INamedTypeSymbol)type).TypeArguments.Take(targsCount - 1).ToList();
+                return true;
+            }
+            returnType = null;
+            argumentTypes = null;
+            return false;
+        }
+
+        public static bool IsUnion(this ITypeSymbol type, out IEnumerable<ITypeSymbol>? argumentTypes)
+        {
+            if (type.IsType("dotnetJs.Union"))
+            {
+                argumentTypes = ((INamedTypeSymbol)type).TypeArguments;
+                return true;
+            }
+            argumentTypes = null;
+            return false;
+        }
+
+        public static bool IsAction(this ITypeSymbol type, out IEnumerable<ITypeSymbol>? argumentTypes)
+        {
+            if (type.IsType("dotnetJs.Action"))
+            {
+                argumentTypes = ((INamedTypeSymbol)type).TypeArguments;
+                return true;
+            }
+            argumentTypes = null;
+            return false;
+        }
+
+        public static bool IsNullable(this ITypeSymbol type, out ITypeSymbol? argumentTypes)
+        {
+            if (type.IsType("System.Nullable<>", true))
+            {
+                argumentTypes = ((INamedTypeSymbol)type).TypeArguments[0];
+                return true;
+            }
+            argumentTypes = null;
+            return false;
+        }
+
+        public static bool IsNullableReferenceType(this ITypeSymbol type, out ITypeSymbol? argumentTypes)
+        {
+            if (type.IsType("System.Nullable<>", true) && !((INamedTypeSymbol)type).TypeArguments[0].IsValueType)
+            {
+                argumentTypes = ((INamedTypeSymbol)type).TypeArguments[0];
+                return true;
+            }
+            argumentTypes = null;
+            return false;
+        }
+        public static bool IsNullableValueType(this ITypeSymbol type, out ITypeSymbol? argumentTypes)
+        {
+            if (type.IsType("System.Nullable<>", true) && ((INamedTypeSymbol)type).TypeArguments[0].IsValueType)
+            {
+                argumentTypes = ((INamedTypeSymbol)type).TypeArguments[0];
+                return true;
+            }
+            argumentTypes = null;
+            return false;
+        }
+
+        public static bool IsEnumerable(this ITypeSymbol type, out ITypeSymbol? argumentType)
+        {
+            if (type.IsType("System.Collections.Generic.IEnumerable<>", true))
+            {
+                argumentType = ((INamedTypeSymbol)type).TypeArguments.Single();
+                return true;
+            }
+            argumentType = null;
+            return false;
+        }
+
+        public static bool IsEnumerator(this ITypeSymbol type, out ITypeSymbol? argumentType)
+        {
+            if (type.IsType("System.Collections.Generic.IEnumerator<>", true))
+            {
+                argumentType = ((INamedTypeSymbol)type).TypeArguments.Single();
+                return true;
+            }
+            argumentType = null;
+            return false;
+        }
+
+        public static bool IsEnumerable(this ITypeSymbol type)
+        {
+            if (type.IsType("System.Collections.IEnumerable"))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public static bool IsEnumerator(this ITypeSymbol type)
+        {
+            if (type.IsType("System.Collections.IEnumerator"))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public static bool IsRef(this ITypeSymbol type, out ITypeSymbol? argumentType)
+        {
+            if (type.IsType(Constants.RefClassFullName))
+            {
+                argumentType = ((INamedTypeSymbol)type).TypeArguments.Single();
+                return true;
+            }
+            argumentType = null;
+            return false;
+        }
+
+        /// <summary>
+        /// Compare two type if they are convertible. returns 0 if they are not
+        /// </summary>
+        /// <param name="fromType"></param>
+        /// <param name="toType"></param>
+        /// <param name="global"></param>
+        /// <param name="genericTypeSubstitutions"></param>
+        /// <returns>How closely match they are. If they are exactly the same type, return a higher number</returns>
+        public static int CanConvertTo(
+            this ISymbol fromType,
+            ISymbol toType,
+            GlobalCompilationVisitor global,
+            Dictionary<ITypeParameterSymbol, ISymbol>? genericTypeSubstitutions,
+            out ITypeSymbol? unionItemSelected,
+            ExpressionSyntax? fromExpressionHint = null,
+            TranslatorSyntaxVisitor? visitor = null)
+        {
+            const int defaultTrue = 10;
+            const int defaultFalse = -30000;
+            unionItemSelected = null;
+            if (fromType.Equals(toType, SymbolEqualityComparer.Default))
+                return defaultTrue * 3;
+            ITypeSymbol? typeFromType = fromType as ITypeSymbol;
+            ITypeSymbol? typeToType = toType as ITypeSymbol;
+            INamedTypeSymbol? namedFromType = fromType as INamedTypeSymbol;
+            INamedTypeSymbol? namedToType = toType as INamedTypeSymbol;
+
+            if (fromExpressionHint is LiteralExpressionSyntax && visitor != null)
+            {
+                if (typeFromType != null && typeToType != null && typeFromType.IsNumericType() && typeToType.IsNumericType())
+                {
+                    //if we are trying to convert something like int to ulong (ulong a = 1), CanConvertTo will return a falsy as expected
+                    //But there is an exception for when the int value is a literal constant whose value fit within the ulong. C# allows this
+                    var fromConstantValue = global.EvaluateConstant(fromExpressionHint, visitor);
+                    if (fromConstantValue.HasValue && fromConstantValue.Value is int)
+                    {
+                        object? minValue = null;
+                        object? maxValue = null;
+                        var f = typeToType.GetMembers("MinValue").FirstOrDefault();
+                        if (f is IFieldSymbol fs)
+                        {
+                            minValue = fs.ConstantValue;
+                        }
+                        else
+                        {
+                            //for long and ulong, we couldn't declare the Min and Max as field, but rather property
+                            if (typeToType.Name == "Int64")
+                            {
+                                minValue = long.MinValue;
+                            }
+                            if (typeToType.Name == "UInt64")
+                            {
+                                minValue = ulong.MinValue;
+                            }
+                        }
+                        f = typeToType.GetMembers("MaxValue").FirstOrDefault();
+                        if (f is IFieldSymbol mfs)
+                        {
+                            maxValue = mfs.ConstantValue;
+                        }
+                        else
+                        {
+                            //for long and ulong, we couldn't declare the Min and Max as field, but rather property
+                            if (typeToType.Name == "Int64")
+                            {
+                                maxValue = long.MaxValue;
+                            }
+                            if (typeToType.Name == "UInt64")
+                            {
+                                maxValue = ulong.MaxValue;
+                            }
+                        }
+                        if (minValue != null && maxValue != null)
+                        {
+                            bool isWithin = false;
+                            int value = (int)fromConstantValue.Value!;
+                            if (minValue is char minC && maxValue is char maxC)
+                            {
+                                isWithin = value >= minC && value <= maxC;
+                            }
+                            else if (minValue is byte minB && maxValue is byte maxB)
+                            {
+                                isWithin = value >= minB && value <= maxB;
+                            }
+                            else if (minValue is sbyte minSB && maxValue is sbyte maxSB)
+                            {
+                                isWithin = value >= minSB && value <= maxSB;
+                            }
+                            else if (minValue is ushort minSh && maxValue is ushort maxSh)
+                            {
+                                isWithin = value >= minSh && value <= maxSh;
+                            }
+                            else if (minValue is int minI && maxValue is int maxI)
+                            {
+                                isWithin = value >= minI && value <= maxI;
+                            }
+                            else if (minValue is uint minUI && maxValue is uint maxUI)
+                            {
+                                isWithin = value >= minUI && value <= maxUI;
+                            }
+                            else if (minValue is long minL && maxValue is long maxL)
+                            {
+                                isWithin = value >= minL && value <= maxL;
+                            }
+                            else if (minValue is ulong minUL && maxValue is ulong maxUL)
+                            {
+                                isWithin = (ulong)value >= minUL && (ulong)value <= maxUL;
+                            }
+                            if (isWithin)
+                            {
+                                return defaultTrue;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if ((typeFromType?.IsNumericType() ?? false) && (typeToType?.IsNumericType() ?? false))
+            {
+                var fromRank = typeFromType.GetNumericPrecisionRank();
+                var toRank = typeToType.GetNumericPrecisionRank();
+                if (fromRank <= toRank)
+                    return defaultTrue;
+            }
+
+            if (typeToType?.IsType("System.Object") ?? false)
+            {
+                return defaultTrue;
+            }
+            if (typeToType?.IsNullable(out var nType) ?? false)
+            {
+                if (nType!.IsType("System.Object"))
+                {
+                    return defaultTrue;
+                }
+            }
+            if ((typeFromType?.IsNullable(out var gFromType) ?? false) && (typeToType?.IsNullable(out var gToType) ?? false))
+            {
+                return gFromType!.CanConvertTo(gToType!, global, genericTypeSubstitutions, out unionItemSelected);
+            }
+            if (namedFromType != null && namedFromType.IsType("dotnetJs.Union"))
+            {
+                var types = namedFromType.TypeArguments;
+                foreach (var type in types)
+                {
+                    var w = CanConvertTo(type, toType, global, genericTypeSubstitutions, out _);
+                    if (w > 0)
+                    {
+                        unionItemSelected = type;
+                        return w;
+                    }
+                }
+                return -30000;
+            }
+            else if (namedToType != null && namedToType.IsType("dotnetJs.Union"))
+            {
+                var types = namedToType.TypeArguments;
+                return types.Sum(t => CanConvertTo(fromType, t, global, genericTypeSubstitutions, out _));
+            }
+            else if (namedFromType != null && namedFromType.IsType("dotnetJs.Null"))
+            {
+                //null can be assigned to any value type
+                return !((ITypeSymbol)toType).IsValueType ? defaultTrue : defaultFalse;
+            }
+            else if (typeFromType != null && typeFromType.IsType("dotnetJs.Default"))
+            {
+                //default can be assigned to any type
+                return defaultTrue;
+            }
+
+            if (toType is ITypeParameterSymbol genericParameter)
+            {
+                if (genericParameter.ConstraintTypes.Count() == 0)
+                {
+                    if (genericTypeSubstitutions != null)
+                    {
+                        if (!genericTypeSubstitutions.TryAdd(genericParameter, fromType))
+                        {
+
+                        }
+                    }
+                    return defaultTrue * 2;
+                }
+                var ret = genericParameter.ConstraintTypes.Sum(constraint =>
+                {
+                    return fromType.CanConvertTo(constraint, global, genericTypeSubstitutions, out _);
+                });
+                if (ret > 0)
+                {
+                    if (genericTypeSubstitutions != null)
+                    {
+                        if (!genericTypeSubstitutions.TryAdd(genericParameter, fromType))
+                        {
+
+                        }
+                    }
+                }
+                return ret;
+            }
+            if (typeFromType?.IsArray(out var fromArrayElementType) ?? false)
+            {
+                if (typeToType?.IsArray(out var toArrayElementType) ?? false)
+                    return fromArrayElementType.CanConvertTo(toArrayElementType, global, genericTypeSubstitutions, out _);
+                else
+                {
+                    var baseArray = typeFromType.BaseType;
+                    var w = baseArray!.CanConvertTo(toType, global, genericTypeSubstitutions, out unionItemSelected);
+                    if (w >= 0)
+                        return w / 3; //matching to a base type should have lesser weight
+                    if (namedToType?.IsType("System.Collections.Generic.IList<>", true) ?? false)
+                        return defaultTrue;
+                    if (namedToType?.IsType("System.Collections.Generic.IEnumerable<>", true) ?? false)
+                        return defaultTrue;
+                    if (namedToType?.IsType("System.Collections.Generic.ICollection<>", true) ?? false)
+                        return defaultTrue;
+                }
+            }
+            if ((typeFromType?.IsArray(out var fromArray2ElementType) ?? false) && (namedToType?.IsEnumerable(out var eargs) ?? false))
+            {
+                return fromArray2ElementType.CanConvertTo(eargs, global, genericTypeSubstitutions, out _);
+            }
+            if (typeFromType != null && typeToType != null)
+            {
+                if (global.Compilation.HasImplicitConversion(typeFromType, typeToType))
+                    return defaultTrue;
+                if (new ITypeSymbol[] { typeFromType }.Concat(typeFromType.AllInterfaces).Any(i => i.OriginalDefinition.Equals(typeToType, SymbolEqualityComparer.Default)))
+                    return defaultTrue;
+            }
+            if (namedFromType != null && namedToType != null && namedToType.Arity > 0)
+            {
+                var openNamedToType = namedToType.ConstructUnboundGenericType();
+                foreach (var i in new INamedTypeSymbol[] { namedFromType }.Concat(namedFromType.AllInterfaces))
+                {
+                    if (!i.IsGenericType)
+                        continue;
+                    var iOpen = i.ConstructUnboundGenericType();
+                    if (iOpen.Equals(openNamedToType, SymbolEqualityComparer.Default))
+                    {
+                        if (genericTypeSubstitutions != null)
+                        {
+                            int ii = 0;
+                            foreach (var g in i.TypeParameters)
+                            {
+                                genericTypeSubstitutions[g] = i.TypeArguments.ElementAt(ii);
+                                ii++;
+                            }
+                        }
+                        return defaultTrue;
+                    }
+                }
+            }
+            if ((typeFromType?.IsAction(out var fromArgs) ?? false) && (typeToType?.IsDelegate(out var rType, out var toArgs) ?? false))
+            {
+                if (rType == null || rType.Name == "Void")
+                    if (fromArgs.Count() == toArgs.Count() && fromArgs.Select((f, i) => (f, i)).All(farg => farg.f.CanConvertTo(toArgs.ElementAt(farg.i), global, genericTypeSubstitutions, out _) > 0))
+                        return defaultTrue;
+            }
+            if ((typeFromType?.IsFunction(out var fRType, out var fromArgs2) ?? false) && (typeToType?.IsDelegate(out var dRType, out var toArgs2) ?? false))
+            {
+                if (fromArgs2.Count() == toArgs2.Count() &&
+                    fRType.CanConvertTo(dRType, global, genericTypeSubstitutions, out _) > 0 &&
+                    fromArgs2.Select((f, i) => (f, i)).All(farg => farg.f.CanConvertTo(toArgs2.ElementAt(farg.i), global, genericTypeSubstitutions, out _) > 0))
+                    return defaultTrue;
+            }
+            if (fromType is IMethodSymbol fromMethod && namedToType != null)
+            {
+                IEnumerable<ITypeSymbol>? aargs = null;
+                IEnumerable<ITypeSymbol>? fargs = null;
+                ITypeSymbol? fRetType = null;
+                if (namedToType.DelegateInvokeMethod != null || namedToType.IsFunction(out fRetType, out fargs) || namedToType.IsAction(out aargs))
+                {
+                    if ((namedToType.DelegateInvokeMethod?.Parameters.Count() == fromMethod.Parameters.Count() && fromMethod.ReturnType.CanConvertTo(namedToType.DelegateInvokeMethod.ReturnType, global, genericTypeSubstitutions, out _) > 0) ||
+                        (fargs?.Count() == fromMethod.Parameters.Count() && fromMethod.ReturnType.CanConvertTo(fRetType, global, genericTypeSubstitutions, out _) > 0) ||
+                        (aargs?.Count() == fromMethod.Parameters.Count()))
+                    {
+                        if (fromMethod.Parameters.Select((fromMethodParameter, i) => (parameter: fromMethodParameter, i)).Sum(i =>
+                        {
+                            var toDelegateParameter = ((IEnumerable<ISymbol>?)namedToType.DelegateInvokeMethod?.Parameters.Select(e => e.Type) ?? fargs ?? aargs)!.ElementAt(i.i);
+                            return i.parameter.Type.CanConvertTo(toDelegateParameter, global, genericTypeSubstitutions, out _);
+                        }) > 0)
+                        {
+                            return defaultTrue;
+                        }
+                    }
+                }
+            }
+            return -300000;
+        }
+
+        public static ISymbol SubstituteGenericType(this ISymbol sourceType, Dictionary<ITypeParameterSymbol, ISymbol> genericTypeSubstitutions, GlobalCompilationVisitor global)
+        {
+            if (genericTypeSubstitutions.Count == 0)
+                return sourceType;
+            if (!sourceType.OriginalDefinition.Equals(sourceType, SymbolEqualityComparer.Default)) //already substituded
+                return sourceType;
+            if (sourceType is ITypeParameterSymbol genericParameter)
+            {
+                return genericTypeSubstitutions.GetValueOrDefault(genericParameter) ?? sourceType;
+            }
+            if (sourceType is ITypeSymbol tp && tp.IsArray(out var elementType))
+            {
+                var replaced = elementType.SubstituteGenericType(genericTypeSubstitutions, global);
+                return global.Compilation.CreateArrayTypeSymbol((ITypeSymbol)replaced);
+            }
+            if (sourceType is IMethodSymbol fromMethod && fromMethod.IsGenericMethod)
+            {
+                var replacements = fromMethod.TypeParameters.Select(t => (ITypeSymbol)t.SubstituteGenericType(genericTypeSubstitutions, global)).ToArray();
+                return fromMethod.Construct(replacements);
+            }
+            if (sourceType is INamedTypeSymbol fromType && fromType.IsGenericType)
+            {
+                var replacements = fromType.TypeParameters.Select(t => (ITypeSymbol)t.SubstituteGenericType(genericTypeSubstitutions, global)).ToArray();
+                return fromType.Construct(replacements);
+            }
+            return sourceType;
+        }
+
+        static IEnumerable<ISymbol> RecursivelyGetMembers(this INamespaceOrTypeSymbol type, string? name, GlobalCompilationVisitor global, HashSet<string>? found, bool deep)
+        {
+            bool ShouldReturn(ISymbol symbol)
+            {
+                if (symbol.Name == "IsNegative")
+                {
+
+                }
+                if (found == null) //inner getmember always return
+                    return true;
+                var signature = global.GetRequiredMetadata(symbol).Signature;
+                if (found.Contains(signature + "!")) //overriden member already returned
+                    return false;
+                if (symbol.IsOverride) //mark it such that this symbol name will not be retuurned again
+                {
+                    found.Add(signature + "!"); // marks a final symbol with this name
+                }
+                if (found.Add(signature)) //member with this signature has not been returned yet
+                    return true;
+                return false;
+            }
+            if (type is IArrayTypeSymbol arr)
+            {
+                type = (INamespaceOrTypeSymbol)global.AdjustConcreteArrayType(arr);
+            }
+            var members = string.IsNullOrEmpty(name) ? type.GetMembers() : type.GetMembers(name);
+            foreach (var t in members)
+            {
+                if (ShouldReturn(t))
+                    yield return t;
+            }
+            //IndexerName attribute may have been applied to the member we are looking for. 
+            //In which case it isn't get_Item any longer
+            if (name == "get_Item" || name == "set_Item")
+            {
+                var allNamedIndexers = type.GetMembers().Where(m =>
+                {
+                    if (m is IPropertySymbol ps && ps.IsIndexer/* && global.HasAttribute(ps, typeof(IndexerNameAttribute).FullName, null, false, out var args)*/)
+                    {
+                        //var name = args[0].ToString();
+                        return true;
+                    }
+                    return false;
+                }).Cast<IPropertySymbol>();
+                foreach (var t in allNamedIndexers)
+                {
+                    if (name == "get_Item" && t.GetMethod != null)
+                        if (ShouldReturn(t.GetMethod))
+                            yield return t.GetMethod;
+                    if (name == "set_Item" && t.SetMethod != null)
+                        if (ShouldReturn(t.SetMethod))
+                            yield return t.SetMethod;
+                }
+            }
+            if (deep && type is INamedTypeSymbol nt)
+            {
+                if (nt.BaseType != null)
+                {
+                    foreach (var m in RecursivelyGetMembers(nt.BaseType, name, global, null, deep))
+                        if (ShouldReturn(m))
+                            yield return m;
+                }
+                //if the symbol is an interface, then its interfaces members are public within this interface
+                //If the symbol is a class, its interface are not directly public, unless the class implement them publicly,
+                //in which case we already found the member on the class itself
+                if (nt.TypeKind == TypeKind.Interface)
+                {
+                    foreach (var i in nt.Interfaces)
+                    {
+                        foreach (var m in RecursivelyGetMembers(i, name, global, null, deep))
+                            if (ShouldReturn(m))
+                                yield return m;
+                    }
+                }
+            }
+            if (deep && type is ITypeParameterSymbol tp)
+            {
+                foreach (var c in tp.ConstraintTypes)
+                {
+                    foreach (var m in RecursivelyGetMembers(c, name, global, null, deep))
+                        if (ShouldReturn(m))
+                            yield return m;
+                }
+            }
+            if (deep && found != null)
+            {
+                //every type inherits from object and has ToString and GetHashCode, even if not explicitly defined
+                var obj = (ITypeSymbol)global.GetTypeSymbol("System.Object", null);
+                foreach (var m in string.IsNullOrEmpty(name) ? obj.GetMembers() : obj.GetMembers(name))
+                    if (ShouldReturn(m))
+                        yield return m;
+            }
+        }
+        public static IEnumerable<ISymbol> GetMembers(this INamespaceOrTypeSymbol type, string? name, GlobalCompilationVisitor global, bool deep = true)
+        {
+            HashSet<string> found = new HashSet<string>();
+            return RecursivelyGetMembers(type, name, global, found, deep);
+        }
+        internal static bool IsJsBoolean(this ITypeSymbol type)
+        {
+            return type.SpecialType == SpecialType.System_Boolean;
+        }
+        internal static bool IsJsPrimitive(this ITypeSymbol type)
+        {
+            if (type.IsNullable(out var it))
+                type = it!;
+            if (type.TypeKind == TypeKind.Enum)
+                return true;
+            switch (type.SpecialType)
+            {
+                case SpecialType.System_Boolean:
+                case SpecialType.System_SByte:
+                case SpecialType.System_Int16:
+                case SpecialType.System_Int32:
+                case SpecialType.System_IntPtr:
+                case SpecialType.System_UIntPtr:
+                case SpecialType.System_Byte:
+                case SpecialType.System_UInt16:
+                case SpecialType.System_UInt32:
+                case SpecialType.System_Single:
+                case SpecialType.System_Double:
+                case SpecialType.System_Char:
+                case SpecialType.System_String:
+                case SpecialType.System_Enum:
+                    return true;
+            }
+            return false;
+        }
+
+        internal static bool IsNumericType(this ITypeSymbol type)
+        {
+
+            switch (type.SpecialType)
+            {
+                case SpecialType.System_SByte:
+                case SpecialType.System_Int16:
+                case SpecialType.System_Int32:
+                case SpecialType.System_IntPtr:
+                case SpecialType.System_UIntPtr:
+                case SpecialType.System_Byte:
+                case SpecialType.System_UInt16:
+                case SpecialType.System_UInt32:
+                case SpecialType.System_UInt64:
+                case SpecialType.System_Int64:
+                case SpecialType.System_Single:
+                case SpecialType.System_Double:
+                case SpecialType.System_Decimal:
+                    return true;
+            }
+            return false;
+        }
+
+        internal static bool IsJsNativeIntegerNumeric(this ITypeSymbol type)
+        {
+
+            switch (type.SpecialType)
+            {
+                case SpecialType.System_SByte:
+                case SpecialType.System_Int16:
+                case SpecialType.System_Int32:
+                case SpecialType.System_IntPtr:
+                case SpecialType.System_UIntPtr:
+                case SpecialType.System_Byte:
+                case SpecialType.System_UInt16:
+                case SpecialType.System_UInt32:
+                    return true;
+            }
+            return false;
+        }
+
+        internal static bool IsJsNativeNumeric(this ITypeSymbol type)
+        {
+
+            switch (type.SpecialType)
+            {
+                case SpecialType.System_SByte:
+                case SpecialType.System_Int16:
+                case SpecialType.System_Int32:
+                case SpecialType.System_IntPtr:
+                case SpecialType.System_UIntPtr:
+                case SpecialType.System_Byte:
+                case SpecialType.System_UInt16:
+                case SpecialType.System_UInt32:
+                case SpecialType.System_Single:
+                case SpecialType.System_Double:
+                    return true;
+            }
+            return false;
+        }
+
+        public static int GetNumericPrecisionRank(this ITypeSymbol type)
+        {
+            if (!type.IsNumericType())
+            {
+                throw new InvalidOperationException("Not a number");
+            }
+            return type.SpecialType switch
+            {
+                SpecialType.System_Byte => 0,
+                SpecialType.System_SByte => 0,
+                SpecialType.System_Int16 => 1,
+                SpecialType.System_UInt16 => 1,
+                SpecialType.System_Int32 => 2,
+                SpecialType.System_UInt32 => 2,
+                SpecialType.System_IntPtr => 2,
+                SpecialType.System_UIntPtr => 2,
+                SpecialType.System_Int64 => 3,
+                SpecialType.System_UInt64 => 3,
+                SpecialType.System_Single => 4,
+                SpecialType.System_Double => 5,
+                SpecialType.System_Decimal => 6,
+                _ => 7
+            };
+        }
+
+        public static IEnumerable<INamedTypeSymbol> GetInterfaces(this INamedTypeSymbol _interface)
+        {
+            foreach (var _innerInterface in _interface.Interfaces)
+            {
+                yield return _innerInterface;
+                foreach (var _minnerInterface in GetInterfaces(_innerInterface))
+                {
+                    yield return _minnerInterface;
+                }
+            }
+        }
+
+        public static bool IsValidateJsName(this string? name, bool allowDot = false, bool allowComma = false, bool allowSpace = false)
+        {
+            if (name == null)
+                return false;
+            if (name.IndexOfAny(['<', '>', !allowSpace ? ' ' : '\0', !allowComma ? ',' : '\0', !allowDot ? '.' : '\0']) >= 0)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        public static void ValidateJsName(this string? name, bool allowDot = false, bool allowComma = false, bool allowSpace = false)
+        {
+            if (!IsValidateJsName(name, allowDot, allowComma, allowSpace))
+                throw new InvalidOperationException("Invalid name identifier");
+        }
+
+        public static string ResolveOperatorMethodName(this string _operator, int parametersCount)
+        {
+            if (_operator.StartsWith("op_"))
+                return _operator;
+            string operatorName = "Unknown";
+            switch (_operator)
+            {
+                case "==":
+                    operatorName = "Equality";
+                    break;
+                case "!=":
+                    operatorName = "Inequality";
+                    break;
+                case ">":
+                    operatorName = "GreaterThan";
+                    break;
+                case ">=":
+                    operatorName = "GreaterThanOrEqual";
+                    break;
+                case "<":
+                    operatorName = "LessThan";
+                    break;
+                case "<=":
+                    operatorName = "LessThanOrEqual";
+                    break;
+                case "+=":
+                    operatorName = "Addition";
+                    break;
+                case "-=":
+                    operatorName = "Subtraction";
+                    break;
+                case "*":
+                    operatorName = "Multiply";
+                    break;
+                case "/":
+                    operatorName = "Division";
+                    break;
+                case "%":
+                    operatorName = "Modulus";
+                    break;
+                case "++":
+                    operatorName = "Increment";
+                    break;
+                case "--":
+                    operatorName = "Decrement";
+                    break;
+                case "+":
+                    if (parametersCount == 1)
+                        operatorName = "UnaryPlus";
+                    else
+                        operatorName = "Addition";
+                    break;
+                case "-":
+                    if (parametersCount == 1)
+                        operatorName = "UnaryNegation";
+                    else
+                        operatorName = "Subtraction";
+                    break;
+                case "|":
+                    operatorName = "BitwiseOr";
+                    break;
+                case "&":
+                    operatorName = "BitwiseAnd";
+                    break;
+                case "^":
+                    operatorName = "ExclusiveOr";
+                    break;
+                case ">>":
+                    operatorName = "RightShift";
+                    break;
+                case "<<":
+                    operatorName = "LeftShift";
+                    break;
+                case "!":
+                    operatorName = "LogicalNot";
+                    break;
+                case "~":
+                    operatorName = "OnesComplement";
+                    break;
+                case "true":
+                    operatorName = "True";
+                    break;
+                case "false":
+                    operatorName = "False";
+                    break;
+                default:
+                    break;
+            }
+            return "op_" + operatorName;
+        }
+
+
+        public static bool HasAnyAttribute(this MemberDeclarationSyntax node, string[] attributeNames, out Dictionary<string, List<AttributeSyntax>> atts)
+        {
+            atts = new Dictionary<string, List<AttributeSyntax>>();
+            foreach (var attributes in node.AttributeLists)
+            {
+                foreach (var attribute in attributes.Attributes)
+                {
+                    foreach (var attributeName in attributeNames)
+                    {
+                        if (attributeName.StartsWith(attribute.Name.ToString()))
+                        {
+                            if (!atts.TryGetValue(attributeName, out var ats))
+                            {
+                                ats = new List<AttributeSyntax>();
+                                atts[attributeName] = ats;
+                            }
+                            ats.Add(attribute);
+                        }
+                    }
+                }
+            }
+            return atts.Count > 0;
+            //if (node.AttributeLists.Any(a => a.Attributes.Any(aa => attributeNames.Any(an => an.StartsWith(aa.Name.ToString())))))
+            //    return true;
+            //return false;
+        }
+
+        //public static bool HasAttribute(MemberDeclarationSyntax node, string attributeName)
+        //{
+        //    if (HasAttachedAttribute())
+        //        attributeName = attributeName.Substring(0, attributeName.Length - 9);
+        //    if (node.AttributeLists.SelectMany(a => a.Attributes).Any(a => attributeName == a.Name.GetText().ToString()))
+        //        return true;
+        //    return false;
+        //}
+
+        public static AttributeData? GetTemplateAttribute(this ISymbol symbol, GlobalCompilationVisitor _global)
+        {
+            var templateAttributeSymbol = _global.GetTypeSymbol(typeof(TemplateAttribute).FullName!, null/*, out _, out _*/);
+            var attributes = symbol.OriginalDefinition.GetAttributes().Where(a => a.AttributeClass?.Equals(templateAttributeSymbol, SymbolEqualityComparer.Default) ?? false).ToList();
+            AttributeData? attribute = null;
+            if (attributes?.Count > 1)
+            {
+                //chose one of the attribute based on condition
+                foreach (var att in attributes)
+                {
+                    if (att.ConstructorArguments.Length == 2)
+                    {
+                        var condition = att.ConstructorArguments[1].Value?.ToString();
+                        if (condition != null)
+                        {
+                            if (_global.Evaluate(condition) != null)
+                            {
+                                attribute = att;
+                            }
+                        }
+                    }
+                }
+                if (attribute == null)
+                    attribute = attributes.FirstOrDefault();
+            }
+            else
+            {
+                attribute = attributes?.FirstOrDefault(a => a.AttributeClass?.Equals(templateAttributeSymbol, SymbolEqualityComparer.Default) ?? false);
+            }
+            return attribute;
+        }
+
+        public static bool CanInvoke(this IMethodSymbol method, GlobalCompilationVisitor _global)
+        {
+            bool isExtern = method.IsExtern || _global.HasAttribute(method, typeof(ExternalAttribute).FullName!, null, false, out _) ||
+                 (method.AssociatedSymbol?.IsExtern ?? false) || (method.AssociatedSymbol != null && _global.HasAttribute(method.AssociatedSymbol, typeof(ExternalAttribute).FullName!, null, false, out _));
+            bool hasTemplate = method.GetTemplateAttribute(_global) != null;
+            if (!isExtern || hasTemplate)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public static bool IsStaticCallConvention(this ISymbol symbol, GlobalCompilationVisitor _global)
+        {
+            if (symbol.IsStatic)
+                return false;
+            //field access cannot use static convention
+            if (symbol.Kind == SymbolKind.Field)
+                return false;
+            //An explicit implementation cannot use static convention
+            if (symbol is IMethodSymbol method && method.ExplicitInterfaceImplementations.Any())
+                return false;
+            ////A method tht overrides must conform to its overriden convention
+            //if (symbol is IMethodSymbol method2 && method2.IsOverride)
+            //{
+            //    return method2.OverriddenMethod!.IsStaticCallConvention(_global);
+            //}
+            if (_global.HasAttribute(symbol, typeof(StaticCallConventionAttribute).FullName!, null, false, out var args))
+            {
+                if (args != null && args.Length > 0)
+                {
+                    return (bool)args[0];
+                }
+                return true;
+            }
+            if (symbol.ContainingType != null && _global.HasAttribute(symbol.ContainingType, typeof(StaticCallConventionAttribute).FullName!, null, false, out args))
+            {
+                if (args != null && args.Length > 0)
+                {
+                    return (bool)args[0];
+                }
+                return true;
+            }
+            return false;
+        }
+
+        //public static bool IsStaticCallConvention(this IPropertySymbol property, GlobalCompilationVisitor _global)
+        //{
+        //    if (_global.HasAttribute(property, typeof(StaticCallConventionAttribute).FullName!, null, false, out _))
+        //        return true;
+        //    if (_global.HasAttribute(property.ContainingType, typeof(StaticCallConventionAttribute).FullName!, null, false, out _))
+        //        return true;
+        //    return false;
+        //}
+
+        //TODO: This doesnt seem to work well, especially for Symbol generated from metadata
+        //Method.IsImplicitlyDeclared is always false
+        //We tried not calling this method for now from the caller by cheking the containing symbol of the parameters to the primary constructor
+        public static bool IsPrimaryConstructor(this IMethodSymbol methodSymbol, GlobalCompilationVisitor _global)
+        {
+            if (methodSymbol.MethodKind != MethodKind.Constructor)
+            {
+                return false;
+            }
+            var definingSyntax = methodSymbol.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+
+            if (definingSyntax is ClassDeclarationSyntax classDeclaration)
+            {
+                return classDeclaration.ParameterList != null && classDeclaration.ParameterList.Parameters.Any();
+            }
+            else if (definingSyntax is StructDeclarationSyntax structDeclaration)
+            {
+                return structDeclaration.ParameterList != null && structDeclaration.ParameterList.Parameters.Any();
+            }
+            else if (definingSyntax is RecordDeclarationSyntax recordDeclaration)
+            {
+                return recordDeclaration.ParameterList != null && recordDeclaration.ParameterList.Parameters.Any();
+            }
+            return false;
+            //return method.MethodKind == MethodKind.Constructor && method.IsImplicitlyDeclared;
+        }
+
+        public static string Escape(this string str)
+        {
+            return str.Replace(@"\", @"\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t").Replace("\b", "\\b").Replace("\f", "\\f").Replace("\v", "\\v")/*.Replace("\0", "\\0")*/;
+        }
+
+
+        public static string GetLiteralString(this LiteralExpressionSyntax node, GlobalCompilationVisitor global)
+        {
+            return GetLiteralString(node.ToString(), (SyntaxKind)node.RawKind, global);
+        }
+
+        public static string GetLiteralString(this string txt, SyntaxKind kind, GlobalCompilationVisitor global)
+        {
+            if (txt == "default")
+            {
+                txt = $"{global.GlobalName}.$default()";
+            }
+            else if (kind == SyntaxKind.StringLiteralExpression) //handless @"jsdd" string 
+            {
+                if (txt.StartsWith("@") && txt[1] == '\"' && txt.EndsWith("\""))
+                {
+                    txt = txt.Substring(1).Replace("\"\"", "\"")
+                        .Replace("\r", "\\r")
+                        .Replace("\n", "\\n");
+                }
+                else if (txt.StartsWith("\"\"\""))
+                {
+                    int startingQuotes = 0;
+                    for (int i = 0; i < txt.Length; i++)
+                    {
+                        if (txt[i] == '\"')
+                            startingQuotes++;
+                        else
+                            break;
+                    }
+                    txt = "\"" + txt.Substring(startingQuotes, txt.Length - startingQuotes - startingQuotes)
+                        .Replace("\r", "\\r")
+                        .Replace("\n", "\\n") + "\"";
+                }
+            }
+            else if (kind == SyntaxKind.MultiLineRawStringLiteralToken) //handless """jsdd""" string 
+            {
+                int startingQuotes = 0;
+                for (int i = 0; i < txt.Length; i++)
+                {
+                    if (txt[i] == '\"')
+                        startingQuotes++;
+                    else
+                        break;
+                }
+                txt = "\"" + txt.Substring(startingQuotes, txt.Length - startingQuotes - startingQuotes)
+                    .Replace("\r", "\\r")
+                    .Replace("\n", "\\n") + "\"";
+            }
+            else if (kind == SyntaxKind.CharacterLiteralExpression) //handless ''
+            {
+                if (txt.StartsWith("'") && txt.EndsWith("'"))
+                    txt = txt.Substring(1, txt.Length - 2);
+                if (txt.StartsWith("\\x") || txt.StartsWith("\\u"))
+                {
+                    int HexToInt(char c)
+                    {
+                        c = char.ToUpper(c);
+                        if (c <= '9')
+                            return c - '0';
+                        return (c - 'A') + 10;
+                    }
+                    int value = 0;
+                    for (int i = 2; i < txt.Length; i++)
+                    {
+                        value *= 16;
+                        value += HexToInt(txt[i]);
+                    }
+                    txt = value.ToString();
+                }
+                else if (txt.StartsWith("\\") && txt.Length == 2)
+                {
+                    string AsInt(char c)
+                    {
+                        if (c >= '0' && c <= '9')
+                            return ((int)(c - '0')).ToString();
+                        return ((int)c).ToString();
+                    }
+                    switch (txt[1])
+                    {
+                        case 'r':
+                            {
+                                txt = AsInt('\r');
+                                break;
+                            }
+                        case 'n':
+                            {
+                                txt = AsInt('\n');
+                                break;
+                            }
+                        case 't':
+                            {
+                                txt = AsInt('\t');
+                                break;
+                            }
+                        case 'v':
+                            {
+                                txt = AsInt('\v');
+                                break;
+                            }
+                        case 'f':
+                            {
+                                txt = AsInt('\f');
+                                break;
+                            }
+                        case '\\':
+                            {
+                                txt = AsInt('\\');
+                                break;
+                            }
+                        default:
+                            {
+                                txt = AsInt(txt[1]);
+                                break;
+                            }
+                    }
+                }
+                else
+                {
+                    txt = ((int)txt[0]).ToString();
+                }
+            }
+            //else if (node.IsKind(SyntaxKind.NumericLiteralExpression) && txt.StartsWith("0b", StringComparison.InvariantCultureIgnoreCase)) //0b10101
+            //{
+            //    txt = txt.Substring(2);
+            //    int value = 0;
+            //    for (int i = 0; i < txt.Length; i++)
+            //    {
+            //        if (txt[i] == '_')
+            //            continue;
+            //        value <<= 1;
+            //        value += txt[i] == '1' ? 1 : 0;
+            //    }
+            //    txt = value.ToString();
+            //}
+            else if (kind == SyntaxKind.NumericLiteralExpression && txt.EndsWith("U", StringComparison.InvariantCultureIgnoreCase)) //handle 10u
+            {
+                txt = txt.Substring(0, txt.Length - 1).Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NumericLiteralExpression && txt.EndsWith("UL", StringComparison.InvariantCultureIgnoreCase)) //handle 10UL
+            {
+                txt = txt.Substring(0, txt.Length - 2).Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NumericLiteralExpression && txt.EndsWith("L", StringComparison.InvariantCultureIgnoreCase)) //handle 10L
+            {
+                txt = txt.Substring(0, txt.Length - 1).Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NumericLiteralExpression && txt.EndsWith("f", StringComparison.InvariantCultureIgnoreCase) && !txt.StartsWith("0x", StringComparison.InvariantCultureIgnoreCase)) //handle 10.0f
+            {
+                txt = txt.Substring(0, txt.Length - 1).Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NumericLiteralExpression && txt.EndsWith("D", StringComparison.InvariantCultureIgnoreCase) && !txt.StartsWith("0x", StringComparison.InvariantCultureIgnoreCase)) //handle 10D
+            {
+                txt = txt.Substring(0, txt.Length - 1).Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NumericLiteralExpression && txt.EndsWith("m", StringComparison.InvariantCultureIgnoreCase)) //handle decimal with m suffix
+            {
+                txt = txt.Substring(0, txt.Length - 1).Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NumericLiteralExpression)
+            {
+                if (txt.Length > 1 &&
+                    txt[0] == '0' &&
+                    !txt.StartsWith("0x", StringComparison.InvariantCultureIgnoreCase) &&
+                    !txt.StartsWith("0b", StringComparison.InvariantCultureIgnoreCase) &&
+                    !txt.Contains("."))
+                    txt = txt.Substring(1); //js would interprete leading zero in literal number as octal
+                txt = txt.Replace("_", "");
+            }
+            else if (kind == SyntaxKind.NullLiteralExpression)
+            {
+                txt = "null";
+            }
+            return txt;
+        }
+
+        public static bool IsAutoProperty(this IPropertySymbol propertySymbol)
+        {
+            // Get fields declared in the same type as the property
+            var fields = propertySymbol.ContainingType.GetMembers().OfType<IFieldSymbol>();
+            // Check if one field is associated to
+            return fields.Any(field => SymbolEqualityComparer.Default.Equals(field.AssociatedSymbol, propertySymbol));
+        }
+
+        public static RefKind? GetRefKind(this ISymbol lhs)
+        {
+            return (lhs as IParameterSymbol)?.RefKind ??
+                (lhs as IFieldSymbol)?.RefKind ??
+                (lhs as ILocalSymbol)?.RefKind ??
+                (lhs as IPropertySymbol)?.RefKind ??
+                (lhs as IMethodSymbol)?.RefKind ??
+                (lhs is ITypeSymbol ? RefKind.None : null);
+        }
+
+        public static ITypeSymbol GetTypeSymbol(this ISymbol symbol)
+        {
+            if (symbol is ITypeSymbol type)
+            {
+                return type;
+            }
+            if (symbol is IPropertySymbol property)
+            {
+                return property.Type;
+            }
+            if (symbol is IFieldSymbol field)
+            {
+                return field.Type;
+            }
+            if (symbol is ILocalSymbol local)
+            {
+                return local.Type;
+            }
+            if (symbol is IParameterSymbol parameter)
+            {
+                return parameter.Type;
+            }
+            if (symbol is ITypeParameterSymbol tparameter)
+            {
+                return tparameter;
+            }
+            if (symbol is IMethodSymbol method)
+            {
+                if (method.Name == "op_Implicit")
+                    return method.Parameters.First().Type;
+                if (method.MethodKind == MethodKind.Constructor)
+                    return method.ContainingType;
+                return method.ReturnType;
+            }
+            if (symbol is IDiscardSymbol discard)
+            {
+                return discard.Type;
+            }
+            if (symbol is IEventSymbol ev)
+            {
+                return ev.Type;
+            }
+            throw new InvalidOperationException($"Cannot evaluate type from {symbol}");
+        }
+    }
+}

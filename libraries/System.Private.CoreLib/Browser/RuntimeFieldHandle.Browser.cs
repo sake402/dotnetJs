@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -6,10 +6,13 @@ using System.Text;
 
 namespace System
 {
-    [dotnetJs.ForcePartial(typeof(RuntimeFieldHandle))]
+    [NetJs.ForcePartial(typeof(RuntimeFieldHandle))]
+    //[NetJs.Boot]
+    //[NetJs.Reflectable(false)]
+    //[NetJs.OutputOrder(int.MinValue + 1)] //make sure we emit this type immediately after AppDomain
     public partial struct RuntimeFieldHandle_Partial
     {
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         private static void SetValueInternal(FieldInfo fi, object? obj, object? value)
         {
             var model = fi.As<RuntimeFieldInfo_Partial>()._model;
@@ -21,7 +24,7 @@ namespace System
             obj![model.Name] = value;
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static  unsafe object GetValueDirect(RuntimeFieldInfo field, RuntimeType fieldType, void* pTypedRef, RuntimeType? contextType)
         {
             var obj = *(object*)pTypedRef;
@@ -34,7 +37,7 @@ namespace System
             return obj![model.Name];
         }
 
-        [dotnetJs.MemberReplace]
+        [NetJs.MemberReplace]
         internal static  unsafe void SetValueDirect(RuntimeFieldInfo field, RuntimeType fieldType, void* pTypedRef, object value, RuntimeType? contextType)
         {
             var obj = *(object*)pTypedRef;

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace dotnetJs.TranslationTest
+namespace NetJs.Tests
 {
     public static class BooleanTests
     {

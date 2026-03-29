@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -9,28 +9,27 @@ using System.Text;
 
 namespace System
 {
-    [dotnetJs.Base(typeof(Delegate))]
-    internal class JSFunctionDelegate : ForcedPartialBase<Delegate>
+    [NetJs.Base(typeof(Delegate))]
+    internal class Delegate_Partial : ForcedPartialBase<Delegate>
     {
-        public JSFunctionDelegate(object target, string method)
+        public Delegate_Partial(object target, string method)
         {
-            Script.Write("super(target, method)");
+            //Script.Write("super(target, method)");
             Setup();
         }
 
-        public JSFunctionDelegate(object target, MethodInfo method) : this(target, (parameters) =>
+        public Delegate_Partial(object target, MethodInfo method) : this(target, method, (parameters) =>
         {
             return method.Invoke(target, parameters);
         })
         {
-            Script.Write("super(target, method.Name)");
-            Script.Write("this.method_info = method");
-            Setup();
         }
-
-        public JSFunctionDelegate(object? target, Func<object[], object?> jsFunction)
+        
+        public Delegate_Partial(object? target, MethodInfo method, Func<object[], object?> jsFunction)
         {
             //This._target = target
+            //Script.Write("super(target, method.Name)");
+            Script.Write("this.method_info = method");
             Script.Write("this._target = target"); //assign a dummy handle to the method handle
             this["$jsFunction"] = jsFunction;
             Setup();
@@ -101,7 +100,7 @@ namespace System
 
     public partial class Delegate
     {
-        [dotnetJs.MemberReplace(nameof(AllocDelegateLike_internal))]
+        [NetJs.MemberReplace(nameof(AllocDelegateLike_internal))]
         private protected static MulticastDelegate AllocDelegateLike_internalImpl(Delegate d)
         {
             var prototype = typeof(MulticastDelegate).As<RuntimeType>()._prototype;
@@ -123,18 +122,18 @@ namespace System
             return _delegate;
         }
 
-        [dotnetJs.MemberReplace(nameof(CreateDelegate_internal))]
+        [NetJs.MemberReplace(nameof(CreateDelegate_internal))]
         private static Delegate? CreateDelegate_internalImpl(QCallTypeHandle type, object? target, MethodInfo info, bool throwOnBindFailure)
         {
             var returnType = type.QCallTypeHandleToRuntimeType();
-            return new JSFunctionDelegate(target, info).As<Delegate>();
+            return null;// new Delegate_Partial(target, info).As<Delegate>();
         }
 
-        [dotnetJs.MemberReplace(nameof(GetVirtualMethod_internal))]
+        [NetJs.MemberReplace(nameof(GetVirtualMethod_internal))]
         private MethodInfo GetVirtualMethod_internalImpl()
         {
 #pragma warning disable CS0184 // 'is' expression's given expression is never of the provided type
-            if (this is JSFunctionDelegate)
+            if (this is Delegate_Partial)
             {
                 var jsFunction = this["$jsFunction"].As<Func<object[], object?>>();
                 return new JSFunctionMethodInfo(_target, jsFunction);

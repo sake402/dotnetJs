@@ -1,4 +1,4 @@
-﻿using dotnetJs;
+﻿using NetJs;
 using System.Runtime.CompilerServices;
 
 namespace System
@@ -149,14 +149,14 @@ namespace System
         //    return Value;
         //}
 
-        [dotnetJs.Template("{0}")]
-        [dotnetJs.Unbox(true)]
+        [NetJs.Template("{0}")]
+        [NetJs.Unbox(true)]
         public static extern unsafe ref T As<T>(void* obj);
 
-        [dotnetJs.Template("{0}")]
+        [NetJs.Template("{0}")]
         public static extern unsafe ref T FromPointer(void* pointer);
 
-        [dotnetJs.Template("{0}")]
+        [NetJs.Template("{0}")]
         public static extern unsafe T* ToPointer(ref T valueRef);
     }
 }
