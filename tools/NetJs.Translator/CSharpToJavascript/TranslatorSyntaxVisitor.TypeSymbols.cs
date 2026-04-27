@@ -315,7 +315,7 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             else if (expression is TypeSyntax typ)
             {
-                var symbol = _global.GetTypeSymbol(typ, this/*, out _, out _*/);
+                var symbol = _global.TryGetTypeSymbol(typ, this/*, out _, out _*/);
                 return CodeSymbol.From(symbol);
             }
             else if (expression is RefExpressionSyntax rref)
@@ -468,11 +468,11 @@ namespace NetJs.Translator.CSharpToJavascript
                     return CodeSymbol.From(_global.GetTypeSymbol(literal.Token.ValueText.EndsWith("f") ? "System.Float" : literal.Token.ValueText.Contains(".") ? "System.Double" : "System.Int32", this/*, out _, out _*/));
                 }
                 else if (literal.IsKind(SyntaxKind.StringLiteralExpression))
-                    return CodeSymbol.From(_global.GetTypeSymbol("System.String", this/*, out _, out _*/));
+                    return CodeSymbol.From(_global.SystemString);
                 else if (literal.IsKind(SyntaxKind.TrueLiteralExpression) || literal.IsKind(SyntaxKind.FalseLiteralExpression))
-                    return CodeSymbol.From(_global.GetTypeSymbol("System.Boolean", this/*, out _, out _*/));
+                    return CodeSymbol.From(_global.SystemBoolean);
                 else if (literal.IsKind(SyntaxKind.CharacterLiteralExpression))
-                    return CodeSymbol.From(_global.GetTypeSymbol("System.Char", this/*, out _, out _*/));
+                    return CodeSymbol.From(_global.SystemChar);
                 else if (literal.IsKind(SyntaxKind.NullLiteralExpression))
                     return CodeSymbol.From(_global.GetTypeSymbol("NetJs.Null", this/*, out _, out _*/));
                 else if (literal.IsKind(SyntaxKind.DefaultLiteralExpression))

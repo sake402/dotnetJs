@@ -8,7 +8,7 @@ internal static partial class Interop
     {
         internal static unsafe partial byte* GetEnv(string name)
         {
-            throw new NotImplementedException();
+            return null;
         }
 
 

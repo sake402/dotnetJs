@@ -10,6 +10,7 @@ namespace System
     {
         [Name("$type")]
         public Type? Type { get; set; }
+        [Name(Constants.PrototypeFullName)]
         public string FullName { get; set; } = default!;
         [Name(Constants.IsTypeName)]
         public extern bool Is(object value);
@@ -32,6 +33,6 @@ namespace System
         public extern TypePrototype UnderlyingType { get; }
     }
 
-    public delegate TypePrototype TypePrototypeProvider(TypePrototype[]? genericArgs, TypePrototype? baseType);
-    public delegate TypePrototype ParameterlessTypePrototypeProvider();
+    public delegate TypePrototype TypePrototypeProvider(object self, TypePrototype[]? genericArgs, TypePrototype? baseType);
+    public delegate TypePrototype ParameterlessTypePrototypeProvider(object self);
 }

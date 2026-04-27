@@ -5,9 +5,13 @@ using System.Text;
 namespace System.Reflection
 {
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     public partial class MethodBase
     {
+        internal MethodBase(MethodModel model) : base(model)
+        {
+        }
+
         [NetJs.MemberReplace(nameof(GetCurrentMethod))]
         public static MethodBase? GetCurrentMethodImpl()
         {

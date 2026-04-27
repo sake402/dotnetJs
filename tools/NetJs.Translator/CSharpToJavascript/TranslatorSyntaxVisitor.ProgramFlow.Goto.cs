@@ -14,17 +14,17 @@ namespace NetJs.Translator.CSharpToJavascript
     public partial class TranslatorSyntaxVisitor
     {
         bool gotoVariableDeclarationActive;
-        bool gotoGeneratorActive;
+        int gotoGeneratorActive;
         List<VariableDeclarationSyntax> gotoDeclarationDefined = new List<VariableDeclarationSyntax>();
 
-        bool GotoHasDefinedVariable(VariableDeclarationSyntax variable) => gotoGeneratorActive && gotoDeclarationDefined.Contains(variable);
+        bool GotoHasDefinedVariable(VariableDeclarationSyntax variable) => gotoGeneratorActive > 0 && gotoDeclarationDefined.Contains(variable);
         bool BlockTryHandleJumpLabels(BlockSyntax node)
         {
             //Debug.Assert(CurrentClosure.Syntax == node);
             var labels = node.ChildNodes().Where(e => e.IsKind(SyntaxKind.LabeledStatement)).Cast<LabeledStatementSyntax>().ToList();
             foreach (var label in labels)
             {
-                CurrentClosure.JumpLabels.Add(label.Identifier.ValueText);
+                CurrentClosure.GotoJumpLabels.Add(label.Identifier.ValueText);
             }
             if (labels.Count > 0)
             {
@@ -42,25 +42,25 @@ namespace NetJs.Translator.CSharpToJavascript
                     .DistinctBy(v => v.Identifier.ValueText);
                 foreach (var d in declarations)
                 {
-                    Writer.WriteLine(node, $"/*{((VariableDeclarationSyntax)d.Parent!).Type.ToString().Trim()}*/ let {d.Identifier.ValueText};", true);
+                    CurrentTypeWriter.WriteLine(node, $"/*{((VariableDeclarationSyntax)d.Parent!).Type.ToString().Trim()}*/ let {d.Identifier.ValueText};", true);
                 }
                 //VisitChildren(declarations);
                 gotoDeclarationDefined.AddRange(declarations.Select(d => (VariableDeclarationSyntax)d.Parent!));
                 gotoVariableDeclarationActive = false;
 
-                gotoGeneratorActive = true;
-                var manglingSeed = ++Writer.CurrentClosure.NameManglingSeed;
+                gotoGeneratorActive++;
+                var manglingSeed = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
                 string jumpStart = $"$gotoJumpStart{manglingSeed}";
                 string jumpState = $"$gotoJumpState{manglingSeed}";
                 CurrentClosure.JumpStartLabelName = jumpStart;
                 CurrentClosure.JumpStateMachineVariableName = jumpState;
-                Writer.WriteLine(node, $"let {jumpState} = 0;", true);
-                Writer.WriteLine(node, $"{jumpStart}: while(true)", true);
-                Writer.WriteLine(node, "{", true);
-                Writer.WriteLine(node, $"switch({jumpState})", true);
-                Writer.WriteLine(node, "{", true, forbidInsertion:true);
-                Writer.WriteLine(node, "case 0:", true);
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, $"let {jumpState} = 0;", true);
+                CurrentTypeWriter.WriteLine(node, $"{jumpStart}: while(true)", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, $"switch({jumpState})", true);
+                CurrentTypeWriter.WriteLine(node, "{", true, forbidInsertion: true);
+                CurrentTypeWriter.WriteLine(node, "case 0:", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
                 //write every statement with no label first
                 List<SyntaxNode> writtenNodes = new List<SyntaxNode>();
                 foreach (var mnode in node.ChildNodes())
@@ -73,14 +73,14 @@ namespace NetJs.Translator.CSharpToJavascript
                     writtenNodes.Add(mnode);
                 }
                 //Writer.WriteLine(node, "break;", true);
-                Writer.WriteLine(node, "}", true); //end case 0
+                CurrentTypeWriter.WriteLine(node, "}", true); //end case 0
                 List<SyntaxNode> labelledStatements = new List<SyntaxNode>();
                 void EmitLabelledStatements(LabeledStatementSyntax label)
                 {
-                    var index = CurrentClosure.JumpLabels.IndexOf(label.Identifier.ValueText) + 1;
-                    Writer.Write(node, $"case ", true);
-                    Writer.Write(node, index.ToString());
-                    Writer.WriteLine(node, $": /*{label.Identifier.ValueText}*/");
+                    var index = CurrentClosure.GotoJumpLabels.IndexOf(label.Identifier.ValueText) + 1;
+                    CurrentTypeWriter.Write(node, $"case ", true);
+                    CurrentTypeWriter.Write(node, index.ToString());
+                    CurrentTypeWriter.WriteLine(node, $": /*{label.Identifier.ValueText}*/");
                     foreach (var node in labelledStatements)
                     {
                         Visit(node);
@@ -104,10 +104,12 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 if (currentLabel != null)
                     EmitLabelledStatements(currentLabel);
-                Writer.WriteLine(node, "}", true); //end switch
-                Writer.WriteLine(node, "break;", true);
-                Writer.WriteLine(node, "}", true); //end while
-                gotoGeneratorActive = false;
+                CurrentTypeWriter.WriteLine(node, "}", true); //end switch
+                CurrentTypeWriter.WriteLine(node, "break;", true);
+                CurrentTypeWriter.WriteLine(node, "}", true); //end while
+                gotoGeneratorActive--;
+                //gotoDeclarationDefined.Remove(declarations.Select(d => (VariableDeclarationSyntax)d.Parent!));
+
                 return true;
             }
             return false;
@@ -115,10 +117,10 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitLabeledStatement(LabeledStatementSyntax node)
         {
-            var index = CurrentClosure.JumpLabels.IndexOf(node.Identifier.ValueText) + 1;
-            Writer.Write(node, $"case ", true);
-            Writer.Write(node, index.ToString());
-            Writer.WriteLine(node, $": /*{node.Identifier.ValueText}*/");
+            var index = CurrentClosure.GotoJumpLabels.IndexOf(node.Identifier.ValueText) + 1;
+            CurrentTypeWriter.Write(node, $"case ", true);
+            CurrentTypeWriter.Write(node, index.ToString());
+            CurrentTypeWriter.WriteLine(node, $": /*{node.Identifier.ValueText}*/");
             Visit(node.Statement);
             //Writer.WriteLine(node, "break;", true);
             //base.VisitLabeledStatement(node);
@@ -131,16 +133,16 @@ namespace NetJs.Translator.CSharpToJavascript
                 BlockSyntax block = node.FindClosestParent<BlockSyntax>(e =>
                 {
                     var blockClosure = GetClosureOf(e);
-                    if (blockClosure.JumpLabels.Contains(id.Identifier.ValueText))
+                    if (blockClosure.GotoJumpLabels.Contains(id.Identifier.ValueText))
                         return true;
                     return false;
                 }) ?? throw new InvalidOperationException("Goto must be within a block");
                 var blockClosure = GetClosureOf(block);
-                var index = blockClosure.JumpLabels.IndexOf(id.Identifier.ValueText) + 1;
-                Writer.Write(node, $"{blockClosure.JumpStateMachineVariableName} = ", true);
-                Writer.Write(node, index.ToString());
-                Writer.WriteLine(node, $"; /*goto {id.Identifier.ValueText}*/");
-                Writer.WriteLine(node, $"continue {blockClosure.JumpStartLabelName};", true);
+                var index = blockClosure.GotoJumpLabels.IndexOf(id.Identifier.ValueText) + 1;
+                CurrentTypeWriter.Write(node, $"{blockClosure.JumpStateMachineVariableName} = ", true);
+                CurrentTypeWriter.Write(node, index.ToString());
+                CurrentTypeWriter.WriteLine(node, $"; /*goto {id.Identifier.ValueText}*/");
+                CurrentTypeWriter.WriteLine(node, $"continue {blockClosure.JumpStartLabelName};", true);
             }
             else if (node.IsKind(SyntaxKind.GotoCaseStatement) || node.IsKind(SyntaxKind.GotoDefaultStatement))
             {
@@ -152,7 +154,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     return false;
                 }) ?? throw new InvalidOperationException("Goto case must be within a switch");
                 var switchClosure = GetClosureOf(_switch);
-                Writer.Write(node, $"{switchClosure.JumpStateMachineVariableName} = ", true);
+                CurrentTypeWriter.Write(node, $"{switchClosure.JumpStateMachineVariableName} = ", true);
                 if (node.IsKind(SyntaxKind.GotoCaseStatement))
                 {
                     //Debug.Assert(node.Expression is LiteralExpressionSyntax);
@@ -164,10 +166,10 @@ namespace NetJs.Translator.CSharpToJavascript
                     //we want to make sure we assign a value to JumpStateMachineVariableName that will not match any case in the switch
                     //undefined or null will not work as we generate the switch using JumpStateMachineVariableName ?? b
                     //TODO: For now we use this magic string. Hopefully it wont conflict with any user defined case value
-                    Writer.Write(node, "\"$__ChangeMe__$\"");
+                    CurrentTypeWriter.Write(node, "\"$__ChangeMe__$\"");
                 }
-                Writer.WriteLine(node, $"; /*goto case {node.Expression?.ToString() ?? "default"}*/");
-                Writer.WriteLine(node, $"continue {switchClosure.JumpStartLabelName};", true);
+                CurrentTypeWriter.WriteLine(node, $"; /*goto case {node.Expression?.ToString() ?? "default"}*/");
+                CurrentTypeWriter.WriteLine(node, $"continue {switchClosure.JumpStartLabelName};", true);
             }
             else
             {

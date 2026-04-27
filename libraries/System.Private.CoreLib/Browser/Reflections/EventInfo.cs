@@ -3,7 +3,7 @@ namespace System.Reflection
 
     [NetJs.ForcePartial(typeof(EventInfo))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     public abstract partial class EventInfo_Partial
     {
     }

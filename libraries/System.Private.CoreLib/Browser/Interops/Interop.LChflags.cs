@@ -7,25 +7,29 @@ using System.Text;
 internal static partial class Interop
 {
     internal static unsafe partial class Sys
-    {        
-        internal static partial int LChflags(string path, uint flags)
-        {
-            return 0;
-        }
+    {
+        [NetJs.Template("0")]
+        internal static extern partial int LChflags(string path, uint flags);
+        //{
+        //    return 0;
+        //}
 
-        internal static partial int FChflags(SafeHandle fd, uint flags)
-        {
-            return 0;
-        }
+        [NetJs.Template("0")]
+        internal static extern partial int FChflags(SafeHandle fd, uint flags);
+        //{
+        //    return 0;
+        //}
 
-        private static partial int LChflagsCanSetHiddenFlag()
-        {
-            return -1;
-        }
+        [NetJs.Template("-1")]
+        private static extern partial int LChflagsCanSetHiddenFlag();
+        //{
+        //    return -1;
+        //}
 
-        private static partial int CanGetHiddenFlag()
-        {
-            return -1;
-        }
+        [NetJs.Template("-1")]
+        private static extern partial int CanGetHiddenFlag();
+        //{
+        //    return -1;
+        //}
     }
 }

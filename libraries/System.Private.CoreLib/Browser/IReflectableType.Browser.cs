@@ -5,12 +5,8 @@ namespace System.Reflection
 {
     [NetJs.ForcePartial(typeof(IReflectableType))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
-    public interface IReflectableType_Partial
+    //[NetJs.Reflectable(false)]
+    public partial interface IReflectableType_Partial
     {
     }
-}
-
-namespace System
-{
 }

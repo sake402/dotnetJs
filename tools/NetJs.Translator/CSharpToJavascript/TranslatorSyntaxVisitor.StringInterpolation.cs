@@ -16,41 +16,41 @@ namespace NetJs.Translator.CSharpToJavascript
         public override void VisitInterpolation(InterpolationSyntax node)
         {
             var handler = (ITypeSymbol)_global.GetTypeSymbol("System.Runtime.CompilerServices.DefaultInterpolatedStringHandler", this);
-            Writer.Write(node, $"$handler.", true);
+            CurrentTypeWriter.Write(node, $"$handler.", true);
             var sint = (ITypeSymbol)_global.GetTypeSymbol("System.Int32", this);
             var sstring = (ITypeSymbol)_global.GetTypeSymbol("System.String", this);
             var appendFormattedObjectMethod = handler.GetMembers("AppendFormatted").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 3 && e.Parameters[0].Type.Equals(_global.Compilation.ObjectType, SymbolEqualityComparer.Default) && e.Parameters[1].Type.Equals(sint, SymbolEqualityComparer.Default) && e.Parameters[2].Type.Equals(sstring, SymbolEqualityComparer.Default));
             WriteMemberName(node, handler, appendFormattedObjectMethod);
-            Writer.Write(node, $"(");
+            CurrentTypeWriter.Write(node, $"(");
             Visit(node.Expression);
-            Writer.Write(node, $", ");
+            CurrentTypeWriter.Write(node, $", ");
             if (node.AlignmentClause != null)
             {
                 Visit(node.AlignmentClause);
             }
             else
-                Writer.Write(node, "null");
-            Writer.Write(node, $", ");
+                CurrentTypeWriter.Write(node, "null");
+            CurrentTypeWriter.Write(node, $", ");
             if (node.FormatClause != null)
             {
-                Writer.Write(node, $"\"");
-                Writer.Write(node, node.FormatClause.FormatStringToken.ValueText);
-                Writer.Write(node, $"\"");
+                CurrentTypeWriter.Write(node, $"\"");
+                CurrentTypeWriter.Write(node, node.FormatClause.FormatStringToken.ValueText);
+                CurrentTypeWriter.Write(node, $"\"");
             }
             else
-                Writer.Write(node, "null");
-            Writer.WriteLine(node, $");");
+                CurrentTypeWriter.Write(node, "null");
+            CurrentTypeWriter.WriteLine(node, $");");
             //base.VisitInterpolation(node);
         }
 
         public override void VisitInterpolatedStringText(InterpolatedStringTextSyntax node)
         {
             var handler = (ITypeSymbol)_global.GetTypeSymbol("System.Runtime.CompilerServices.DefaultInterpolatedStringHandler", this);
-            Writer.Write(node, $"$handler.", true);
+            CurrentTypeWriter.Write(node, $"$handler.", true);
             WriteMemberName(node, handler, "AppendLiteral");
-            Writer.Write(node, $"(\"");
-            Writer.Write(node, node.TextToken.ValueText.Escape());
-            Writer.WriteLine(node, $"\");");
+            CurrentTypeWriter.Write(node, $"(\"");
+            CurrentTypeWriter.Write(node, node.TextToken.ValueText.Escape());
+            CurrentTypeWriter.WriteLine(node, $"\");");
         }
 
         public override void VisitInterpolatedStringExpression(InterpolatedStringExpressionSyntax node)
@@ -58,19 +58,22 @@ namespace NetJs.Translator.CSharpToJavascript
             //Use native js interpolation for simple interpolation types
             if (node.Contents.All(e => e is InterpolatedStringTextSyntax || (e is InterpolationSyntax token && token.FormatClause == null && token.AlignmentClause == null)))
             {
-                Writer.Write(node, "`");
+                CurrentTypeWriter.Write(node, "`");
                 foreach (var token in node.Contents)
                 {
                     if (token is InterpolatedStringTextSyntax str)
                     {
-                        Writer.Write(node, str/*.ToFullString()*/.TextToken.ValueText);
+                        CurrentTypeWriter.Write(node, str/*.ToFullString()*/.TextToken.ValueText);
                     }
                     else if (token is InterpolationSyntax format)
                     {
-                        Writer.Write(node, "${");
+                        CurrentTypeWriter.Write(node, "${");
                         var type = _global.ResolveSymbol(GetExpressionReturnSymbol(format.Expression), this)?.GetTypeSymbol();
                         string? formatSpecifier = null;
-                        if (type != null && !type.IsType("System.String")&& !type.IsJsPrimitive())
+                        //Cant handle char like a regular primitive. THough char is a numeric type, its conversion to string is not numeric
+                        if (type != null && 
+                            !SymbolEqualityComparer.Default.Equals(type, _global.SystemString) &&
+                            (!type.IsJsPrimitive() || SymbolEqualityComparer.Default.Equals(type, _global.SystemChar)))
                         {
                             var toString = type.GetMembers("ToString", _global).Where(e => e is IMethodSymbol m && m.Parameters.Count() == (formatSpecifier == null ? 0 : 1)).Cast<IMethodSymbol>().FirstOrDefault();
                             if (toString != null)
@@ -79,15 +82,15 @@ namespace NetJs.Translator.CSharpToJavascript
                             }
                             else
                             {
-                                Writer.Write(node, $"{_global.GlobalName}.{Constants.ToStringName}(");
+                                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.ToStringName}(");
                                 Visit(format.Expression);
-                                Writer.Write(node, $", \"\"");
-                                Writer.Write(node, $")");
+                                CurrentTypeWriter.Write(node, $", \"\"");
+                                CurrentTypeWriter.Write(node, $")");
                             }
                         }
                         else
                         {
-                            if (type?.IsJsPrimitive()??false)
+                            if (type?.IsJsPrimitive() ?? false)
                             {
                                 Visit(format.Expression);
                             }
@@ -97,16 +100,16 @@ namespace NetJs.Translator.CSharpToJavascript
                             }
                             else
                             {
-                                Writer.Write(node, $"{_global.GlobalName}.{Constants.ToStringName}(");
+                                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.ToStringName}(");
                                 Visit(format.Expression);
-                                Writer.Write(node, $", \"\"");
-                                Writer.Write(node, $")");
+                                CurrentTypeWriter.Write(node, $", \"\"");
+                                CurrentTypeWriter.Write(node, $")");
                             }
                         }
-                        Writer.Write(node, "}");
+                        CurrentTypeWriter.Write(node, "}");
                     }
                 }
-                Writer.Write(node, "`");
+                CurrentTypeWriter.Write(node, "`");
             }
             else
             {
@@ -116,17 +119,28 @@ namespace NetJs.Translator.CSharpToJavascript
                 int literalLenght = node.Contents.Count(e => !e.IsKind(SyntaxKind.Interpolation));
                 int formattedLenght = node.Contents.Count(e => e.IsKind(SyntaxKind.Interpolation));
 
-                Writer.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
-                Writer.WriteLine(node, $"{{", true);
-                Writer.Write(node, $"var $handler = ", true);
-                WriteConstructorCall(node, handler, constructor, null, [SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(literalLenght)), SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(formattedLenght))]);
-                Writer.WriteLine(node, $";");
-                foreach (var token in node.Contents)
+                WrapStatementsInExpression(node, () =>
                 {
-                    Visit(token);
-                }
-                Writer.WriteLine(node, "return $handler.ToStringAndClear();", true);
-                Writer.Write(node, $"}})", true);
+                    CurrentTypeWriter.Write(node, $"var $handler = ", true);
+                    WriteConstructorCall(node, handler, constructor, null, [SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(literalLenght)), SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(formattedLenght))]);
+                    CurrentTypeWriter.WriteLine(node, $";");
+                    foreach (var token in node.Contents)
+                    {
+                        Visit(token);
+                    }
+                    CurrentTypeWriter.WriteLine(node, "return $handler.ToStringAndClear();", true);
+                });
+                //CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
+                //CurrentTypeWriter.WriteLine(node, $"{{", true);
+                //CurrentTypeWriter.Write(node, $"var $handler = ", true);
+                //WriteConstructorCall(node, handler, constructor, null, [SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(literalLenght)), SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(formattedLenght))]);
+                //CurrentTypeWriter.WriteLine(node, $";");
+                //foreach (var token in node.Contents)
+                //{
+                //    Visit(token);
+                //}
+                //CurrentTypeWriter.WriteLine(node, "return $handler.ToStringAndClear();", true);
+                //CurrentTypeWriter.Write(node, $"}})", true);
             }
             //base.VisitInterpolatedStringExpression(node);
         }

@@ -20,42 +20,62 @@ namespace NetJs.Translator.CSharpToJavascript
         /// <param name="elementType"></param>
         /// <param name="lengths"></param>
         /// <param name="bounds"></param>
-        public void WriteCreateArray(CSharpSyntaxNode node, TypeSyntax elementType, CodeNode ranks, CodeNode? bounds)
+        public void WriteCreateArray(CSharpSyntaxNode node, TypeSyntax elementType, CodeNode lengths, CodeNode? bounds, CodeNode? values)
         {
-            var array = (ITypeSymbol)_global.GetTypeSymbol("System.Array", this);
-            var sType = (ITypeSymbol)_global.GetTypeSymbol("System.Type", this);
-            var sint = (ITypeSymbol)_global.GetTypeSymbol("System.Int32", this);
-            if (bounds == null)
-            {
-                bool FilterMethod(IMethodSymbol e)
-                {
-                    return e.Parameters.Count() == 2 &&
-                        e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) &&
-                        e.Parameters[1].Type.IsArray(out var lType) &&
-                        lType.Equals(sint, SymbolEqualityComparer.Default);
-                }
-                WriteMethodInvocation(node, "System.Array.CreateInstance", methodFilter: FilterMethod, arguments: [elementType, ranks]);
-                //var createInstanceWithLength = (IMethodSymbol)array.GetMembers("CreateInstance").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 2 && e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) && e.Parameters[1].Type.IsArray(out var lType) && lType.Equals(sint, SymbolEqualityComparer.Default));
-                //WriteMethodInvocation(node, createInstanceWithLength, null, null, [elementType, ranks], null, array, false);
-            }
-            else
-            {
-                bool FilterMethod(IMethodSymbol e)
-                {
-                    return e.Parameters.Count() == 3 &&
-                        e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) &&
-                        e.Parameters[1].Type.IsArray(out var lType) &&
-                        lType.Equals(sint, SymbolEqualityComparer.Default) &&
-                        e.Parameters[2].Type.IsArray(out var boundType) &&
-                        boundType.Equals(sint, SymbolEqualityComparer.Default);
-                }
-                WriteMethodInvocation(node, "System.Array.CreateInstance", methodFilter: FilterMethod, arguments: [elementType, ranks, bounds]);
-                //var createInstanceWithLenghtAndBound = (IMethodSymbol)array.GetMembers("CreateInstance").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 3 && e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) && e.Parameters[1].Type.IsArray(out var lType) && lType.Equals(sint, SymbolEqualityComparer.Default) && e.Parameters[2].Type.IsArray(out var boundType) && boundType.Equals(sint, SymbolEqualityComparer.Default));
-                //WriteMethodInvocation(node, createInstanceWithLenghtAndBound, null, null, [elementType, ranks, bounds], null, array, false);
-            }
+            //if (values != null)
+            //{
+            WriteMethodInvocation(node, "System.Runtime.CompilerServices.RuntimeHelpers.CreateArray", arguments: [new CodeNode(() => {
+                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.TypeOf}(");
+                    Visit(elementType);
+                    CurrentTypeWriter.Write(node, $")");
+                }), values?? new CodeNode(()=>{
+                    CurrentTypeWriter.Write(node, $"null");
+                }), lengths, bounds??new CodeNode(()=>{
+                    CurrentTypeWriter.Write(node, $"null");
+                })]);
+            //}
+            //else
+            //{
+            //    var array = (ITypeSymbol)_global.GetTypeSymbol("System.Array", this);
+            //    var sType = (ITypeSymbol)_global.GetTypeSymbol("System.Type", this);
+            //    var sint = (ITypeSymbol)_global.GetTypeSymbol("System.Int32", this);
+            //    if (bounds == null)
+            //    {
+            //        bool FilterMethod(IMethodSymbol e)
+            //        {
+            //            return e.Parameters.Count() == 2 &&
+            //                e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) &&
+            //                e.Parameters[1].Type.IsArray(out var lType) &&
+            //                lType.Equals(sint, SymbolEqualityComparer.Default);
+            //        }
+            //        WriteMethodInvocation(node, "System.Array.CreateInstance", methodFilter: FilterMethod, arguments: [new CodeNode(() =>
+            //        {
+            //            CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.TypeOf}(");
+            //            Visit(elementType);
+            //            CurrentTypeWriter.Write(node, $")");
+            //        }), lengths]);
+            //        //var createInstanceWithLength = (IMethodSymbol)array.GetMembers("CreateInstance").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 2 && e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) && e.Parameters[1].Type.IsArray(out var lType) && lType.Equals(sint, SymbolEqualityComparer.Default));
+            //        //WriteMethodInvocation(node, createInstanceWithLength, null, null, [elementType, ranks], null, array, false);
+            //    }
+            //    else
+            //    {
+            //        bool FilterMethod(IMethodSymbol e)
+            //        {
+            //            return e.Parameters.Count() == 3 &&
+            //                e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) &&
+            //                e.Parameters[1].Type.IsArray(out var lType) &&
+            //                lType.Equals(sint, SymbolEqualityComparer.Default) &&
+            //                e.Parameters[2].Type.IsArray(out var boundType) &&
+            //                boundType.Equals(sint, SymbolEqualityComparer.Default);
+            //        }
+            //        WriteMethodInvocation(node, "System.Array.CreateInstance", methodFilter: FilterMethod, arguments: [elementType, lengths, bounds]);
+            //        //var createInstanceWithLenghtAndBound = (IMethodSymbol)array.GetMembers("CreateInstance").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 3 && e.Parameters[0].Type.Equals(sType, SymbolEqualityComparer.Default) && e.Parameters[1].Type.IsArray(out var lType) && lType.Equals(sint, SymbolEqualityComparer.Default) && e.Parameters[2].Type.IsArray(out var boundType) && boundType.Equals(sint, SymbolEqualityComparer.Default));
+            //        //WriteMethodInvocation(node, createInstanceWithLenghtAndBound, null, null, [elementType, ranks, bounds], null, array, false);
+            //    }
+            //}
         }
 
-        public void WriteCreateArray(CSharpSyntaxNode node, TypeSyntax elementType, IEnumerable<int> ranks, IEnumerable<int>? bounds)
+        public void WriteCreateArray(CSharpSyntaxNode node, TypeSyntax elementType, IEnumerable<int> ranks, IEnumerable<int>? bounds, CodeNode? values)
         {
             //var rankLiterals = ranks.Select(l => SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(l)));
             ////var rank = SyntaxFactory.ArrayRankSpecifier(SyntaxFactory.SeparatedList<ExpressionSyntax>(rankLiterals));
@@ -64,50 +84,75 @@ namespace NetJs.Translator.CSharpToJavascript
             //var boundsNode = boundLiterals != null ? SyntaxFactory.CollectionExpression(SyntaxFactory.SeparatedList(boundLiterals.Select(l => (CollectionElementSyntax)SyntaxFactory.ExpressionElement(l)))) : null;
             WriteCreateArray(node, elementType, (Action)(() =>
             {
-                Writer.Write(node, "[");
+                CurrentTypeWriter.Write(node, "[");
                 int ix = 0;
                 foreach (var r in ranks)
                 {
                     if (ix > 0)
-                        Writer.Write(node, ", ");
-                    Writer.Write(node, r.ToString());
+                        CurrentTypeWriter.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, r.ToString());
                     ix++;
                 }
-                Writer.Write(node, "]");
+                CurrentTypeWriter.Write(node, "]");
             }), bounds != null ? (Action)(() =>
             {
-                Writer.Write(node, "[");
+                CurrentTypeWriter.Write(node, "[");
                 int ix = 0;
                 foreach (var r in bounds)
                 {
                     if (ix > 0)
-                        Writer.Write(node, ", ");
-                    Writer.Write(node, r.ToString());
+                        CurrentTypeWriter.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, r.ToString());
                     ix++;
                 }
-                Writer.Write(node, "]");
-            }) : null);
+                CurrentTypeWriter.Write(node, "]");
+            }) : null, values);
+        }
+
+        public override void VisitOmittedArraySizeExpression(OmittedArraySizeExpressionSyntax node)
+        {
+            CurrentTypeWriter.Write(node, "-1");
+            //base.VisitOmittedArraySizeExpression(node);
         }
 
         public override void VisitArrayCreationExpression(ArrayCreationExpressionSyntax node)
         {
             EnsureImported(node.Type);
-            var rankLiterals = node.Type.RankSpecifiers.First().Sizes;//.Select(l => SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(l)));
+            var rankLiterals = node.Type.RankSpecifiers.First().Sizes.ToArray();//.Select(l => SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal(l)));
             //var rank = SyntaxFactory.ArrayRankSpecifier(SyntaxFactory.SeparatedList<ExpressionSyntax>(rankLiterals));
             //var rank = SyntaxFactory.CollectionExpression(SyntaxFactory.SeparatedList(rankLiterals.Select(l => (CollectionElementSyntax)SyntaxFactory.ExpressionElement(l))));
-            WriteCreateArray(node, node.Type.ElementType, (Action)(() =>
+            WriteCreateArray(node, node.Type.ElementType, lengths: (Action)(() =>
             {
-                //Writer.Write(node, "[");
+                CurrentTypeWriter.Write(node, "[");
                 int ix = 0;
                 foreach (var r in rankLiterals)
                 {
                     if (ix > 0)
-                        Writer.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, ", ");
                     Visit(r);
                     ix++;
                 }
-                //Writer.Write(node, "]");
-            }), null);
+                if (rankLiterals.Length == 0)
+                {
+                    if (node.Initializer != null)
+                        CurrentTypeWriter.Write(node, node.Initializer.Expressions.Count().ToString());
+                    else
+                        CurrentTypeWriter.Write(node, "0");
+                }
+                CurrentTypeWriter.Write(node, "]");
+            }), bounds: null, values: node.Initializer != null ? new CodeNode(() =>
+            {
+                CurrentTypeWriter.Write(node, "[");
+                int ix = 0;
+                foreach (var i in node.Initializer.Expressions)
+                {
+                    if (ix > 0)
+                        CurrentTypeWriter.Write(node, ", ");
+                    Visit(i);
+                    ix++;
+                }
+                CurrentTypeWriter.Write(node, "]");
+            }) : null);
             //var symbol = (IArrayTypeSymbol)_global.GetTypeSymbol(node.Type, this/*, out _, out _*/);
             //var originalType = symbol.ElementType.OriginalDefinition;
             //var typeMetadata = _global.GetMetadata(originalType);
@@ -204,7 +249,7 @@ namespace NetJs.Translator.CSharpToJavascript
             if (arraySize?.IsKind(SyntaxKind.OmittedArraySizeExpression) ?? false)
                 arraySize = null;
             WriteMethodInvocation(node,
-                $"System.Runtime.CompilerServices.RuntimeHelpers.{methodName}",
+                $"System.Runtime.CompilerServices.RuntimeHelpers.{methodName}", methodGenericTypes: [elementType],
                 arguments: [arraySize ?? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression), (CSharpSyntaxNode?)node.Initializer ?? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression)]);
             //WriteMethodInvocation(node, stackAlloc, null, null, [arraySize ?? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression), (CSharpSyntaxNode?)node.Initializer ?? SyntaxFactory.LiteralExpression(SyntaxKind.NullLiteralExpression)], null, runtimeHelpers, false);
             //base.VisitStackAllocArrayCreationExpression(node);
@@ -212,7 +257,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitSpreadElement(SpreadElementSyntax node)
         {
-            Writer.Write(node, "...");
+            CurrentTypeWriter.Write(node, "...");
             base.VisitSpreadElement(node);
         }
 
@@ -243,21 +288,21 @@ namespace NetJs.Translator.CSharpToJavascript
             bool hasSpreadElement = node.Elements.Any(e => e.IsKind(SyntaxKind.SpreadElement));
             if (hasSpreadElement)
             {
-                Writer.Write(node, $"{_global.GlobalName}.{Constants.ToArray}(");
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.ToArray}(");
             }
-            Writer.Write(node, $"[ ");
+            CurrentTypeWriter.Write(node, $"[ ");
             int i = 0;
             foreach (var e in node.Elements)
             {
                 if (i > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 Visit(e);
                 i++;
             }
-            Writer.Write(node, " ]");
+            CurrentTypeWriter.Write(node, " ]");
             if (hasSpreadElement)
             {
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
         }
 
@@ -269,14 +314,18 @@ namespace NetJs.Translator.CSharpToJavascript
 
             //Disable collection expression in boot code as other classes are not available
             var lhsType = isBootCode ? null : InferLeftHandSideType(node);
-            bool isArrayLHS = false;
+            //bool isArrayLHS = false;
             ITypeSymbol? elementType = null;
             if ((lhsType?.IsArray(out elementType) ?? false) || (lhsType?.IsEnumerable(out elementType) ?? false))
             {
-                isArrayLHS = true;
-                var typeMetadata = _global.GetMetadata(elementType);
-                var typeName = typeMetadata?.InvocationName ?? elementType.Name;
-                Writer.Write(node, $"{_global.GlobalName}.System.Array.CreateInstance({typeName}, [-1], null, "); //the runtime will handle the -1 length based on the final lenght of the array
+                //isArrayLHS = true;
+                var typeMetadata = _global.GetMetadata(elementType!);
+                var typeName = typeMetadata?.InvocationName ?? elementType!.Name;
+                WriteMethodInvocation(node, "System.Runtime.CompilerServices.RuntimeHelpers.CreateArray", arguments: [new CodeNode(() => {
+                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.TypeOf}({typeName})");
+                }), new CodeNode(()=>{
+                    WriteCollectionElementsAsArray(node);
+                })]);
             }
             else if (lhsType != null)
             {
@@ -293,24 +342,36 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 else
                 {
-                    Writer.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
-                    Writer.WriteLine(node, $"{{", true);
-                    var ix = ++Writer.CurrentClosure.NameManglingSeed;
-                    var instanceName = $"$t{ix}";
-                    Writer.Write(node, instanceName, true);
-                    Writer.Write(node, " = ");
-                    WriteConstructorCall(node, (INamedTypeSymbol)lhsType, lhsType.GetMembers(".ctor").Cast<IMethodSymbol>().Where(e => e.Parameters.Count() == 0).First());
-                    Writer.WriteLine(node, ";");
-                    WriteInitializer(node, instanceName, lhsType, node.Elements);
-                    Writer.WriteLine(node, $"return {instanceName};", true);
-                    Writer.Write(node, $"}}.bind(this))", true);
+                    WrapStatementsInExpression(node, () =>
+                    {
+                        var ix = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+                        var instanceName = $"$t{ix}";
+                        CurrentTypeWriter.Write(node, instanceName, true);
+                        CurrentTypeWriter.Write(node, " = ");
+                        WriteConstructorCall(node, (INamedTypeSymbol)lhsType, lhsType.GetMembers(".ctor").Cast<IMethodSymbol>().Where(e => e.Parameters.Count() == 0).First());
+                        CurrentTypeWriter.WriteLine(node, ";");
+                        WriteInitializer(node, instanceName, lhsType, node.Elements);
+                        CurrentTypeWriter.WriteLine(node, $"return {instanceName};", true);
+                    });
+                    //CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
+                    //CurrentTypeWriter.WriteLine(node, $"{{", true);
+                    //var ix = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+                    //var instanceName = $"$t{ix}";
+                    //CurrentTypeWriter.Write(node, instanceName, true);
+                    //CurrentTypeWriter.Write(node, " = ");
+                    //WriteConstructorCall(node, (INamedTypeSymbol)lhsType, lhsType.GetMembers(".ctor").Cast<IMethodSymbol>().Where(e => e.Parameters.Count() == 0).First());
+                    //CurrentTypeWriter.WriteLine(node, ";");
+                    //WriteInitializer(node, instanceName, lhsType, node.Elements);
+                    //CurrentTypeWriter.WriteLine(node, $"return {instanceName};", true);
+                    //CurrentTypeWriter.Write(node, $"}}.bind(this))", true);
                 }
-                return;
             }
-            WriteCollectionElementsAsArray(node);
-            if (isArrayLHS)
+            else
             {
-                Writer.Write(node, $")");
+                //var sstring = _global.GetTypeSymbol("System.String", this);
+                //CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{_global.GetAssemblyGlobalSlug(sstring.ContainingAssembly)}.System.Array.CreateInstance({_global.GlobalName}.{Constants.TypeOf}({typeName}), [-1], null, "); //the runtime will handle the -1 length based on the final lenght of the array
+                WriteCollectionElementsAsArray(node);
+                //CurrentTypeWriter.Write(node, $")");
             }
             //base.VisitCollectionExpression(node);
         }
@@ -318,9 +379,9 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitArrayType(ArrayTypeSyntax node)
         {
-            Writer.Write(node, $"{_global.GlobalName}.{Constants.TypeArray}(");
+            CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.TypeArray}(");
             Visit(node.ElementType);
-            Writer.Write(node, ")");
+            CurrentTypeWriter.Write(node, ")");
             //base.VisitArrayType(node);
         }
     }

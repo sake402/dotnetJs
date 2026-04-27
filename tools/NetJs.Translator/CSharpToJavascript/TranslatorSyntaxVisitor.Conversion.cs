@@ -65,30 +65,52 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 var fromType = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Expression), this)?.GetTypeSymbol();
                 var toType = _global.GetTypeSymbol(node.Type, this/*, out _, out _*/).GetTypeSymbol();
-                if (fromType != null && toType != null /*&& _global.Compilation.HasImplicitConversion(fromType, toType)*/ && fromType.IsJsNativeIntegerNumeric() && toType.IsJsNativeIntegerNumeric())
-                {
-                    //this type can just be assigned, no cast/conversion neccessary in js
-                    Visit(node.Expression);
-                    return;
-                }
+
+                //if (fromType != null &&
+                //    toType != null /*&& _global.Compilation.HasImplicitConversion(fromType, toType)*/ &&
+                //    (fromType.IsJsNativeIntegerNumeric() || fromType.TypeKind == TypeKind.Enum) &&
+                //    toType.IsJsNativeIntegerNumeric())
+                //{
+                //    //this type can just be assigned, no cast/conversion neccessary in js
+                //    Visit(node.Expression);
+                //    return;
+                //}
                 if (TryInvokeMethodOperator(node, ExplicitOperatorName, null, node.Type, [node.Expression]))
                     return;
                 if (TryCastUsingExternalInterface(node, toType, fromType, node.Expression))
                     return;
                 //if ((toType?.Equals(_global.Compilation.ObjectType, SymbolEqualityComparer.Default) ?? false) && fromType != null && !fromType.IsValueType)
                 //{
-                    //cast reference type to object can just be assigned, no cast/conversion neccessary in js
-                if (fromType != null && toType != null && fromType.CanConvertTo(toType, _global, null, out _) > 0)
-                {
-                    Visit(node.Expression);
-                    return;
-                }
+                //cast reference type to object can just be assigned, no cast/conversion neccessary in js
+                //if (fromType != null && toType != null && fromType.CanConvertTo(toType, _global, null, out _) > 0)
+                //{
+                //    Visit(node.Expression);
+                //    return;
+                //}
                 EnsureImported(node.Type);
-                Writer.Write(node, $"{_global.GlobalName}.{Constants.CastName}(");
-                Visit(node.Expression);
-                Writer.Write(node, ", ");
-                Visit(node.Type);
-                Writer.Write(node, ")");
+                if (toType != null && fromType != null && NeedBoxing(toType, fromType))
+                {
+                    var metadata = _global.GetRequiredMetadata(fromType);
+                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.BoxName}(");
+                    Visit(node.Expression);
+                    CurrentTypeWriter.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, metadata.InvocationName ?? fromType.ComputeOutputTypeName(_global));
+                    //Visit(node.Type);
+                    CurrentTypeWriter.Write(node, ")");
+                }
+                else
+                {
+                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.CastName}(");
+                    Visit(node.Expression);
+                    CurrentTypeWriter.Write(node, ", ");
+                    Visit(node.Type);
+                    if (fromType?.TypeKind == TypeKind.TypeParameter) //if casting from a a generic parameter to Object, let the runtime decide if it need to box it into this T or not
+                    {
+                        CurrentTypeWriter.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, fromType.Name);
+                    }
+                    CurrentTypeWriter.Write(node, ")");
+                }
             }
             //base.VisitCastExpression(node);
         }

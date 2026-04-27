@@ -14,7 +14,7 @@ namespace NetJs.Translator.CSharpToJavascript.SyntaxEmitter
             if (node.Left.IsKind(SyntaxKind.ThisExpression)/* is ThisExpressionSyntax*/&& node.OperatorToken.IsKind(SyntaxKind.EqualsToken))
             {
                 visitor.Visit(node.Right);
-                visitor.Writer.Write(node, ".Clone(this)");
+                visitor.CurrentTypeWriter.Write(node, ".Clone(this)");
                 return true;
             }
             return false;

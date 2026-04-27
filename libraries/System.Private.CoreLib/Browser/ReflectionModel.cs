@@ -26,16 +26,53 @@ namespace System
         SystemFloat,
         SystemSingle,
         SystemDouble,
-        SystemArray
+        SystemArray,
+        SystemString,
+        SystemPointer,
+        GenericType1Placeholder,
+        GenericType2Placeholder,
+        GenericType3Placeholder,
+        GenericType4Placeholder,
+        GenericType5Placeholder,
+        GenericType6,
+        GenericType7,
+        GenericType8,
+        GenericType9,
+        GenericType10,
+        GenericType11,
+        GenericType12,
+        GenericType13,
+        GenericType14,
+        GenericType15,
+        GenericType16,
+        GenericType17,
+        GenericType18,
+        GenericType19,
+        GenericType20,
+        GenericType21,
+        GenericType22,
+        GenericType23,
+        GenericType24,
+        GenericType25,
+        GenericType26,
+        GenericType27,
+        GenericType28,
+        GenericType29,
+        GenericType30,
+        GenericType31Placeholder,
+        GenericType32Placeholder,
+        GenericTypeMaxPlaceholder = GenericType32Placeholder,
     }
 
     [InlineConst]
     [External]
-    public enum TypeHandleFlags : uint
+    [CLSCompliant(true)]
+    public enum TypeHandleFlags : ulong
     {
-        //First 16 bits is type handle
-        //Next 12 bit is assembly handle
-        Array = 1U << 31 //Array flag signifies array of the type in the first 16 bit
+        //First 16 bits is assembly handle
+        //Next 16 bit is type handle
+        //Next 16 bit is member handle
+        Array = 1UL << 48 //Array flag signifies array of the type 
     }
 
     [InlineConst]
@@ -104,6 +141,7 @@ namespace System
         IsOverride = 1 << 15,
         IsSealed = 1 << 16,
         IsGeneric = 1 << 17,
+        HasDefaultValue = 1 << 18,
         IsFamilyAndAssembly = IsFamily | IsAssembly,
     }
 
@@ -145,50 +183,51 @@ namespace System
     public class AssemblyModel
     {
         [JsonPropertyName("g")][Name("g")] public AssemblyFlags AssemblyFlags { get; set; } = default!;
-        [JsonPropertyName("h")][Name("h")] public ReflectionHandleModel Handle { get; set; } = default!;
+        [JsonPropertyName("h")][Name("h")] public ulong Handle { get; set; } = default!;
         [JsonPropertyName("f")][Name("f")] public string FullName { get; set; } = default!;
         [JsonPropertyName("v")][Name("v")] public string Version { get; set; } = default!;
         [JsonPropertyName("n")][Name("n")] public string[] TypeNames { get; set; } = default!;
         [JsonPropertyName("t")][Name("t")] public TypeModel[]? Types { get; set; }
         [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
         [JsonPropertyName("m")][Name("m")] public AssemblyManifestModel[]? Manifests { get; set; }
-        [JsonPropertyName("r")][Name("r")] public ReflectionHandleModel[] ReferencedAssembliesHandle { get; set; } = default!;
-        [JsonPropertyName("e")][Name("e")] public ReflectionHandleModel Entry { get; set; } = default!;
+        [JsonPropertyName("r")][Name("r")] public ulong[] ReferencedAssembliesHandle { get; set; } = default!;
+        [JsonPropertyName("e")][Name("e")] public ulong Entry { get; set; } = default!;
     }
 
     [ObjectLiteral]
     public class AssemblyManifestModel
     {
         [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
-        [JsonPropertyName("d")][Name("d")] public byte[] Data { get; set; } = default!;
+        [JsonPropertyName("d")][Name("d")] public string? Data { get; set; } = default!;
         [JsonPropertyName("r")][Name("r")] public object StringResourceData { get; set; } = default!;
     }
 
     [ObjectLiteral]
-    public class TypeModel
+    public class TypeModel : MemberModel
     {
         // We can derive this name from fullname at runtime
         //[JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
-        [JsonPropertyName("f")][Name("f")] public ReflectionHandleModel Handle { get; set; }
+        //[JsonPropertyName("h")][Name("h")] public ReflectionHandleModel Handle { get; set; }
         //[JsonPropertyName("aqn")][Name("aqn")] public string AssemblyQualifiedName { get; set; } = default!;
-        [JsonPropertyName("b")][Name("b")] public ReflectionHandleModel? BaseType { get; set; }
-        [JsonPropertyName("d")][Name("d")] public ReflectionHandleModel? DeclaringType { get; set; }
-        [JsonPropertyName("u")][Name("u")] public ReflectionHandleModel? UnderlyingType { get; set; }
+        [JsonPropertyName("b")][Name("b")] public ulong? BaseType { get; set; }
+        //[JsonPropertyName("d")][Name("d")] public ulong? DeclaringType { get; set; }
+        [JsonPropertyName("u")][Name("u")] public ulong? UnderlyingType { get; set; }
         [JsonPropertyName("k")][Name("k")] public TypeKindModel Kind { get; set; }
         [JsonPropertyName("kt")][Name("kt")] public KnownTypeHandle KnownType { get; set; }
-        [JsonPropertyName("fg")][Name("fg")] public TypeFlagsModel Flags { get; set; }
+        [JsonPropertyName("fg")][Name("fg")] public new TypeFlagsModel Flags { get; set; }
         //[JsonPropertyName("y")][Name("y")] public TypeAttributes TypeAttributes { get; set; }
         [JsonPropertyName("p")][Name("p")] public PropertyModel[]? Properties { get; set; }
         [JsonPropertyName("m")][Name("m")] public MethodModel[]? Methods { get; set; }
         [JsonPropertyName("l")][Name("l")] public FieldModel[]? Fields { get; set; }
         [JsonPropertyName("c")][Name("c")] public ConstructorModel[]? Constructors { get; set; }
         [JsonPropertyName("e")][Name("e")] public EventModel[]? Events { get; set; }
-        [JsonPropertyName("i")][Name("i")] public ReflectionHandleModel[]? Interfaces { get; set; }
-        [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
-        [JsonPropertyName("g")][Name("g")] public ReflectionHandleModel[]? GenericArguments { get; set; }
+        [JsonPropertyName("i")][Name("i")] public ulong[]? Interfaces { get; set; }
+        //[JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
+        [JsonPropertyName("g")][Name("g")] public ulong[]? GenericArguments { get; set; }
         [JsonPropertyName("s")][Name("s")] public GenericParameterConstraintModel[]? GenericConstraints { get; set; }
-        [JsonPropertyName("j")][Name("j")] public ReflectionHandleModel[]? NestedTypes { get; set; }
+        [JsonPropertyName("j")][Name("j")] public ulong[]? NestedTypes { get; set; }
         [JsonPropertyName("r")][Name("r")] public int GenericParameterCount { get; set; }
+        [JsonPropertyName("sz")][Name("sz")] public int? Size { get; set; }
 
         //// --- Helper properties for transpiler ---
         //[JsonIgnore][Name("(f & 1L) != 0")] public extern bool IsPublic { get; }
@@ -217,9 +256,9 @@ namespace System
     public abstract class MemberModel //: IHasAssemblyModel
     {
         [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
-        [JsonPropertyName("o")][Name("o")] public string? OutputName { get; set; } 
-        [JsonPropertyName("d")][Name("d")] public ReflectionHandleModel DeclaringType { get; set; } = default!;
-        [JsonPropertyName("h")][Name("h")] public ReflectionHandleModel Handle { get; set; } = default!;
+        [JsonPropertyName("o")][Name("o")] public string? OutputName { get; set; }
+        [JsonPropertyName("d")][Name("d")] public ulong DeclaringType { get; set; } = default!;
+        [JsonPropertyName("h")][Name("h")] public ulong Handle { get; set; } = default!;
         [JsonPropertyName("f")][Name("f")] public MemberFlagsModel Flags { get; set; }
         [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
         //Used by runtime to link back to assembly
@@ -234,7 +273,7 @@ namespace System
     [ObjectLiteral]
     public class PropertyModel : MemberModel
     {
-        [JsonPropertyName("p")][Name("p")] public ReflectionHandleModel PropertyType { get; set; }
+        [JsonPropertyName("p")][Name("p")] public ulong PropertyType { get; set; }
         [JsonPropertyName("i")][Name("i")] public ParameterModel[]? IndexParameters { get; set; }
         [JsonPropertyName("g")][Name("g")] public MethodModel? GetMethod { get; set; }
         [JsonPropertyName("s")][Name("s")] public MethodModel? SetMethod { get; set; }
@@ -249,7 +288,7 @@ namespace System
     [ObjectLiteral]
     public class MethodModel : MemberModel
     {
-        [JsonPropertyName("r")][Name("r")] public ReflectionHandleModel? ReturnType { get; set; }
+        [JsonPropertyName("r")][Name("r")] public ulong? ReturnType { get; set; }
         [JsonPropertyName("t")][Name("t")] public AttributeModel[]? ReturnAttributes { get; set; }
         [JsonPropertyName("p")][Name("p")] public ParameterModel[]? Parameters { get; set; }
         [JsonPropertyName("g")][Name("a")] public string[]? GenericArguments { get; set; }
@@ -263,7 +302,7 @@ namespace System
     [ObjectLiteral]
     public class FieldModel : MemberModel
     {
-        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel FieldType { get; set; } = default!;
+        [JsonPropertyName("t")][Name("t")] public ulong FieldType { get; set; } = default!;
     }
 
     [ObjectLiteral]
@@ -274,7 +313,7 @@ namespace System
     [ObjectLiteral]
     public class EventModel : MemberModel
     {
-        [JsonPropertyName("e")][Name("e")] public ReflectionHandleModel EventHandlerType { get; set; }
+        [JsonPropertyName("e")][Name("e")] public ulong EventHandlerType { get; set; }
         [JsonPropertyName("m")][Name("m")] public MethodModel? AddMethod { get; set; }
         [JsonPropertyName("r")][Name("r")] public MethodModel? RemoveMethod { get; set; }
         [JsonPropertyName("y")][Name("y")] public MethodModel? RaiseMethod { get; set; }
@@ -284,7 +323,7 @@ namespace System
     public class ParameterModel// : IHasAssemblyModel
     {
         [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
-        [JsonPropertyName("p")][Name("p")] public ReflectionHandleModel ParameterType { get; set; } = default!;
+        [JsonPropertyName("p")][Name("p")] public ulong ParameterType { get; set; } = default!;
         [JsonPropertyName("o")][Name("o")] public int Position { get; set; }
         [JsonPropertyName("f")][Name("f")] public ParameterFlagsModel Flags { get; set; }
         [JsonPropertyName("v")][Name("v")] public object? DefaultValue { get; set; }
@@ -292,25 +331,28 @@ namespace System
         [JsonPropertyName("a")][Name("a")] public AttributeModel[]? Attributes { get; set; }
     }
 
+    [ObjectLiteral]
     public class AttributeConstructorArgumentModel
     {
         [JsonPropertyName("v")][Name("v")] public object? Value { get; set; }
-        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel Type { get; set; }
+        [JsonPropertyName("t")][Name("t")] public ulong Type { get; set; }
     }
 
+    [ObjectLiteral]
     public class AttributeNamedArgumentModel
     {
         [JsonPropertyName("n")][Name("n")] public string Name { get; set; } = default!;
         [JsonPropertyName("v")][Name("v")] public object? Value { get; set; }
-        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel Type { get; set; }
+        [JsonPropertyName("t")][Name("t")] public ulong Type { get; set; }
     }
 
+    [ObjectLiteral]
     public class AttributeModel
     {
-        [JsonPropertyName("t")][Name("t")] public ReflectionHandleModel TypeHandle { get; set; } = default!;
-        [JsonPropertyName("c")][Name("c")] public ReflectionHandleModel ConstructorHandle { get; set; } = default!;
-        [JsonPropertyName("a")][Name("a")] public AttributeConstructorArgumentModel[] ConstructorArguments { get; set; } = default!;
-        [JsonPropertyName("n")][Name("n")] public AttributeNamedArgumentModel[] NamedArguments { get; set; } = default!;
+        [JsonPropertyName("t")][Name("t")] public ulong TypeHandle { get; set; } = default!;
+        [JsonPropertyName("c")][Name("c")] public ulong ConstructorHandle { get; set; } = default!;
+        [JsonPropertyName("a")][Name("a")] public AttributeConstructorArgumentModel[]? ConstructorArguments { get; set; } = default!;
+        [JsonPropertyName("n")][Name("n")] public AttributeNamedArgumentModel[]? NamedArguments { get; set; } = default!;
     }
 
     [ObjectLiteral]
@@ -318,7 +360,7 @@ namespace System
     {
         [JsonPropertyName("n")][Name("n")] public string ParameterName { get; set; } = default!;
         [JsonPropertyName("f")][Name("f")] public GenericConstraintFlagsModel Flags { get; set; }
-        [JsonPropertyName("c")][Name("c")] public ReflectionHandleModel[]? TypeConstraints { get; set; }
+        [JsonPropertyName("c")][Name("c")] public ulong[]? TypeConstraints { get; set; }
     }
 
 }

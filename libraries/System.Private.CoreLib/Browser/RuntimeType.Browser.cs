@@ -1,18 +1,20 @@
 ﻿using NetJs;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 
 
 namespace System
 {
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     internal unsafe partial class RuntimeType
     {
-        internal TypeModel _model;
+        //internal TypeModel _model;
         internal string _scriptFullName;
         internal RuntimeAssembly? _assembly;
         internal TypePrototypeProvider? _prototypeProvider;
@@ -59,18 +61,17 @@ namespace System
         //DO NOT CALL DIRECTLY. We only call this in the static function above
         //we are merging these two constructor overload into one (with union) so there is no overload on System.Type and we can call it deterministically from Script.Write above
         [Name("__ctor__")] //we are renaming this constructor so it doesn't conflict with the js prototype we mix with it above
-        private RuntimeType(RuntimeAssembly? assembly, Union<TypePrototypeProvider?, TypePrototype?>? prototype, TypeModel metadata, string scriptFullName)
+        private RuntimeType(RuntimeAssembly? assembly, Union<TypePrototypeProvider?, TypePrototype?>? prototype, TypeModel model, string scriptFullName)
         {
-            _impl = new RuntimeTypeHandle((IntPtr)metadata.Handle.Value);
+            _impl = new RuntimeTypeHandle(model.Handle.As<IntPtr>());
             bool isClass = prototype != null && Script.Write<bool>("typeof prototype === 'function' && prototype.hasOwnProperty('prototype') && !prototype.hasOwnProperty('arguments')");
             if (isClass)
             {
                 _assembly = assembly;
                 _prototype = prototype.As<TypePrototype>();
-                _model = metadata;
+                _model = model;
                 _scriptFullName = scriptFullName;
-                if (metadata != null)
-                    Initialize();
+                //_prototype.Type = this;
             }
             else
             {
@@ -78,11 +79,22 @@ namespace System
                 _prototypeProvider = prototype.As<TypePrototypeProvider>();
                 //if (prototypeProvider != null)
                 //_prototype = prototypeProvider(null, null);
-                _model = metadata;
+                _model = model;
                 _scriptFullName = scriptFullName;
-                if (metadata != null && _prototype != null)
-                    Initialize();
+                //prototype.As<object>()["$type"] = this;
             }
+            Object.DefineProperty(prototype.As<object>(), Constants.ObjectTypeName, new PropertyDescriptor { Value = this });
+            prototype.As<object>()["$model"] = model;
+            if (_assembly != null)
+            {
+                prototype.As<object>()[Constants.AssemblyRegistryName] = _assembly;
+                _assembly.As<RuntimeAssembly_Partial>()._types.Push(this);
+            }
+            AppDomain.GlobalTypeRegistry[scriptFullName] = this;
+            if (model != null)
+                AppDomain.GlobalTypeRegistry[model.Handle.GetAssemblyAndTypeHandle()] = this;
+            //if (model != null && _prototype != null)
+            //    Initialize();
         }
 
 
@@ -126,59 +138,60 @@ namespace System
         //        Initialize();
         //}
 
-        internal void InitializeFrom(TypePrototype? mprototype, TypeModel model)
-        {
-            _prototype = mprototype;
-            _model = model;
-            Initialize();
-        }
+        //internal void InitializeFrom(TypePrototype? mprototype, TypeModel model)
+        //{
+        //    _prototype = mprototype;
+        //    _model = model;
+        //    Initialize();
+        //}
 
-        internal void InitializeFrom(TypePrototypeProvider? prototypeProvider, TypeModel model)
-        {
-            _prototypeProvider = prototypeProvider;
-            //if (prototypeProvider != null)
-            //_prototype = prototypeProvider(null, null);
-            _model = model;
-            Initialize();
-        }
+        //internal void InitializeFrom(TypePrototypeProvider? prototypeProvider, TypeModel model)
+        //{
+        //    _prototypeProvider = prototypeProvider;
+        //    //if (prototypeProvider != null)
+        //    //_prototype = prototypeProvider(null, null);
+        //    _model = model;
+        //    Initialize();
+        //}
 
-        void Initialize()
+        [Name("$do_self_init")]
+        void SelfInitialize()
         {
-            if (Script.IsDefined(_model.Methods))
+            if (Script.IsDefined(_model.As<TypeModel>().Methods))
             {
-                _model.Methods!.ForEach(m =>
+                _model.As<TypeModel>().Methods!.ForEach(m =>
                 {
                     var methodInfo = new RuntimeMethodInfo(m);
                     _methods.Push(methodInfo);
                 });
             }
-            if (Script.IsDefined(_model.Properties))
+            if (Script.IsDefined(_model.As<TypeModel>().Properties))
             {
-                _model.Properties!.ForEach(m =>
+                _model.As<TypeModel>().Properties!.ForEach(m =>
                 {
                     var propertyInfo = new RuntimePropertyInfo_Partial(m);
                     _properties.Push(propertyInfo.As<RuntimePropertyInfo>());
                 });
             }
-            if (Script.IsDefined(_model.Fields))
+            if (Script.IsDefined(_model.As<TypeModel>().Fields))
             {
-                _model.Fields!.ForEach(m =>
+                _model.As<TypeModel>().Fields!.ForEach(m =>
                 {
                     var fieldInfo = new RuntimeFieldInfo_Partial(m);
                     _fields.Push(fieldInfo.As<RuntimeFieldInfo>());
                 });
             }
-            if (Script.IsDefined(_model.Constructors))
+            if (Script.IsDefined(_model.As<TypeModel>().Constructors))
             {
-                _model.Constructors!.ForEach(m =>
+                _model.As<TypeModel>().Constructors!.ForEach(m =>
                 {
                     var constructorInfo = new RuntimeConstructorInfo(m);
                     _constructors.Push(constructorInfo);
                 });
             }
-            if (Script.IsDefined(_model.Events))
+            if (Script.IsDefined(_model.As<TypeModel>().Events))
             {
-                _model.Events!.ForEach(m =>
+                _model.As<TypeModel>().Events!.ForEach(m =>
                 {
                     var eventInfo = new RuntimeEventInfo_Partial(m);
                     _events.Push(eventInfo.As<RuntimeEventInfo>());
@@ -204,19 +217,34 @@ namespace System
         }
 
 
-        internal void StaticInitialize()
+        [Name("$do_static_init")]
+        void StaticInitialize()
         {
             if (_prototype != null)
             {
-                if (Script.IsDefined(_prototype[Constants.StaticInitializerName]))
+                if (Object.HasOwnProperty(_prototype, Constants.StaticInitializerName))
                     _prototype.StaticInitializeMembers();
-                if (Script.IsDefined(_prototype[Constants.StaticConstructorName]))
+                if (Object.HasOwnProperty(_prototype, Constants.StaticConstructorName))
                     _prototype.StaticConstructor();
+                //if (Script.IsDefined(_prototype[Constants.StaticInitializerName]))
+                //    _prototype.StaticInitializeMembers();
+                //if (Script.IsDefined(_prototype[Constants.StaticConstructorName]))
+                //    _prototype.StaticConstructor();
             }
         }
+
+        internal bool _isCompleted;
+        internal bool _isCompleting;
+        [Name("$do_complete")]
         internal void Complete()
         {
+            if (_isCompleted || _isCompleting)
+                return;
+            _isCompleting = true;
+            SelfInitialize();
             StaticInitialize();
+            _isCompleting = false;
+            _isCompleted = true;
         }
 
         static bool MemberFilter(MemberInfo i, BindingFlags bindingAttr, Type[]? parameterTypes = null)
@@ -251,46 +279,47 @@ namespace System
             return false;
         }
 
-        [Name(Constants.TypeIsAssignableName)]
+        //[Name(Constants.TypeIsAssignableName)]
         internal static bool IsAssignableInternal(RuntimeType lhs, RuntimeType rhs)
         {
-            if (rhs == lhs || lhs.FullName == rhs.FullName)
-                return true;
-            if (Script.IsDefined(rhs._model.BaseType))
-            {
-                var btfn = GetTypeFromHandle(rhs._model.BaseType!.Value);
-                if (btfn != null && IsAssignableInternal(lhs, btfn))
-                    return true;
-            }
-            if (Script.IsDefined(rhs._model.Interfaces))
-            {
-                for (int i = 0; i < rhs._model.Interfaces!.Length; i++)
-                {
-                    var btfn = GetTypeFromHandle(rhs._model.Interfaces[i]);
-                    if (btfn != null && IsAssignableInternal(lhs, btfn))
-                        return true;
-                }
-            }
-            return false;
+            return IsSubClassOfInternal(rhs, lhs);
+            //if (rhs == lhs || lhs.FullName == rhs.FullName)
+            //    return true;
+            //if (Script.IsDefined(rhs._model.As<TypeModel>().BaseType))
+            //{
+            //    var btfn = GetTypeFromHandle(rhs._model.As<TypeModel>().BaseType!.Value);
+            //    if (btfn != null && IsAssignableInternal(lhs, btfn))
+            //        return true;
+            //}
+            //if (Script.IsDefined(rhs._model.As<TypeModel>().Interfaces))
+            //{
+            //    for (int i = 0; i < rhs._model.As<TypeModel>().Interfaces!.Length; i++)
+            //    {
+            //        var btfn = GetTypeFromHandle(rhs._model.As<TypeModel>().Interfaces![i]);
+            //        if (btfn != null && IsAssignableInternal(lhs, btfn))
+            //            return true;
+            //    }
+            //}
+            //return false;
         }
 
         [Name(Constants.TypeIsAssignableName)]
         internal static bool IsSubClassOfInternal(RuntimeType child, RuntimeType @base)
         {
-            if (@base == child || child.FullName == @base.FullName)
+            if (@base == child/* || child.FullName == @base.FullName*/)
                 return true;
-            if (Script.IsDefined(@base._model.BaseType))
+            if (Script.IsDefined(child._model.As<TypeModel>().BaseType))
             {
-                var btfn = GetTypeFromHandle(@base._model.BaseType!.Value);
-                if (btfn != null && IsSubClassOfInternal(child, btfn))
+                var childBase = GetTypeFromHandle(child._model.As<TypeModel>().BaseType!.Value);
+                if (childBase != null && IsSubClassOfInternal(childBase, @base))
                     return true;
             }
-            if (Script.IsDefined(@base._model.Interfaces))
+            if (@base.IsInterface && Script.IsDefined(child._model.As<TypeModel>().Interfaces))
             {
-                for (int i = 0; i < @base._model.Interfaces!.Length; i++)
+                for (int i = 0; i < child._model.As<TypeModel>().Interfaces!.Length; i++)
                 {
-                    var btfn = GetTypeFromHandle(@base._model.Interfaces[i]);
-                    if (btfn != null && IsSubClassOfInternal(child, btfn))
+                    var childBase = GetTypeFromHandle(child._model.As<TypeModel>().Interfaces![i]);
+                    if (childBase != null && IsSubClassOfInternal(childBase, @base))
                         return true;
                 }
             }
@@ -301,7 +330,8 @@ namespace System
              MemberTypes memberTypes,
              BindingFlags bindingAttr = BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance,
              string? name = null,
-             Type[]? parameterTypes = null)
+             Type[]? parameterTypes = null,
+             MemberListType listType = MemberListType.All)
         {
 
             MemberInfo[] Filter(MemberInfo[] info)
@@ -340,16 +370,18 @@ namespace System
             return members;
         }
 
-        internal MemberInfo? GetMemberInternal(ReflectionHandleModel memberHandle)
+        internal MemberInfo? GetMemberInternal(ulong memberHandle)
         {
-            return (MemberInfo?)_constructors.ArrayFirstOrDefault(c => c._miMetadata.Handle.Member == memberHandle.Member) ??
-               (MemberInfo?)_fields.ArrayFirstOrDefault(c => c._miMetadata.Handle.Member == memberHandle.Member) ??
-               (MemberInfo?)_properties.ArrayFirstOrDefault(c => c._miMetadata.Handle.Member == memberHandle.Member) ??
-               (MemberInfo?)_events.ArrayFirstOrDefault(c => c._miMetadata.Handle.Member == memberHandle.Member) ??
-               (MemberInfo?)_methods.ArrayFirstOrDefault(c => c._miMetadata.Handle.Member == memberHandle.Member);
+            return (MemberInfo?)_constructors.ArrayFirstOrDefault(c => c._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle()) ??
+               (MemberInfo?)_fields.ArrayFirstOrDefault(c => c._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle()) ??
+               (MemberInfo?)_properties.ArrayFirstOrDefault(c => c._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle()) ??
+               (MemberInfo?)_properties.Map(p => p.GetMethod).Filter(c => c != null).ArrayFirstOrDefault(c => c!._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle()) ??
+               (MemberInfo?)_properties.Map(p => p.SetMethod).Filter(c => c != null).ArrayFirstOrDefault(c => c!._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle()) ??
+               (MemberInfo?)_events.ArrayFirstOrDefault(c => c._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle()) ??
+               (MemberInfo?)_methods.ArrayFirstOrDefault(c => c._model.Handle.GetMemberHandle() == memberHandle.GetMemberHandle());
         }
 
-        public static RuntimeType? GetTypeFromHandle(ReflectionHandleModel typeHandle)
+        public static RuntimeType? GetTypeFromHandle(ulong typeHandle)
         {
             return AppDomain.GetType(typeHandle);
         }
@@ -357,7 +389,7 @@ namespace System
         public static string? GetTypeNameFromHandle(uint typeHandle)
         {
             var assemblyHandle = typeHandle.AssemblyHandle();
-            var metadata = AppDomain._reflectionMetadata[assemblyHandle.As<uint>()];
+            var metadata = AppDomain.GlobalMetadataRegistry[assemblyHandle.As<uint>()];
             if (Script.IsUndefined(metadata))
                 return null;
             var name = metadata.TypeNames[typeHandle.TypeHandle()];
@@ -382,21 +414,89 @@ namespace System
         {
             if (_prototypeProvider == null)
                 throw new InvalidOperationException();
-            if (_model.GenericParameterCount != typeArguments.Length)
+            if (_model.As<TypeModel>().GenericParameterCount != typeArguments.Length)
                 throw new ArgumentException("Incorrect number of type arguments supplied");
-            var newPrototype = _prototypeProvider(typeArguments.Map(t => t.As<RuntimeType>()._prototype!), null);
-            // Script.Apply<TypePrototype>(null, _prototype, typeArguments.Map(t => t._prototype));
-            return MakeGenericTypeInternal(typeArguments, newPrototype);
+            var newScriptName = RuntimeAssembly_Partial.InsertGenericNames(_scriptFullName, typeArguments.Map(t => t._scriptFullName));
+            //If the type we are mixing for depends on itself, we need to pass this into the getPrototype so it can be used in the mixin definition
+            var selfProxy = RuntimeAssembly_Partial.CreateTypeProxy(newScriptName);
+            var gArgs = typeArguments.Map(t => t.As<RuntimeType>()._prototype!);
+            var newPrototype = _prototypeProvider(selfProxy, gArgs, null);
+            //var newPrototype = _prototypeProvider(typeArguments.Map(t => t.As<RuntimeType>()._prototype!), null);
+            var newType = MakeGenericTypeInternal(typeArguments, newPrototype, newScriptName);
+            selfProxy.TargetType = newType;
+            selfProxy.Prototype = newPrototype;
+            return newType;
         }
 
-        internal RuntimeType MakeGenericTypeInternal(RuntimeType[] typeArguments, TypePrototype prototype)
+        ulong UpdateGenericHandle(ulong handle, RuntimeType[] typeArguments)
         {
-            if (_model.GenericParameterCount != typeArguments.Length)
+            if (handle >= KnownTypeHandle.GenericType1Placeholder.As<ulong>() && handle <= KnownTypeHandle.GenericType31Placeholder.As<ulong>())
+            {
+                var index = handle - KnownTypeHandle.GenericType1Placeholder.As<ulong>();
+                handle = typeArguments[index]._model.As<TypeModel>().Handle;
+            }
+            return handle;
+        }
+
+        internal RuntimeType MakeGenericTypeInternal(RuntimeType[] typeArguments, TypePrototype prototype, string scriptFullName)
+        {
+            if (Script.IsDefined(_model.As<TypeModel>().GenericParameterCount) && _model.As<TypeModel>().GenericParameterCount != typeArguments.Length)
                 throw new ArgumentException("Incorrect number of type arguments supplied");
+            //Clone the parent model
             var newTypeModel = Script.JSONParse<TypeModel>(Script.JSONStringify(_model));
-            var t = RuntimeType.Create(_assembly, prototype, newTypeModel, _scriptFullName);
+            //replace every generic type placeholder in the new model with the provided type arguments
+            if (Script.IsDefined(newTypeModel.GenericArguments))
+                newTypeModel.GenericArguments = newTypeModel.GenericArguments!.Map(g => UpdateGenericHandle(g, typeArguments));
+            if (Script.IsDefined(newTypeModel.Fields))
+            {
+                newTypeModel.Fields!.ForEach(f =>
+                {
+                    if (Script.IsDefined(f.FieldType))
+                        f.FieldType = UpdateGenericHandle(f.FieldType, typeArguments);
+                });
+            }
+            if (Script.IsDefined(newTypeModel.Properties))
+            {
+                newTypeModel.Properties!.ForEach(f =>
+                {
+                    if (Script.IsDefined(f.PropertyType))
+                        f.PropertyType = UpdateGenericHandle(f.PropertyType, typeArguments);
+                });
+            }
+            if (Script.IsDefined(newTypeModel.Methods))
+            {
+                newTypeModel.Methods!.ForEach(f =>
+                {
+                    if (Script.IsDefined(f.ReturnType))
+                    {
+                        f.ReturnType = UpdateGenericHandle(f.ReturnType.As<ulong>(), typeArguments);
+                    }
+                    if (Script.IsDefined(f.Parameters))
+                    {
+                        f.Parameters!.ForEach(p =>
+                        {
+                            if (Script.IsDefined(p.ParameterType))
+                                p.ParameterType = UpdateGenericHandle(p.ParameterType, typeArguments);
+                        });
+                    }
+                });
+            }
+            var t = RuntimeType.Create(_assembly, prototype, newTypeModel, scriptFullName);
             t._parentGenericTypeDefinition = _parentGenericTypeDefinition ?? this;
-            t._typeArguments = typeArguments;
+            if (_model.As<TypeModel>().Flags.TypeHasFlag(TypeFlagsModel.IsArray))
+            {
+                Debug.Assert(typeArguments.Length == 1);
+                unchecked
+                {
+                    t._arrayElementType = typeArguments[0];
+                    t._arrayTypeRank = 1;
+                }
+            }
+            else
+            {
+                t._typeArguments = typeArguments;
+            }
+            _assembly.As<RuntimeAssembly_Partial>().RegisterCompletionNotification(t);
             return t;
         }
 
@@ -406,10 +506,10 @@ namespace System
                 return Array.Empty<Type>();
             if (_typeArguments != null)
                 return _typeArguments;
-            return _typeArguments = _model.GenericArguments?.Map((arg, i, all) =>
+            return _typeArguments = _model.As<TypeModel>().GenericArguments?.Map((arg, i, all) =>
             {
                 var argType = GetTypeFromHandle(arg);
-                var constraint = Script.IsDefined(_model.GenericConstraints) ? _model.GenericConstraints![i] : null;//?.Filter(c => c.ParameterName == arg)[0];
+                var constraint = Script.IsDefined(_model.As<TypeModel>().GenericConstraints) ? _model.As<TypeModel>().GenericConstraints![i] : null;//?.Filter(c => c.ParameterName == arg)[0];
                 bool firstConstraintIsClass;
                 if (constraint != null && constraint.TypeConstraints?.Length > 0)
                 {
@@ -423,9 +523,9 @@ namespace System
                 var model = new TypeModel()
                 {
                     //Name = arg,
-                    Handle = new ReflectionHandleModel { Value = 0 },// arg,
+                    Handle =  0 ,// arg,
                     BaseType = constraint != null && firstConstraintIsClass ? constraint.TypeConstraints?[0] : null,
-                    Interfaces = constraint != null ? (firstConstraintIsClass ? constraint.TypeConstraints!.Slice(1).As<ReflectionHandleModel[]>() : constraint.TypeConstraints) : null,
+                    Interfaces = constraint != null ? (firstConstraintIsClass ? constraint.TypeConstraints!.Slice(1).As<ulong[]>() : constraint.TypeConstraints) : null,
                 };
                 var type = Create(null, Script.Write<TypePrototype>("$.System.GenericTypeArgument" /*+ nameof(GenericTypeArgument)*/), model, _scriptFullName);
                 type._genericParameterPosition = i;
@@ -442,11 +542,11 @@ namespace System
         private static void GetParentTypeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var runtimeType = RuntimeHelpers.QCallTypeHandleToRuntimeType(type);
-            if (runtimeType._model.Kind == TypeKindModel.Class || runtimeType._model.Kind == TypeKindModel.Struct)
+            if (runtimeType._model.As<TypeModel>().Kind == TypeKindModel.Class || runtimeType._model.As<TypeModel>().Kind == TypeKindModel.Struct)
             {
-                if (runtimeType._model.BaseType != null)
+                if (runtimeType._model.As<TypeModel>().BaseType != null)
                 {
-                    res.GetObjectHandleOnStack<RuntimeType>() = AppDomain.GlobalTypeRegistry[(int)runtimeType._model.BaseType.Value.AssemblyAndType];
+                    res.GetObjectHandleOnStack<RuntimeType?>() = AppDomain.GetType(runtimeType._model.As<TypeModel>().BaseType!.Value);
                 }
             }
             RuntimeHelpers.GetObjectHandleOnStack<RuntimeType?>(res) = null;
@@ -462,7 +562,7 @@ namespace System
         private static void make_array_typeImpl(QCallTypeHandle type, int rank, ObjectHandleOnStack res)
         {
             var tp = type.QCallTypeHandleToRuntimeType();
-            var genericArray = AppDomain.GlobalTypeRegistry.GetNested("System.Array<>");
+            var genericArray = AppDomain.GlobalTypeRegistry.GetNested($"{NetJs.Constants.SystemPrivateCoreLib}.System.Array<>");
             var genericArrayType = genericArray.MakeGenericTypeInternal([tp]);
             genericArrayType._arrayTypeRank = rank;
             genericArrayType._arrayElementType = tp;
@@ -473,7 +573,7 @@ namespace System
         private static void make_byref_typeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var tp = type.QCallTypeHandleToRuntimeType();
-            var genericArray = AppDomain.GlobalTypeRegistry.GetNested("System.RefOrPointer<>");
+            var genericArray = AppDomain.GlobalTypeRegistry.GetNested($"{NetJs.Constants.SystemPrivateCoreLib}.System.RefOrPointer<>");
             var genericArrayType = genericArray.MakeGenericTypeInternal([tp]);
             res.GetObjectHandleOnStack<Type>() = genericArrayType;
         }
@@ -482,7 +582,7 @@ namespace System
         private static void make_pointer_typeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var tp = type.QCallTypeHandleToRuntimeType();
-            var genericArray = AppDomain.GlobalTypeRegistry.GetNested("System.RefOrPointer<>");
+            var genericArray = AppDomain.GlobalTypeRegistry.GetNested($"{NetJs.Constants.SystemPrivateCoreLib}.System.RefOrPointer<>");
             var genericArrayType = genericArray.MakeGenericTypeInternal([tp]);
             res.GetObjectHandleOnStack<Type>() = genericArrayType;
         }
@@ -497,7 +597,7 @@ namespace System
         [NetJs.MemberReplace(nameof(GetMethodsByName))]
         internal RuntimeMethodInfo[] GetMethodsByNameOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
-            return GetMembersInternal(MemberTypes.Method, bindingAttr, name).As<RuntimeMethodInfo[]>();
+            return GetMembersInternal(MemberTypes.Method, bindingAttr, name, null, listType).As<RuntimeMethodInfo[]>();
         }
 
         [NetJs.MemberReplace(nameof(GetConstructors_internal))]
@@ -509,32 +609,32 @@ namespace System
         [NetJs.MemberReplace(nameof(GetPropertiesByName))]
         private RuntimePropertyInfo[] GetPropertiesByNameOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
-            return GetMembersInternal(MemberTypes.Property, bindingAttr).As<RuntimePropertyInfo[]>();
+            return GetMembersInternal(MemberTypes.Property, bindingAttr, name, null, listType).As<RuntimePropertyInfo[]>();
         }
 
         [NetJs.MemberReplace(nameof(GetFields_internal))]
         private RuntimeFieldInfo[] GetFields_internalOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
-            return GetMembersInternal(MemberTypes.Method, bindingAttr, name).As<RuntimeFieldInfo[]>();
+            return GetMembersInternal(MemberTypes.Field, bindingAttr, name, null, listType).As<RuntimeFieldInfo[]>();
         }
 
         [NetJs.MemberReplace(nameof(GetEvents_internal))]
         private RuntimeFieldInfo[] GetEvents_internalOverride(string? name, BindingFlags bindingAttr, MemberListType listType, RuntimeType reflectedType)
         {
-            return GetMembersInternal(MemberTypes.Event, bindingAttr, name).As<RuntimeFieldInfo[]>();
+            return GetMembersInternal(MemberTypes.Event, bindingAttr, name, null, listType).As<RuntimeFieldInfo[]>();
         }
 
         [NetJs.MemberReplace(nameof(GetInterfaces))]
         private static void GetInterfacesImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
-            res.GetObjectHandleOnStack<RuntimeType[]?>() = mtype._model.Interfaces?.Map(i => RuntimeType.GetTypeFromHandle(i) ?? throw new InvalidOperationException()) ?? [];
+            res.GetObjectHandleOnStack<RuntimeType[]?>() = mtype._model.As<TypeModel>().Interfaces?.Map(i => RuntimeType.GetTypeFromHandle(i) ?? throw new InvalidOperationException()) ?? [];
         }
 
         [NetJs.MemberReplace(nameof(GetNestedTypes_internal))]
         private RuntimeType[] GetNestedTypes_internalOverride(string? displayName, BindingFlags bindingAttr, MemberListType listType)
         {
-            return _model.NestedTypes?.Map(i => RuntimeType.GetTypeFromHandle(i) ?? throw new InvalidOperationException())
+            return _model.As<TypeModel>().NestedTypes?.Map(i => RuntimeType.GetTypeFromHandle(i) ?? throw new InvalidOperationException())
                 .Filter(nt => (displayName == null || nt.Name.Contains(displayName)) && MemberFilter(nt, bindingAttr, null)) ?? [];
         }
 
@@ -542,7 +642,7 @@ namespace System
         private static void GetDeclaringTypeImpl(QCallTypeHandle type, ObjectHandleOnStack res)
         {
             var mtype = type.QCallTypeHandleToRuntimeType();
-            res.GetObjectHandleOnStack<Type?>() = mtype._model.DeclaringType != null ? RuntimeType.GetTypeFromHandle(mtype._model.DeclaringType.Value) : null;
+            res.GetObjectHandleOnStack<Type?>() = mtype._model.DeclaringType != 0 ? RuntimeType.GetTypeFromHandle(mtype._model.DeclaringType) : null;
         }
 
         [NetJs.MemberReplace(nameof(GetName))]
@@ -670,5 +770,20 @@ namespace System
             }
             return flags;
         }
+
+        [NetJs.MemberReplace(nameof(Assembly))]
+        public Assembly AssemblyImpl => _assembly;
+
+        //default implementation of Cache causes recursion
+        //=>Cache=>Interlock.CompareExchange=>IsValueType=>Cache
+        [NetJs.MemberReplace(nameof(Cache))]
+        internal TypeCache CacheImpl => cache ??= new TypeCache();
+
+        //[NetJs.MemberReplace(nameof(GetMethodsByName_native))]
+        //internal static extern IntPtr GetMethodsByName_native_Impl(QCallTypeHandle type, IntPtr namePtr, BindingFlags bindingAttr, MemberListType listType)
+        //{
+        //    var ttype = type.QCallTypeHandleToRuntimeType();
+        //    var name = System.Runtime.InteropServices.Marshal.MarshalObject(namePtr).As<string>();
+        //}
     }
 }

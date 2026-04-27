@@ -11,6 +11,10 @@ namespace NetJs.Translator.CSharpToJavascript
     {
         ILLinkerAssembly.Type.Member GetLinkerMemeberSubstitution(string signature)
         {
+            if (signature == "System.Runtime.Intrinsics.Wasm.WasmBase.IsSupported")
+            {
+
+            }
             var members = Symbols.LinkerSubstitutions.SelectMany(s => s.Types.SelectMany(t => t.Members.Select(m => (t, m))));
             var matchingMember = members.FirstOrDefault(m => m.t.NormalizedFullName + "." + m.m.NormalizedSignature == signature).m;
             return matchingMember;
@@ -24,6 +28,16 @@ namespace NetJs.Translator.CSharpToJavascript
             var symbol = TryGetTypeSymbol(expression, visitor);
             if (symbol != null)
             {
+                var template = symbol.GetTemplateAttribute(this);
+                if (template != null && template.ConstructorArguments.Length > 0)
+                {
+                    var arg = (string?)template.ConstructorArguments[0].Value;
+                    var val = arg?.RemoveComments();
+                    if (val != null && (bool.TryParse(val, out _) || double.TryParse(val, out _) || (val.Length >= 2 && val[0] == '"' && val[val.Length - 1] == '"')))
+                    {
+                        return new Optional<object?>(val);
+                    }
+                }
                 //var metadata = GetMetadata(symbol);
                 //if (metadata != null)
                 //{
@@ -223,6 +237,14 @@ namespace NetJs.Translator.CSharpToJavascript
             else if (expression is ParenthesizedExpressionSyntax pr)
             {
                 return EvaluateConditionalExpressionAsConstant(pr.Expression, visitor, out rewritten);
+            }
+            else if (expression is PrefixUnaryExpressionSyntax un && un.IsKind(SyntaxKind.LogicalNotExpression))
+            {
+                var t = EvaluateConditionalExpressionAsConstant(un.Operand, visitor, out rewritten);
+                if (t == true)
+                    return false;
+                if (t == false)
+                    return true;
             }
             rewritten = expression;
             return null;

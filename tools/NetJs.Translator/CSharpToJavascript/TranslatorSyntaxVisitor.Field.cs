@@ -19,6 +19,7 @@ namespace NetJs.Translator.CSharpToJavascript
             if (field == null && member == null)
                 throw new InvalidOperationException("Expected one of member or field");
             field ??= _global.GetTypeSymbol(member!, this);
+            var isStatic = field.IsStatic;// ?? false;// member.IsSt
             if (field is IFieldSymbol fs && fs.IsConst)
             {
                 fieldOffset = -1;
@@ -54,7 +55,7 @@ namespace NetJs.Translator.CSharpToJavascript
                         if (member != null)
                         {
                             var type = member.FindClosestParent<TypeDeclarationSyntax>() ?? throw new InvalidOperationException();
-                            var members = type.Members.SelectMany(m =>
+                            var members = type.Members.Where(m => m.Modifiers.IsStatic() || !isStatic).SelectMany(m =>
                             {
                                 if (m is BaseFieldDeclarationSyntax vd)
                                 {
@@ -68,7 +69,7 @@ namespace NetJs.Translator.CSharpToJavascript
                         }
                         else
                         {
-                            var fields = field.ContainingType.GetMembers().Where(m =>
+                            var fields = field.ContainingType.GetMembers().Where(m => m.IsStatic || !isStatic).Where(m =>
                                 (m.Kind == SymbolKind.Field && ((IFieldSymbol)m).AssociatedSymbol == null && !((IFieldSymbol)m).IsConst) ||
                                 (m.Kind == SymbolKind.Event) ||
                                 (m.Kind == SymbolKind.Property && ((IPropertySymbol)m).IsAutoProperty()))
@@ -93,8 +94,8 @@ namespace NetJs.Translator.CSharpToJavascript
                     case LayoutKind.Explicit:
                         fieldOffset = -1;
                         return false;
-                        throw new InvalidOperationException("Must have FieldOffsetAttribute already");
-                        break;
+                        //throw new InvalidOperationException("Must have FieldOffsetAttribute already");
+                        //break;
                 }
                 //fieldOffset = Array.IndexOf(fields.ToArray(), field);
                 //foreach (var f in fields)
@@ -110,11 +111,13 @@ namespace NetJs.Translator.CSharpToJavascript
 
         bool TryWriteFieldLayout(CSharpSyntaxNode member, ISymbol field, ITypeSymbol fieldType, string fieldName, string? modifier, string? comment)
         {
+            bool isBootClass = _global.HasAttribute(field.ContainingSymbol, typeof(BootAttribute).FullName, this, true, out _);
             int fieldOffset = 0;
-            if (IsFieldStructLayout(member, field, out fieldOffset))
+            //Dont use field layout for boot classes, as they dont inherit from System.Object really
+            if (!isBootClass && !field.IsStatic && IsFieldStructLayout(member, field, out fieldOffset) && !field.ContainingType.IsType("System.Exception")/*Exception inherit native JS error, not object*/)
             {
-                Writer.WriteLine(member, $"/*{comment}*/ {modifier} get {fieldName}() {{ return this.GetField({fieldOffset}); }}", true);
-                Writer.WriteLine(member, $"/*{comment}*/ {modifier} set {fieldName}(value) {{ this.SetField({fieldOffset}, value); }}", true);
+                CurrentTypeWriter.WriteLine(member, $"/*{comment}*/ {modifier} get {fieldName}() {{ return this.Get{(field.IsStatic ? "S" : "")}Field({fieldOffset}); }}", true);
+                CurrentTypeWriter.WriteLine(member, $"/*{comment}*/ {modifier} set {fieldName}(value) {{ this.Set{(field.IsStatic ? "S" : "")}Field({fieldOffset}, value); }}", true);
                 return true;
             }
             return false;
@@ -146,7 +149,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     continue;
                 var fieldMetadata = _global.GetRequiredMetadata(symbol);
                 var declaringSymbolMeta = _global.GetRequiredMetadata(symbol.ContainingSymbol);
-                var fieldName = Utilities.ResolveIdentifierName(var.Identifier);
+                var fieldName = fieldMetadata.OverloadName ?? Utilities.ResolveIdentifierName(var.Identifier);
                 //if (fieldSymbol != null)
                 CurrentClosure.DefineIdentifierType(symbol.Name, CodeSymbol.From(symbol));
                 //else
@@ -164,7 +167,7 @@ namespace NetJs.Translator.CSharpToJavascript
                 //}
                 bool isLiteralInit = MemberIsLiteralInitialization(var.Initializer, type);
                 bool isFieldLayout = _global.HasAttribute(symbol.ContainingType, typeof(StructLayoutAttribute).FullName!, this, false, out _);
-                if (var.Initializer != null || type.SpecialType == SpecialType.System_ValueType)
+                if (var.Initializer != null || (type.IsValueType && !type.IsNumericType())/*SpecialType == SpecialType.System_ValueType*/)
                 {
                     //If we initialize a field from a primary constructor parameter, this is already handled in the primary constructor generator (WritePrimaryConstructor)
                     //We should skip it here
@@ -181,19 +184,26 @@ namespace NetJs.Translator.CSharpToJavascript
                         CurrentClosure.RegisterTypeInitializer(() =>
                         {
                             //If we are in a static initilizer, it is safe to use this as it reference the class prototype itself
-                            Writer.Write(node, $"{(isStaticInit ? "this."/*declaringSymbolMeta.InvocationName + "."*/ : "this.")}{fieldName}", true);
+                            CurrentTypeWriter.Write(node, $"{(isStaticInit ? "this"/*declaringSymbolMeta.InvocationName + "."*/ : "this")}", true);
+                            CurrentTypeWriter.Write(node, ".");
+                            CurrentTypeWriter.Write(node, fieldName);
+                            CurrentTypeWriter.Write(node, " = ");
                             //Visit(var.Initializer);
                             if (var.Initializer != null)
                             {
-                                Writer.Write(node, " = ");
                                 if (!TryWriteConstant(node, type, var.Initializer.Value))
                                     WriteVariableAssignment(node, null, symbol, null, var.Initializer.Value, null);
                             }
-                            if (type.SpecialType == SpecialType.System_ValueType)
+                            else
                             {
-                                Writer.Write(node, $"new {type.ComputeOutputTypeName(_global)}()");
+                                if (defaultValue != null)
+                                    CurrentTypeWriter.Write(node, defaultValue);
+                                else
+                                {
+                                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.DefaultTypeName}({type.ComputeOutputTypeName(_global)})");
+                                }
                             }
-                            Writer.WriteLine(node, ";");
+                            CurrentTypeWriter.WriteLine(node, ";");
                         }, isStaticInit);
                     }
                 }
@@ -202,14 +212,14 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 else
                 {
-                    Writer.Write(node, $"/*{node.Declaration.Type.ToFullString().Trim()}*/ {modifier}{(useStaticPropertyFunction ? "get " : "")}{fieldMetadata.OverloadName ?? fieldName}", true);
+                    CurrentTypeWriter.Write(node, $"/*{node.Declaration.Type.ToFullString().Trim()}*/ {modifier}{(useStaticPropertyFunction ? "get " : "")}{fieldMetadata.OverloadName ?? fieldName}", true);
                     //if (useStaticPropertyFunction)
                     //{
                     //    Writer.Write(node, $"() {{ return {(node.Modifiers.IsConst() || node.Modifiers.IsStatic() ? $"{declaringSymbolMeta.InvocationName}." : "")}$_{fieldMetadata.OverloadName ?? fieldName} ??= ");
                     //}
                     if (isLiteralInit)
                     {
-                        Writer.Write(node, " = ");
+                        CurrentTypeWriter.Write(node, " = ");
                         if (!TryWriteConstant(node, type, var.Initializer!.Value))
                             WriteVariableAssignment(node, null, symbol, null, var.Initializer!.Value, null);
                     }
@@ -218,17 +228,17 @@ namespace NetJs.Translator.CSharpToJavascript
                         if (defaultValue != null)
                         {
                             if (!useStaticPropertyFunction)
-                                Writer.Write(node, " = ");
-                            Writer.Write(node, defaultValue);
+                                CurrentTypeWriter.Write(node, " = ");
+                            CurrentTypeWriter.Write(node, defaultValue);
                         }
                     }
                     if (useStaticPropertyFunction)
                     {
-                        Writer.WriteLine(node, $"; }}");
+                        CurrentTypeWriter.WriteLine(node, $"; }}");
                     }
                     else
                     {
-                        Writer.WriteLine(node, $";");
+                        CurrentTypeWriter.WriteLine(node, $";");
                     }
                 }
             }

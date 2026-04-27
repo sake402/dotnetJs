@@ -14,9 +14,6 @@
 
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
-  <ItemGroup>
-    <None Remove="wwwroot\dotnetJs.Boot.js" />
-  </ItemGroup>
 
   <!-- Note that various places in SPCL depend on this resource name i.e. TplEventSource -->
   <ItemGroup Label="Embedded Resources">
@@ -3277,7 +3274,7 @@
     <AdditionalFiles Include="$(CoreClrProjectRoot)vm/ClrEtwAll.man" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="wwwroot\dotnetJs.Boot.js">
+    <Content Include="wwwroot\NetJs.Boot.js">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

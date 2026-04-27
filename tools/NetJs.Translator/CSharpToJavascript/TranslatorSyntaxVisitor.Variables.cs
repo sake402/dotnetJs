@@ -16,7 +16,7 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             WriteMethodInvocation(node, "System.Runtime.CompilerServices.RuntimeHelpers.LazyValue", arguments: [new CodeNode(() =>
             {
-                Writer.Write(node, "() => ");
+                CurrentTypeWriter.Write(node, "() => ");
                 Visit(expression);
                 //Writer.Write(node, ";");
             })]);
@@ -24,15 +24,26 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitLocalDeclarationStatement(LocalDeclarationStatementSyntax node)
         {
-            Writer.Write(node, "", true);
+            if (node.ToString().Contains(" = true)"))
+            {
+
+            }
+            CurrentTypeWriter.Write(node, "", true);
             base.VisitLocalDeclarationStatement(node);
-            Writer.WriteLine(node, ";");
+            CurrentTypeWriter.WriteLine(node, ";");
         }
 
         public override void VisitVariableDeclaration(VariableDeclarationSyntax node)
         {
             EnsureImported(node.Type);
-            var variableType = _global.TryGetTypeSymbol(node.Type, this/*, out _, out _*/);
+            var vType = node.Type;
+            //bool isRef = false;
+            if (vType.IsKind(SyntaxKind.RefType))
+            {
+                vType = ((RefTypeSyntax)vType).Type;
+                //isRef = true;
+            }
+            var variableType = _global.TryGetTypeSymbol(vType, this/*, out _, out _*/);
             IDisposable? disposeDelegateType = null;
             if (variableType is ITypeSymbol ts)
             {
@@ -44,11 +55,13 @@ namespace NetJs.Translator.CSharpToJavascript
             //In a goto state machine, we already define this variable in the initializer phase
             if (gotoVariableDeclarationActive)
             {
-                Writer.Write(node, $"/*{node.Type.ToString().Trim()}*/ let ", true);
+                CurrentTypeWriter.Write(node, $"/*{node.Type.ToString().Trim()}*/ ", true);
+                CurrentTypeWriter.Write(node, $"let ", true);
             }
             else if (!GotoHasDefinedVariable(node))
             {
-                Writer.Write(node, $"/*{node.Type.ToString().Trim()}*/ let ");
+                CurrentTypeWriter.Write(node, $"/*{node.Type.ToString().Trim()}*/ ");
+                CurrentTypeWriter.Write(node, $"let ");
             }
             VisitChildren(node.Variables, ", ");
             disposeDelegateType?.Dispose();
@@ -59,11 +72,11 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (gotoVariableDeclarationActive)
             {
-                Writer.Write(node, node.Identifier.Text);
+                CurrentTypeWriter.Write(node, node.Identifier.Text);
                 return;
             }
             var parent = (VariableDeclarationSyntax)node.Parent!;
-            Writer.Write(node, node.Identifier.Text);
+            CurrentTypeWriter.Write(node, node.Identifier.Text);
             var localSymbol = _global.TryGetTypeSymbol(node, this/*, out _, out _*/);
             if (localSymbol != null)
             {
@@ -91,11 +104,12 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (node.Designation.IsKind(SyntaxKind.DiscardDesignation))
             {
-                Writer.Write(node, $"{_global.GlobalName}.{Constants.DiscardRefName}");
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.DiscardRefName}");
             }
             else
             {
-                Writer.Write(node, $"/*{node.Type}*/ let ");
+                CurrentTypeWriter.Write(node, $"/*{node.Type}*/ ");
+                CurrentTypeWriter.Write(node, $"let ");
                 Visit(node.Designation);
             }
             //base.VisitDeclarationExpression(node);
@@ -104,7 +118,7 @@ namespace NetJs.Translator.CSharpToJavascript
         public override void VisitSingleVariableDesignation(SingleVariableDesignationSyntax node)
         {
             //Writer.InsertInCurrentClosure($"let {node.Identifier.ValueText};", true);
-            Writer.Write(node, Utilities.ResolveIdentifierName(node.Identifier));
+            CurrentTypeWriter.Write(node, Utilities.ResolveIdentifierName(node.Identifier));
             //base.VisitSingleVariableDesignation(node);
         }
 

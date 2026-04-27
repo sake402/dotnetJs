@@ -97,8 +97,13 @@
         [NetJs.Template("Math.log2")]
         public static extern double Log2Impl(double x);
 
-        //[dotnetJs.MemberReplace(nameof(ModF))]
-        //[dotnetJs.Template("({x} * {y}) + {z}")]
-        //private static extern unsafe double ModFImpl(double x, double* intptr);
+        [NetJs.MemberReplace(nameof(ModF))]
+        //[NetJs.Template("Math.truc(x)")]
+        private static unsafe double ModFImpl(double x, double* intptr)
+        {
+            var dd = NetJs.Script.Write<double>("window.Math.ceil(x)");
+            *intptr = dd;
+            return dd;
+        }
     }
 }

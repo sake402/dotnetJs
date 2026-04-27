@@ -58,12 +58,15 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
 
                 }
+                if (ttype.Name == "ReflectionHandleModel")
+                {
+
+                }
                 bool isExtern = Symbol.IsExtern || _global.HasAttribute(Symbol, typeof(ExternalAttribute).FullName!, null, false, out _);
                 if (ttype.ContainingSymbol is INamedTypeSymbol)
                 {
                     //type.OriginalInvocationName = (originalPrefixInvocationName != null ? originalPrefixInvocationName + "." : "") + overloadedName;
                     //type.InvocationName = ComputeInvocatioNameForType(ttype, type.OverloadName);
-
                     _originalInvocationName = ComputeInvocatioNameForType(ttype, _overloadName, _global);
                     //TODO: this will not work when shortname is actually enabled
                     _invocationName = ShortName(_global, null, null, Signature, _originalInvocationName, _global.Symbols.Types, generate: !isExtern, export: false);
@@ -79,6 +82,11 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 _originalInvocationName = ComputeInvocationNameForField(ffield, OriginalOverloadName, _global);
                 _invocationName = ComputeInvocationNameForField(ffield, OverloadName, _global);
+            }
+            else if (Symbol is IEventSymbol eevent)
+            {
+                _originalInvocationName = ComputeInvocationNameForEvent(eevent, OriginalOverloadName, _global);
+                _invocationName = ComputeInvocationNameForEvent(eevent, OverloadName, _global);
             }
             else if (Symbol is IPropertySymbol pproperty)
             {
@@ -278,6 +286,12 @@ namespace NetJs.Translator.CSharpToJavascript
 
         static string ComputeInvocatioNameForType(ITypeSymbol type, string? overloadName, GlobalCompilationVisitor _global)
         {
+            //We are not testing for [External] because those types still exist, only JS world, do they are not deleted
+            if (!type.IsNullable(out _) && _global.HasAnyAttribute(type, null, false, typeof(ObjectLiteralAttribute).FullName, typeof(NonScriptableAttribute).FullName))
+            {
+                return $"/*{overloadName}*/$.$spc.DeletedObject";
+                //return $"/*{overloadName}*/{ComputeInvocatioNameForType(_global.DeletedObject, null, _global)}";
+            }
             var assembly = type.ContainingAssembly;
             if (type.Kind == SymbolKind.ErrorType)
                 return "";
@@ -345,6 +359,23 @@ namespace NetJs.Translator.CSharpToJavascript
             if (field.IsStatic)
             {
                 var declaringType = field.ContainingType;
+                var declaringTypeMetadata = _global.GetRequiredMetadata(declaringType);
+                invocationName = declaringTypeMetadata.InvocationName + "." + overloadName;
+            }
+            return invocationName;
+        }
+
+        static string ComputeInvocationNameForEvent(IEventSymbol eevent, string? overloadName, GlobalCompilationVisitor _global)
+        {
+            if (overloadName == null)
+            {
+                var typeMeta = _global.GetRequiredMetadata(eevent);
+                overloadName = typeMeta.OverloadName ?? throw new InvalidOperationException("Containing type must be processed before contained type");
+            }
+            var invocationName = overloadName;
+            if (eevent.IsStatic)
+            {
+                var declaringType = eevent.ContainingType;
                 var declaringTypeMetadata = _global.GetRequiredMetadata(declaringType);
                 invocationName = declaringTypeMetadata.InvocationName + "." + overloadName;
             }

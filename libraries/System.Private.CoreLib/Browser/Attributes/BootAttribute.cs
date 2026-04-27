@@ -14,10 +14,10 @@ namespace NetJs
         }
     }
 
-    [NonScriptable]
-    [AttributeUsage(AttributeTargets.Enum | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface)]
-    public class BaseAttribute : Attribute
-    {
-        public BaseAttribute(Type type) { }
-    }
+    //[NonScriptable]
+    //[AttributeUsage(AttributeTargets.Enum | AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface)]
+    //public class BaseAttribute : Attribute
+    //{
+    //    public BaseAttribute(Type type) { }
+    //}
 }

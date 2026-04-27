@@ -48,6 +48,24 @@ namespace NetJs.Translator.CSharpToJavascript
             return new DelegateDispose(() => { });
         }
 
+        bool IsRewiteCandidate(ConditionalAccessExpressionSyntax node)
+        {
+            if (node.WhenNotNull.IsKind(SyntaxKind.ConditionalAccessExpression))
+                return true;
+            var rhsExpression = node.WhenNotNull;
+            if (rhsExpression.IsKind(SyntaxKind.ElementAccessExpression) && rhsExpression is ElementAccessExpressionSyntax el)
+            {
+                rhsExpression = el.Expression;
+            }
+            var rhsSymbol = GetSymbol(rhsExpression);
+            if (rhsSymbol is IMethodSymbol m && (m.IsExtensionMethod/* || m.IsStaticCallConvention()*/))
+            {
+                //We only rewite for extension method and static call convensions
+                return true;
+            }
+            return false;
+        }
+
         BlockSyntax WrapInBlock(StatementSyntax expression)
         {
             return SyntaxFactory.Block(expression.WithLeadingTrivia(SyntaxFactory.LineFeed)).WithLeadingTrivia(SyntaxFactory.LineFeed).WithTrailingTrivia(SyntaxFactory.LineFeed);
@@ -102,6 +120,21 @@ namespace NetJs.Translator.CSharpToJavascript
                 if (replacements.TryGetValue(node, out var originalNode))
                 {
                     t = _semanticModel.GetTypeInfo(originalNode).Type;
+                }
+            }
+            return t;// ?? throw new InvalidOperationException("Cannot obtain type");
+        }
+
+        ISymbol? GetSymbol(SyntaxNode node)
+        {
+            var t = node.SyntaxTree == _tree ? _semanticModel.GetSymbolInfo(node).Symbol :
+                node.SyntaxTree.HasCompilationUnitRoot ? _compilation.GetSemanticModel(node.SyntaxTree).GetSymbolInfo(node).Symbol :
+                null;
+            if (t == null)
+            {
+                if (replacements.TryGetValue(node, out var originalNode))
+                {
+                    t = _semanticModel.GetSymbolInfo(originalNode).Symbol;
                 }
             }
             return t;// ?? throw new InvalidOperationException("Cannot obtain type");
@@ -230,10 +263,16 @@ namespace NetJs.Translator.CSharpToJavascript
                     .WithLeadingTrivia(node.GetLeadingTrivia())
                     .WithTrailingTrivia(node.GetTrailingTrivia());
             }
-            if (node.Identifier.ValueText.Equals("This"))
+            //if (node.Identifier.ValueText.Equals("THIS"))
+            //{
+            //    return SyntaxFactory.IdentifierName("this")
+            //        .WithLeadingTrivia(node.GetLeadingTrivia())
+            //        .WithTrailingTrivia(node.GetTrailingTrivia());
+            //}
+            if (node.Identifier.ValueText.Equals("THIS"))
             {
-                var @class = node.FindClosestParent<BaseTypeDeclarationSyntax>();
-                if (@class?.BaseList?.Types.Any(b => b.Type.ToString().Contains("ForcedPartialBase")) ?? false)
+                //var @class = node.FindClosestParent<BaseTypeDeclarationSyntax>();
+                //if (@class?.BaseList?.Types.Any(b => b.Type.ToString().Contains("ForcedPartialBase")) ?? false)
                 {
                     return SyntaxFactory.IdentifierName("this")
                     .WithLeadingTrivia(node.GetLeadingTrivia())
@@ -249,7 +288,7 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 var att = atts2.Values.Single().Single();
                 var type = (TypeOfExpressionSyntax)att.ArgumentList!.Arguments[0].Expression;
-                var typeName = type.Type.ToString();
+                var typeName = type.Type.ToString().TrimEnd('<', ',', '>');
                 var newNode = node.WithIdentifier(SyntaxFactory.Identifier(typeName)).WithBaseList(null);
                 if (!newNode.Modifiers.Any(e => e.IsKind(SyntaxKind.PartialKeyword)))
                 {
@@ -326,7 +365,10 @@ namespace NetJs.Translator.CSharpToJavascript
             while (nameOf >= 0)
             {
                 var closingBrace = signature.IndexOf(")", nameOf);
+                var extract = signature.Substring("nameof(".Length, closingBrace - "nameof(".Length);
+                var name = extract.Split('.').Last();
                 signature = signature.Substring(0, closingBrace) + "\"" + signature.Substring(closingBrace + 1);
+                signature = signature.Replace("nameof(" + extract, "nameof(" + name);
                 signature = signature.Replace("nameof(", "\"");
                 nameOf = signature.IndexOf("nameof(");
             }
@@ -338,9 +380,10 @@ namespace NetJs.Translator.CSharpToJavascript
         string GetMemberIdentifier(MemberDeclarationSyntax node, bool throws = true)
         {
             var identifier =
-                node is MethodDeclarationSyntax method ? method.Identifier.ValueText :
+                node is MethodDeclarationSyntax method ? method.Identifier.ValueText + (method.Arity > 0 ? $"<{string.Join(",", Enumerable.Range(1, method.Arity).Select(s => ""))}>" : "") :
                 node is ConstructorDeclarationSyntax ctor ? "ctor" :
                 node is PropertyDeclarationSyntax property ? property.Identifier.ValueText :
+                node is IndexerDeclarationSyntax idx ? "this" :
                 node is FieldDeclarationSyntax field && field.Declaration.Variables.Count == 1 ? field.Declaration.Variables.Single().Identifier.ValueText :
                 !throws ? "" :
                 throw new InvalidOperationException();
@@ -349,24 +392,39 @@ namespace NetJs.Translator.CSharpToJavascript
 
         string? GetMemberSignature(MemberDeclarationSyntax node, bool throws = true)
         {
+            if (node is MethodDeclarationSyntax mm && mm.FindClosestParent<TypeDeclarationSyntax>()?.Identifier.ValueText == "Unsafe" && mm.Identifier.ValueText == "Add")
+            {
+
+            }
+            string ModifierString(ParameterSyntax p)
+            {
+                return p.Modifiers.ToFullString();
+                //return $"{(p.Modifiers.IsRef() ? "ref " : p.Modifiers.IsOut() ? "out " : p.Modifiers.IsIn() ? "in " : "")}";
+            }
             var methodSignature =
-                node is MethodDeclarationSyntax method1 ? $"{method1.Identifier.ValueText}({string.Join(", ", method1.ParameterList.Parameters.Select(p => p.Type?.ToString()))})" :
+                node is MethodDeclarationSyntax method1 ? $"{method1.Identifier.ValueText}{(method1.Arity > 0 ? $"<{string.Join(",", Enumerable.Range(1, method1.Arity).Select(s => ""))}>" : "")}({string.Join(", ", method1.ParameterList.Parameters.Select(p => $"{ModifierString(p)}{p.Type}"))})" :
                 node is ConstructorDeclarationSyntax ctor1 ? $"ctor({string.Join(", ", ctor1.ParameterList.Parameters.Select(p => p.Type?.ToString()))})" :
                 node is PropertyDeclarationSyntax property1 ? $"{property1.Identifier.ValueText}" :
+                node is IndexerDeclarationSyntax idx ? $"this[{string.Join(", ", idx.ParameterList.Parameters.Select(p => p.Type?.ToString()))}]" :
                 node is FieldDeclarationSyntax field1 ? $"{field1.Declaration.Variables.Single().Identifier.ValueText}" :
                 !throws ? null :
                 throw new InvalidOperationException();
             return methodSignature;
         }
 
-        bool CanOverride(MemberDeclarationSyntax originalMember, MemberDeclarationSyntax overrideMemberCandidate, bool throws = true)
+        bool CanOverride(MemberDeclarationSyntax originalMember, MemberDeclarationSyntax overrideMemberCandidate, out string? getSet, bool throws = true)
         {
+            getSet = null;
             var originalType = originalMember.GetType();
             var overrideType = overrideMemberCandidate.GetType();
             if (originalType != overrideType)
             {
                 //we allow method to override a constructor though
                 if (originalType == typeof(ConstructorDeclarationSyntax) && overrideType == typeof(MethodDeclarationSyntax)) { }
+                //we also allow method to override a indexer
+                else if (originalType == typeof(IndexerDeclarationSyntax) && overrideType == typeof(MethodDeclarationSyntax)) { }
+                //we also allow property to override a field
+                else if (originalType == typeof(FieldDeclarationSyntax) && overrideType == typeof(PropertyDeclarationSyntax)) { }
                 else
                 {
                     return false;
@@ -375,6 +433,7 @@ namespace NetJs.Translator.CSharpToJavascript
             var originalParameters =
                 originalMember is MethodDeclarationSyntax method ? method.ParameterList.Parameters :
                 originalMember is ConstructorDeclarationSyntax ctor ? ctor.ParameterList.Parameters :
+                originalMember is IndexerDeclarationSyntax idx ? idx.ParameterList.Parameters :
                 originalMember is PropertyDeclarationSyntax property ? [] :
                 originalMember is FieldDeclarationSyntax field ? [] :
                 !throws ? [] :
@@ -382,53 +441,80 @@ namespace NetJs.Translator.CSharpToJavascript
             var overrideCandidateParameters =
                 overrideMemberCandidate is MethodDeclarationSyntax method1 ? method1.ParameterList.Parameters :
                 overrideMemberCandidate is ConstructorDeclarationSyntax ctor1 ? ctor1.ParameterList.Parameters :
+                overrideMemberCandidate is IndexerDeclarationSyntax idx2 ? idx2.ParameterList.Parameters :
                 overrideMemberCandidate is PropertyDeclarationSyntax property1 ? [] :
                 overrideMemberCandidate is FieldDeclarationSyntax field1 ? [] :
                 !throws ? [] :
                 throw new InvalidOperationException();
-            if (originalParameters.Count != overrideCandidateParameters.Count)
-                return false;
-            if (!originalParameters.Select((p, i) => (p, i)).All(p =>
+            if (!overrideMemberCandidate.HasAnyAttribute([typeof(MemberParameterCountMayNotMatch).FullName], out _))
             {
-                var originalParameter = p.p;
-                var overrideParameter = overrideCandidateParameters.ElementAt(p.i);
-                if (originalParameter.Type == overrideParameter.Type)
-                    return true;
-                return originalParameter.Type?.ToString() == overrideParameter.Type?.ToString();
-                //return originalParameter.Type?.Equals(overrideParameter.Type) ?? false;
-            }))
+                if (originalParameters.Count != overrideCandidateParameters.Count)
+                {
+                    return false;
+                }
+            }
+            if (!overrideMemberCandidate.HasAnyAttribute([typeof(MemberParameterTypesMayNotMatch).FullName], out _))
             {
-                return false;
+                if (!originalParameters.Select((p, i) => (p, i)).All(p =>
+                {
+                    var originalParameter = p.p;
+                    var overrideParameter = overrideCandidateParameters.ElementAt(p.i);
+                    if (originalParameter.Type == overrideParameter.Type)
+                        return true;
+                    return originalParameter.Type?.ToString() == overrideParameter.Type?.ToString();
+                    //return originalParameter.Type?.Equals(overrideParameter.Type) ?? false;
+                }))
+                {
+                    return false;
+                }
             }
             if (overrideMemberCandidate.HasAnyAttribute([typeof(MemberReplaceAttribute).FullName], out var args))
             {
+                //if (originalMember is FieldDeclarationSyntax && overrideMemberCandidate is PropertyDeclarationSyntax m && (m.Identifier.ValueText == "GetMValue" || m.Identifier.ValueText == "SetMValue"))
+                //{
+
+                //}
                 var identifier = GetMemberIdentifier(originalMember, throws: throws);
-                var methodSignature = GetMemberSignature(originalMember, throws: throws);
-                if (methodSignature == null)
+                var originalMemberSignature = GetMemberSignature(originalMember, throws: throws);
+                if (originalMemberSignature == null)
                     return false;
                 var arg = args.Single().Value[0].ArgumentList?.Arguments;
                 if ((arg?.Count ?? 0) == 0)
                 {
                     var nameIndentifier = overrideMemberCandidate is PropertyDeclarationSyntax p ? p.Identifier.ValueText :
                          overrideMemberCandidate is FieldDeclarationSyntax f ? f.Declaration.Variables.Single().Identifier.ValueText :
+                        //overrideMemberCandidate is IndexerDeclarationSyntax idx3 ? "this[]" :
                         ((MethodDeclarationSyntax)overrideMemberCandidate).Identifier.ValueText;
                     return nameIndentifier == identifier;
                 }
                 else if (arg?.Count == 1)
                 {
                     var argValue = arg.Value[0];
-                    var signature = ResolveMemberReplaceExpressionSignature(argValue);
-                    if (signature.EndsWith(")"))
+                    var attributedSignature = ResolveMemberReplaceExpressionSignature(argValue);
+                    if (attributedSignature.EndsWith(")") || attributedSignature.EndsWith("]") || attributedSignature.EndsWith(".get") || attributedSignature.EndsWith(".set"))
                     {
-                        return signature == methodSignature;
+                        if (attributedSignature == originalMemberSignature)
+                            return true;
+                        if (attributedSignature == originalMemberSignature + ".get")
+                        {
+                            getSet = "get";
+                            return true;
+                        }
+                        if (attributedSignature == originalMemberSignature + ".set")
+                        {
+                            getSet = "set";
+                            return true;
+                        }
+                        return false;
                     }
-                    return signature == identifier;
+                    return attributedSignature == identifier;
                 }
             }
             return false;
         }
 
-        MemberDeclarationSyntax? GetMemberOverride(MemberDeclarationSyntax node)
+        bool isMemberVisitFromGetMemberOverride;
+        Dictionary<string, MemberDeclarationSyntax>? GetMemberOverride(MemberDeclarationSyntax node)
         {
             var @class = node.FindClosestParent<TypeDeclarationSyntax>();
             if (@class != null)
@@ -436,35 +522,40 @@ namespace NetJs.Translator.CSharpToJavascript
                 var fullName = @class.CreateFullMemberName()!;
                 var partialClasses = _partialClassGroupings[fullName].Except([@class]);
                 var identifier = GetMemberIdentifier(node);
-                var methodSignature = GetMemberSignature(node);
+                //var methodSignature = GetMemberSignature(node);
                 var memberOverride = partialClasses
                     .SelectMany(c => c.Members)
                     .Where(e => node is PropertyDeclarationSyntax ? e is PropertyDeclarationSyntax :
-                                node is FieldDeclarationSyntax ? e is FieldDeclarationSyntax :
+                                node is FieldDeclarationSyntax ? e is PropertyDeclarationSyntax :
+                                //node is IndexerDeclarationSyntax ? e is IndexerDeclarationSyntax :
                                 e is MethodDeclarationSyntax)
                     //.OfType<MethodDeclarationSyntax>()
                     //.FirstOrDefault(m => m.AttributeLists.Any(a => a.Attributes.Any(aa => aa.Name.ToString().Contains("dotnetJs.MemberReplace") && (aa.ArgumentList?.Arguments.Any(arg => arg.Expression.ToString().Contains(node.Identifier.ValueText)) ?? false))));
-                    .SingleOrDefault(m =>
+                    .Select(m =>
                     {
-                        return CanOverride(node, m);
-                    });
-                var attName = nameof(MemberReplaceAttribute).Replace("Attribute", "");
-                var attributes = memberOverride?.AttributeLists.Select(a =>
-                {
-                    var atts = a.Attributes.Where(e => !e.Name.ToString().Contains(attName));
-                    return SyntaxFactory.AttributeList(SyntaxFactory.SeparatedList(atts));
-                });
-                return (MemberDeclarationSyntax)Visit(memberOverride?.WithAttributeLists(SyntaxFactory.List(attributes!)))!;
+                        return (m, CanOverride(node, m, out var getSet), getSet);
+                    }).Where(e => e.Item2)
+                    .Select(e =>
+                    {
+                        var attName = nameof(MemberReplaceAttribute).Replace("Attribute", "");
+                        var attributes = e.Item1?.AttributeLists.Select(a =>
+                        {
+                            var atts = a.Attributes.Where(e => !e.Name.ToString().Contains(attName));
+                            return SyntaxFactory.AttributeList(SyntaxFactory.SeparatedList(atts));
+                        });
+                        isMemberVisitFromGetMemberOverride = true;
+                        var mem = (MemberDeclarationSyntax)(Visit(e.Item1) ?? e.Item1)!;
+                        isMemberVisitFromGetMemberOverride = false;
+                        return (e.Item3 ?? "", mem.WithAttributeLists(SyntaxFactory.List(attributes!)));
+                    })
+                    .ToDictionary(e => e.Item1, e => e.Item2);
+                return memberOverride;
             }
             return null;
         }
 
         void EnsureUnambiguity(MemberDeclarationSyntax node, AttributeArgumentSyntax? arg)
         {
-            var identifier = GetMemberIdentifier(node);
-            var providedSignature = arg != null ? ResolveMemberReplaceExpressionSignature(arg) : identifier;
-
-            var signatures = GetMemberSignature(node);
             var @class = node.FindClosestParent<TypeDeclarationSyntax>();
             if (@class != null)
             {
@@ -472,12 +563,15 @@ namespace NetJs.Translator.CSharpToJavascript
                 var partialClasses = _partialClassGroupings[fullName].Except([@class]);
                 var members = partialClasses.SelectMany(c => c.Members).Except([node]);
                 var matchingMembers = members
-                    .Where(member => CanOverride(member, node, false))
+                    .Where(member => CanOverride(member, node, out _, false))
                     .Select(member => (GetMemberSignature(member, false), member))
                     //.Where(m => m.Item2 == providedSignature)
                     .ToList();
                 if (matchingMembers.Count > 1)
                 {
+                    var signatures = GetMemberSignature(node);
+                    var identifier = GetMemberIdentifier(node);
+                    var providedSignature = arg != null ? ResolveMemberReplaceExpressionSignature(arg) : identifier;
                     throw new AmbiguousMatchException($"From \"{providedSignature}\" defined on {identifier}. Ambiguity between members of signatures {(string.Join(", ", matchingMembers.Select(m => m.Item1)))}. You must fully qualifut the intended member to override");
                 }
             }
@@ -486,6 +580,7 @@ namespace NetJs.Translator.CSharpToJavascript
         public override SyntaxNode? VisitConstructorDeclaration(ConstructorDeclarationSyntax node)
         {
             var @class = node.FindClosestParent<BaseTypeDeclarationSyntax>();
+            var memberOverride = (MethodDeclarationSyntax?)GetMemberOverride(node)?.SingleOrDefault().Value;
 
             node = (ConstructorDeclarationSyntax)base.VisitConstructorDeclaration(node)!;
             //Rename constructors defined in a forcedpartial
@@ -500,7 +595,6 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
             }
 
-            var memberOverride = (MethodDeclarationSyntax?)GetMemberOverride(node);
             MemberReplaceType replacementType = MemberReplaceType.All;
             if (memberOverride != null)
             {
@@ -525,10 +619,11 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override SyntaxNode? VisitMethodDeclaration(MethodDeclarationSyntax node)
         {
+            var memberOverride = (MethodDeclarationSyntax?)GetMemberOverride(node)?.SingleOrDefault().Value;
             // Check if the property is an expression-bodied property (has an arrow clause)
             // and there is a conditional expression in the body.
             // Convet to a block so we can define a local variable in it
-            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any())
+            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
             {
                 BeginBlockVariables();
                 var expression = Visit(node.ExpressionBody.Expression)!;
@@ -564,6 +659,8 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             else
                 node = (MethodDeclarationSyntax)base.VisitMethodDeclaration(node)!;
+            if (isMemberVisitFromGetMemberOverride)
+                return node;
             //A method decorated with MemberOverride is removed. Only its content is used to replace the overriden member
             if (node.HasAnyAttribute([typeof(MemberReplaceAttribute).FullName], out var args))
             {
@@ -571,14 +668,13 @@ namespace NetJs.Translator.CSharpToJavascript
                 EnsureUnambiguity(node, args.Single().Value.First().ArgumentList?.Arguments.First());
                 return null;
             }
-            var memberOverride = (MethodDeclarationSyntax?)GetMemberOverride(node);
             MemberReplaceType replacementType = MemberReplaceType.All;// & ~MemberReplaceType.Modifiers;
             if (memberOverride != null)
             {
                 SyntaxList<AttributeListSyntax> atts = default;
                 if (replacementType.HasFlag(MemberReplaceType.Modifiers))
                 {
-                    var attributes = node.AttributeLists.AddRange(memberOverride.AttributeLists);
+                    atts = node.AttributeLists.AddRange(memberOverride.AttributeLists.Where(e => e.Attributes.Count > 0));
                     //var attWithSpecifier = memberOverride.AttributeLists.Where(e => e.Target != null);
                     //List<(AttributeSyntax, AttributeTargetSpecifierSyntax)> attsyn = new(memberOverride.AttributeLists.SelectMany(a => a.Attributes));
                     //attsyn.AddRange(node.AttributeLists.SelectMany(a => a.Attributes));
@@ -588,42 +684,47 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     atts = node.AttributeLists;
                 }
-                var body = replacementType.HasFlag(MemberReplaceType.Body) ? memberOverride.ExpressionBody : node.ExpressionBody;
+                //var expressionBody = replacementType.HasFlag(MemberReplaceType.Body) ? memberOverride.ExpressionBody : node.ExpressionBody;
                 SyntaxTokenList modifiers = default;
                 if (replacementType.HasFlag(MemberReplaceType.Modifiers))
                 {
-                    if (!memberOverride.Modifiers.Any(e => e.IsKind(SyntaxKind.ExternKeyword)) || body != null)
+                    //if (!memberOverride.Modifiers.Any(e => e.IsKind(SyntaxKind.ExternKeyword)) || expressionBody != null)
                     {
-                        List<SyntaxToken> tokens = new List<SyntaxToken>(memberOverride.Modifiers.Where(e => !e.IsKind(SyntaxKind.ExternKeyword)));
+                        List<SyntaxToken> tokens = new List<SyntaxToken>(memberOverride.Modifiers/*.Where(e => !e.IsKind(SyntaxKind.ExternKeyword))*/);
                         if (node.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
                         {
                             tokens.Add(SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.OverrideKeyword, SyntaxFactory.TriviaList(SyntaxFactory.Space)));
                         }
+                        if (node.Modifiers.Any(m => m.IsKind(SyntaxKind.NewKeyword)))
+                        {
+                            tokens.Add(SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.NewKeyword, SyntaxFactory.TriviaList(SyntaxFactory.Space)));
+                        }
                         modifiers = SyntaxFactory.TokenList(tokens);
                     }
-                    else
-                    {
-                        modifiers = node.Modifiers;
-                    }
+                    //else
+                    //{
+                    //    modifiers = node.Modifiers;
+                    //}
                 }
                 else
                 {
                     modifiers = node.Modifiers;
                 }
                 var newNode = node
-                    .WithBody(replacementType.HasFlag(MemberReplaceType.Body) ? memberOverride.Body : node.Body)
-                    .WithExpressionBody(body)
+                    .WithBody(memberOverride.Body)
+                    .WithExpressionBody(memberOverride.ExpressionBody)
+                    .WithSemicolonToken(memberOverride.ExpressionBody != null || (memberOverride.ExpressionBody == null && memberOverride.Body == null) ? SyntaxFactory.Token(SyntaxKind.SemicolonToken) : SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken))
                     .WithModifiers(modifiers);
                 if (atts.Any(a => a.Attributes.Count > 0))
                     newNode = newNode.WithAttributeLists(atts);
-                if (newNode.Body != null || newNode.ExpressionBody != null)
-                {
-                    newNode = newNode.ReplaceToken(newNode.SemicolonToken, SyntaxFactory.MissingToken(SyntaxKind.None));
-                }
-                else if (newNode.Body == null && newNode.ExpressionBody == null)
-                {
-                    newNode = newNode.ReplaceToken(newNode.SemicolonToken, SyntaxFactory.Token(SyntaxKind.SemicolonToken));
-                }
+                //if (newNode.Body != null || newNode.ExpressionBody != null)
+                //{
+                //    newNode = newNode.ReplaceToken(newNode.SemicolonToken, SyntaxFactory.MissingToken(SyntaxKind.None));
+                //}
+                //else if (newNode.Body == null && newNode.ExpressionBody == null)
+                //{
+                //    newNode = newNode.ReplaceToken(newNode.SemicolonToken, SyntaxFactory.Token(SyntaxKind.SemicolonToken));
+                //}
                 newNode = newNode.WithLeadingTrivia(node.GetLeadingTrivia())
                    .WithTrailingTrivia(node.GetTrailingTrivia());
                 //_pendingVisits.Add(newNode);
@@ -634,7 +735,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override SyntaxNode? VisitAccessorDeclaration(AccessorDeclarationSyntax node)
         {
-            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any())
+            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
             {
                 BeginBlockVariables();
                 var expression = (ExpressionSyntax)Visit(node.ExpressionBody.Expression)!;
@@ -649,12 +750,115 @@ namespace NetJs.Translator.CSharpToJavascript
                 return base.VisitAccessorDeclaration(node);
         }
 
+        AccessorListSyntax? OverrideAccessor(MemberDeclarationSyntax node, Dictionary<string, MemberDeclarationSyntax> memberOverrides, AccessorListSyntax? accessors, ref SyntaxList<AttributeListSyntax> atts, ref SyntaxTokenList modifiers)
+        {
+            MemberReplaceType replacementType = MemberReplaceType.All;// & ~MemberReplaceType.Modifiers;
+            //var accessors = node.AccessorList;
+            foreach (var kv in memberOverrides)
+            {
+                var memberOverride = kv.Value;
+                //SyntaxTokenList modifiers = default;
+                //SyntaxList<AttributeListSyntax> atts = default;
+                if (replacementType.HasFlag(MemberReplaceType.Modifiers))
+                {
+                    atts = atts.AddRange(memberOverride.AttributeLists.Where(e => e.Attributes.Count > 0));
+                }
+                //else
+                //{
+                //    atts = node.AttributeLists;
+                //}
+                //if (replacementType.HasFlag(MemberReplaceType.Modifiers))
+                //{
+                //    List<SyntaxToken> tokens = new List<SyntaxToken>(memberOverride.Modifiers/*.Where(e => !e.IsKind(SyntaxKind.ExternKeyword))*/);
+                //    if (node.Modifiers.Any(m => m.IsKind(SyntaxKind.OverrideKeyword)))
+                //    {
+                //        tokens.Add(SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.OverrideKeyword, SyntaxFactory.TriviaList(SyntaxFactory.Space)));
+                //    }
+                //    if (node.Modifiers.Any(m => m.IsKind(SyntaxKind.NewKeyword)))
+                //    {
+                //        tokens.Add(SyntaxFactory.Token(SyntaxFactory.TriviaList(), SyntaxKind.NewKeyword, SyntaxFactory.TriviaList(SyntaxFactory.Space)));
+                //    }
+                //    modifiers = SyntaxFactory.TokenList(tokens);
+                //}
+                //else
+                //{
+                //modifiers = node.Modifiers.Remove(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                //    .Remove(SyntaxFactory.Token(SyntaxKind.InternalKeyword))
+                //    .Remove(SyntaxFactory.Token(SyntaxKind.ExternKeyword))
+                //    .Remove(SyntaxFactory.Token(SyntaxKind.OverrideKeyword));
+                //}
+                var getSet = kv.Key;
+                var methodBody = (memberOverride as MethodDeclarationSyntax)?.Body;
+                var getAttr = (memberOverride as MethodDeclarationSyntax)?.AttributeLists;
+                var propertyGetBody = (memberOverride as PropertyDeclarationSyntax)?.AccessorList?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.GetAccessorDeclaration))?.Body;
+                var propertySetBody = (memberOverride as PropertyDeclarationSyntax)?.AccessorList?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.SetAccessorDeclaration))?.Body;
+                var propertyGetExpressionBody = (memberOverride as PropertyDeclarationSyntax)?.ExpressionBody ?? (memberOverride as PropertyDeclarationSyntax)?.AccessorList?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.GetAccessorDeclaration))?.ExpressionBody;
+                var propertySetExpressionBody = (memberOverride as PropertyDeclarationSyntax)?.AccessorList?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.SetAccessorDeclaration))?.ExpressionBody;
+
+                var propertyGetAttr = (memberOverride as PropertyDeclarationSyntax)?.AccessorList?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.GetAccessorDeclaration))?.AttributeLists ??
+                    accessors?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.GetAccessorDeclaration))?.AttributeLists ??
+                    default;
+                var propertySetAttr = (memberOverride as PropertyDeclarationSyntax)?.AccessorList?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.SetAccessorDeclaration))?.AttributeLists ??
+                    accessors?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.SetAccessorDeclaration))?.AttributeLists ??
+                    default;
+
+                AccessorDeclarationSyntax? getAccessor = null;
+                if (propertyGetExpressionBody != null)
+                {
+                    getAccessor = getSet == "" || getSet == "get" || propertyGetExpressionBody != null ? SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration, default, default, propertyGetExpressionBody)
+                        .WithAttributeLists(propertyGetAttr)
+                        //.WithModifiers(modifiers)
+                        .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)) :
+                        accessors?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.GetAccessorDeclaration));
+                }
+                else
+                {
+                    getAccessor = getSet == "" || getSet == "get" || (methodBody ?? propertySetBody) != null ? SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration, methodBody ?? propertyGetBody)
+                        .WithAttributeLists(propertyGetAttr)
+                        //.WithModifiers(modifiers)
+                        .WithSemicolonToken((methodBody ?? propertyGetBody) == null ? SyntaxFactory.Token(SyntaxKind.SemicolonToken) : SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken)) :
+                        accessors?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.GetAccessorDeclaration));
+                }
+                AccessorDeclarationSyntax? setAccessor = null;
+                if (propertySetExpressionBody != null)
+                {
+                    setAccessor = getSet == "set" || propertySetExpressionBody != null ? SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration, default, default, propertySetExpressionBody)
+                        .WithAttributeLists(propertySetAttr)
+                        //.WithModifiers(modifiers)
+                        .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)) :
+                        accessors?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.SetAccessorDeclaration));
+                }
+                else
+                {
+                    setAccessor = getSet == "set" || propertySetBody != null ? SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration, methodBody ?? propertySetBody)
+                        .WithAttributeLists(propertySetAttr)
+                        //.WithModifiers(modifiers)
+                        .WithSemicolonToken((methodBody ?? propertySetBody) == null ? SyntaxFactory.Token(SyntaxKind.SemicolonToken) : SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken)) :
+                        accessors?.Accessors.FirstOrDefault(e => e.IsKind(SyntaxKind.SetAccessorDeclaration));
+                }
+                if (getAccessor?.Body != null || getAccessor?.ExpressionBody != null || setAccessor?.Body != null || setAccessor?.ExpressionBody != null)
+                {
+                    modifiers = modifiers.Remove(modifiers.FirstOrDefault(e => e.IsKind(SyntaxKind.ExternKeyword)));
+                }
+                if ((getAccessor?.Body != null || getAccessor?.ExpressionBody != null) && (setAccessor?.Body != null || setAccessor?.ExpressionBody != null))
+                {
+                    modifiers = modifiers.Remove(modifiers.FirstOrDefault(e => e.IsKind(SyntaxKind.ReadOnlyKeyword)));
+                }
+                accessors = SyntaxFactory.AccessorList(
+                    SyntaxFactory.Token(SyntaxKind.OpenBraceToken),
+                    SyntaxFactory.List<AccessorDeclarationSyntax>(new[] { getAccessor, setAccessor }.Where(e => e != null)!),
+                    SyntaxFactory.Token(SyntaxKind.CloseBraceToken));
+            }
+            return accessors;
+        }
+
         public override SyntaxNode? VisitPropertyDeclaration(PropertyDeclarationSyntax node)
         {
+            var memberOverrides = GetMemberOverride(node);
             // Check if the property is an expression-bodied property (has an arrow clause)
             // and there is a conditional expression in the body.
-            // Convet to a block so we can define a local variable in it
-            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any())
+            // Convert to a block so we can define a local variable in it
+            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
             {
                 BeginBlockVariables();
                 var expression = (ExpressionSyntax)Visit(node.ExpressionBody.Expression)!;
@@ -681,36 +885,82 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             else
                 node = (PropertyDeclarationSyntax)base.VisitPropertyDeclaration(node)!;
+            if (isMemberVisitFromGetMemberOverride)
+                return node;
             //A property decorated with MemberOverride is removed. Only its content is used to replace the overriden member
             if (node.HasAnyAttribute([typeof(MemberReplaceAttribute).FullName], out _))
                 return null;
-            //if (node.Identifier.ValueText == "Length")
-            //{
-            //    var _class = node.FindClosestParent<TypeDeclarationSyntax>();
-            //    if (_class?.Identifier.ValueText.Contains("Array") ?? false)
-            //    {
-
-            //    }
-            //}
-            var memberOverride = (PropertyDeclarationSyntax?)GetMemberOverride(node);
-            MemberReplaceType replacementType = MemberReplaceType.All;// & ~MemberReplaceType.Modifiers;
-            if (memberOverride != null)
+            if (memberOverrides?.Any() ?? false)
             {
-                var atts = replacementType.HasFlag(MemberReplaceType.Attributes) ?
-                    SyntaxFactory.List([SyntaxFactory.AttributeList(SeparatedSyntaxList.Create([.. memberOverride.AttributeLists.SelectMany(a => a.Attributes).Concat(node.AttributeLists.SelectMany(a => a.Attributes))]))]) :
-                    node.AttributeLists;
-                var body = replacementType.HasFlag(MemberReplaceType.Body) ? memberOverride.ExpressionBody : node.ExpressionBody;
-                var modifiers = replacementType.HasFlag(MemberReplaceType.Modifiers) ?
-                    (!memberOverride.Modifiers.Any(e => e.IsKind(SyntaxKind.ExternKeyword)) || body != null ? SyntaxFactory.TokenList(memberOverride.Modifiers.Where(e => !e.IsKind(SyntaxKind.ExternKeyword))) : memberOverride.Modifiers) :
-                    node.Modifiers;
-                var newNode = node.WithAccessorList(replacementType.HasFlag(MemberReplaceType.Body) ? memberOverride.AccessorList : node.AccessorList)
-                    .WithExpressionBody(body)
-                    .WithModifiers(replacementType.HasFlag(MemberReplaceType.Modifiers) ? (!memberOverride.Modifiers.Any(e => e.IsKind(SyntaxKind.ExternKeyword)) ? SyntaxFactory.TokenList(memberOverride.Modifiers.Where(e => !e.IsKind(SyntaxKind.ExternKeyword))) : memberOverride.Modifiers) : node.Modifiers);
-                if (atts.Any(a => a.Attributes.Count > 0))
-                    newNode = newNode.WithAttributeLists(atts);
+                SyntaxList<AttributeListSyntax> atts = node.AttributeLists;
+                SyntaxTokenList modifiers = node.Modifiers;
+                var accessors = OverrideAccessor(node, memberOverrides, node.AccessorList, ref atts, ref modifiers);
+                var newNode = node.WithAccessorList(accessors)
+                    .WithExpressionBody(accessors != null ? null : node.ExpressionBody)
+                    .WithSemicolonToken(accessors != null ? SyntaxFactory.MissingToken(SyntaxKind.SemicolonToken) : node.SemicolonToken)
+                    .WithAttributeLists(atts)
+                    .WithModifiers(modifiers);
+                //if (atts.Any(a => a.Attributes.Count > 0))
+                //newNode = newNode.WithAttributeLists(atts);
                 newNode = newNode.WithLeadingTrivia(node.GetLeadingTrivia())
                    .WithTrailingTrivia(node.GetTrailingTrivia());
-                //_pendingVisits.Add(newNode);
+                return newNode;
+            }
+            return node;
+        }
+
+        public override SyntaxNode? VisitIndexerDeclaration(IndexerDeclarationSyntax node)
+        {
+            var memberOverrides = GetMemberOverride(node);
+            // Check if the property is an expression-bodied property (has an arrow clause)
+            // and there is a conditional expression in the body.
+            // Convert to a block so we can define a local variable in it
+            if (node.ExpressionBody != null && node.ExpressionBody.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
+            {
+                BeginBlockVariables();
+                var expression = (ExpressionSyntax)Visit(node.ExpressionBody.Expression)!;
+                var block = (BlockSyntax)EndBlockVariables(expression, true, true);
+                //var propertyName = node.Identifier.Text;
+                var propertyType = node.Type;
+                var modifiers = node.Modifiers;
+                var getAccessor = SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                    .WithBody(block);
+                var accessorList = SyntaxFactory.AccessorList(
+                    SyntaxFactory.List(new AccessorDeclarationSyntax[] { getAccessor }));
+                var newPropertyDeclaration = SyntaxFactory.IndexerDeclaration(
+                    attributeLists: node.AttributeLists,
+                    modifiers: modifiers,
+                    type: propertyType,
+                    explicitInterfaceSpecifier: node.ExplicitInterfaceSpecifier,
+                    parameterList: node.ParameterList,
+                    //identifier: node.Identifier,
+                    accessorList: accessorList, // Use the new accessor list
+                    expressionBody: null       // Remove the expression body
+                                               //initializer: node.Initializer
+                );
+                // Copy trivia (whitespace, comments) from the original node
+                node = newPropertyDeclaration.WithTriviaFrom(node);
+            }
+            else
+                node = (IndexerDeclarationSyntax)base.VisitIndexerDeclaration(node)!;
+            if (isMemberVisitFromGetMemberOverride)
+                return node;
+            //A property decorated with MemberOverride is removed. Only its content is used to replace the overriden member
+            if (node.HasAnyAttribute([typeof(MemberReplaceAttribute).FullName], out _))
+                return null;
+            if (memberOverrides?.Any() ?? false)
+            {
+                SyntaxList<AttributeListSyntax> atts = node.AttributeLists;
+                SyntaxTokenList modifiers = node.Modifiers;
+                var accessors = OverrideAccessor(node, memberOverrides, node.AccessorList, ref atts, ref modifiers);
+                var newNode = node.WithAccessorList(accessors)
+                    //.WithExpressionBody(expressionBody)
+                    .WithAttributeLists(atts)
+                    .WithModifiers(modifiers);
+                //if (atts.Any(a => a.Attributes.Count > 0))
+                //newNode = newNode.WithAttributeLists(atts);
+                newNode = newNode.WithLeadingTrivia(node.GetLeadingTrivia())
+                   .WithTrailingTrivia(node.GetTrailingTrivia());
                 return newNode;
             }
             return node;
@@ -723,19 +973,40 @@ namespace NetJs.Translator.CSharpToJavascript
                 return null;
             if (node.Declaration.Variables.Count == 1)
             {
-                var memberOverride = (FieldDeclarationSyntax?)GetMemberOverride(node);
-                MemberReplaceType replacementType = MemberReplaceType.All;// & ~MemberReplaceType.Modifiers;
-                if (memberOverride != null)
+                var memberOverrides = GetMemberOverride(node);
+                //MemberReplaceType replacementType = MemberReplaceType.All;// & ~MemberReplaceType.Modifiers;
+                if (memberOverrides?.Any() ?? false)
                 {
-                    var atts = replacementType.HasFlag(MemberReplaceType.Attributes) ? SyntaxFactory.List([SyntaxFactory.AttributeList(SeparatedSyntaxList.Create([.. memberOverride.AttributeLists.SelectMany(a => a.Attributes).Concat(node.AttributeLists.SelectMany(a => a.Attributes))]))]) : node.AttributeLists;
-                    var newNode = node.WithDeclaration(memberOverride.Declaration)
-                        .WithModifiers(replacementType.HasFlag(MemberReplaceType.Modifiers) ? (!memberOverride.Modifiers.Any(e => e.IsKind(SyntaxKind.ExternKeyword)) ? SyntaxFactory.TokenList(memberOverride.Modifiers.Where(e => !e.IsKind(SyntaxKind.ExternKeyword))) : memberOverride.Modifiers) : node.Modifiers);
-                    if (atts.Any(a => a.Attributes.Count > 0))
-                        newNode = newNode.WithAttributeLists(atts);
+                    var property = SyntaxFactory.PropertyDeclaration(
+                        node.AttributeLists,
+                        node.Modifiers,
+                        node.Declaration.Type,
+                        null,
+                        node.Declaration.Variables.Single().Identifier,
+                        null, null,
+                        node.Declaration.Variables.Single().Initializer);
+                    SyntaxList<AttributeListSyntax> atts = node.AttributeLists;
+                    SyntaxTokenList modifiers = node.Modifiers;
+                    var accessors = OverrideAccessor(node, memberOverrides, SyntaxFactory.AccessorList(default), ref atts, ref modifiers);
+                    var newNode = property.WithAccessorList(accessors)
+                        //.WithExpressionBody(expressionBody)
+                        .WithAttributeLists(atts)
+                        .WithModifiers(modifiers);
+                    //if (atts.Any(a => a.Attributes.Count > 0))
+                    //newNode = newNode.WithAttributeLists(atts);
                     newNode = newNode.WithLeadingTrivia(node.GetLeadingTrivia())
                        .WithTrailingTrivia(node.GetTrailingTrivia());
-                    //_pendingVisits.Add(newNode);
                     return newNode;
+
+                    //    var atts = replacementType.HasFlag(MemberReplaceType.Attributes) ? SyntaxFactory.List([SyntaxFactory.AttributeList(SeparatedSyntaxList.Create([.. memberOverride.AttributeLists.SelectMany(a => a.Attributes).Concat(node.AttributeLists.SelectMany(a => a.Attributes))]))]) : node.AttributeLists;
+                    //var newNode = node.WithDeclaration(memberOverride.Declaration)
+                    //    .WithModifiers(replacementType.HasFlag(MemberReplaceType.Modifiers) ? (!memberOverride.Modifiers.Any(e => e.IsKind(SyntaxKind.ExternKeyword)) ? SyntaxFactory.TokenList(memberOverride.Modifiers.Where(e => !e.IsKind(SyntaxKind.ExternKeyword))) : memberOverride.Modifiers) : node.Modifiers);
+                    //if (atts.Any(a => a.Attributes.Count > 0))
+                    //    newNode = newNode.WithAttributeLists(atts);
+                    //newNode = newNode.WithLeadingTrivia(node.GetLeadingTrivia())
+                    //   .WithTrailingTrivia(node.GetTrailingTrivia());
+                    //_pendingVisits.Add(newNode);
+                    //return newNode;
                 }
             }
             return base.VisitFieldDeclaration(node);
@@ -766,7 +1037,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
             //VisitConditionalAccessExpression will handle both ConditionalAccessExpression and its CoalesceExpression
             //eg value?.GetHashCode() ?? 0
-            if (node.IsKind(SyntaxKind.CoalesceExpression) && node.Left.IsKind(SyntaxKind.ConditionalAccessExpression))
+            if (node.IsKind(SyntaxKind.CoalesceExpression) && node.Left.IsKind(SyntaxKind.ConditionalAccessExpression) && node.Left is ConditionalAccessExpressionSyntax ce && IsRewiteCandidate(ce))
             {
                 return Visit(node.Left);
             }
@@ -989,7 +1260,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override SyntaxNode? VisitArrowExpressionClause(ArrowExpressionClauseSyntax node)
         {
-            if (node.FindDescendant<ConditionalAccessExpressionSyntax>().Any())
+            if (node.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
             {
                 BeginBlockVariables();
                 var newNode = base.VisitArrowExpressionClause(node);
@@ -1000,7 +1271,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override SyntaxNode? VisitSimpleLambdaExpression(SimpleLambdaExpressionSyntax node)
         {
-            if (node.ExpressionBody != null && node.FindDescendant<ConditionalAccessExpressionSyntax>().Any())
+            if (node.ExpressionBody != null && node.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
             {
                 var lamdaSymbol = GetSymbolInfo(node);
                 BeginBlockVariables();
@@ -1090,7 +1361,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override SyntaxNode? VisitArgument(ArgumentSyntax node)
         {
-            if (node.FindClosestParent<ConstructorInitializerSyntax>() != null && node.FindDescendant<ConditionalAccessExpressionSyntax>().Any())
+            if (node.FindClosestParent<ConstructorInitializerSyntax>() != null && node.FindDescendant<ConditionalAccessExpressionSyntax>().Any(e => IsRewiteCandidate(e)))
             {
                 BeginBlockVariables();
                 var newNode = base.VisitArgument(node);
@@ -1108,6 +1379,8 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public SyntaxNode? VisitConditionalAccessExpression(ConditionalAccessExpressionSyntax node, ConditionalAccessExpressionSyntax? parentCondition = null)
         {
+            if (parentCondition == null && !IsRewiteCandidate(node))
+                return base.VisitConditionalAccessExpression(node);
             //no block to define temp variable in
             if (defineBlockVariables.Count == 0)
                 return node;
@@ -1188,7 +1461,8 @@ namespace NetJs.Translator.CSharpToJavascript
                     AssociateSyntaxFactoryNode(ret.Right, asm.Right);
                     return ret;
                 }
-                return null;
+                throw null!;
+                //return null;
             }
             //if (node.ToString().Contains("waiter?.TryStart()"))
             //{
@@ -1328,10 +1602,6 @@ namespace NetJs.Translator.CSharpToJavascript
             if (node.Parent == null && parentCondition != null)
             {
                 isIfStatement = parentCondition.Parent is ExpressionStatementSyntax;
-            }
-            if (node.ToFullString().Contains("source._listeners?.Remove((ActivityListener) obj)"))
-            {
-
             }
             if (node.Parent.IsKind(SyntaxKind.ArrowExpressionClause))
             {

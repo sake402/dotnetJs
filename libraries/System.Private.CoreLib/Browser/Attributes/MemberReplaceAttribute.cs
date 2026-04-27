@@ -23,4 +23,15 @@ namespace NetJs
         public MemberReplaceAttribute(string originalMemberName) { }
         public MemberReplaceAttribute(string originalMemberName, MemberReplaceType type) { }
     }
+
+    [NonScriptable]
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field)]
+    public class MemberParameterCountMayNotMatch : Attribute
+    {
+    }
+    [NonScriptable]
+    [AttributeUsage(AttributeTargets.Method | AttributeTargets.Property | AttributeTargets.Field)]
+    public class MemberParameterTypesMayNotMatch : Attribute
+    {
+    }
 }

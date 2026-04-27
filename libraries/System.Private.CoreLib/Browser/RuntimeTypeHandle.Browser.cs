@@ -11,7 +11,7 @@ using System.Threading;
 namespace System
 {
     [NetJs.ForcePartial(typeof(RuntimeTypeHandle))]
-    //[NetJs.Boot]
+    [NetJs.Boot]
     //[NetJs.Reflectable(false)]
     //[NetJs.OutputOrder(int.MinValue + 1)] //make sure we emit this type immediately after AppDomain
     public partial struct RuntimeTypeHandle_Partial
@@ -25,8 +25,10 @@ namespace System
                 return CorElementType.ELEMENT_TYPE_VAR;
                 return CorElementType.ELEMENT_TYPE_MVAR;
             }
-            switch (runtimeType._model.KnownType)
+            switch (runtimeType._model.As<TypeModel>().KnownType)
             {
+                case KnownTypeHandle.SystemString:
+                    return CorElementType.ELEMENT_TYPE_STRING;
                 case KnownTypeHandle.SystemArray:
                     return CorElementType.ELEMENT_TYPE_ARRAY;
                 case KnownTypeHandle.SystemByte:
@@ -53,6 +55,12 @@ namespace System
                     return CorElementType.ELEMENT_TYPE_R4;
                 case KnownTypeHandle.SystemDouble:
                     return CorElementType.ELEMENT_TYPE_R8;
+                case KnownTypeHandle.SystemPointer:
+                    return CorElementType.ELEMENT_TYPE_PTR;
+            }
+            if (runtimeType._model.As<TypeModel>().Flags.TypeHasFlag(TypeFlagsModel.IsPointer))
+            {
+                return CorElementType.ELEMENT_TYPE_PTR;
             }
             return CorElementType.ELEMENT_TYPE_VOID;
         }
@@ -93,7 +101,7 @@ namespace System
         private static int GetMetadataToken(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
-            return (int)runtimeType._model.Handle.Value;
+            return (int)runtimeType._model.Handle;
         }
 
         [NetJs.MemberReplace]
@@ -107,12 +115,16 @@ namespace System
         internal static bool HasInstantiation(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
-            return runtimeType._model.Flags.HasFlag(TypeFlagsModel.IsGenericType);// && runtimeType._typeArguments != null;
+            if (NetJs.Script.IsUndefined(runtimeType._model.Flags)) //boot type dont have complete model
+                return false;
+            return runtimeType._model.As<TypeModel>().Flags.TypeHasFlag(TypeFlagsModel.IsGenericType);// && runtimeType._typeArguments != null;
         }
 
         [NetJs.MemberReplace]
         internal static bool IsInstanceOfType(QCallTypeHandle type, [NotNullWhen(true)] object? o)
         {
+            if (o == null)
+                return false;
             var runtimeType = type.QCallTypeHandleToRuntimeType();
             return o.Is(runtimeType);
         }
@@ -155,7 +167,7 @@ namespace System
         private static IntPtr GetMonoClass(QCallTypeHandle type)
         {
             var runtimeType = type.QCallTypeHandleToRuntimeType();
-            return (IntPtr)runtimeType._model.Handle.Value;
+            return (IntPtr)runtimeType._model.Handle;
         }
 
         [NetJs.MemberReplace]
@@ -191,7 +203,7 @@ namespace System
         [NetJs.MemberReplace]
         private static void internal_from_name(IntPtr name, ref StackCrawlMark stackMark, ObjectHandleOnStack res, bool throwOnError, bool ignoreCase)
         {
-            var str = (string)System.Runtime.InteropServices.Marshal.MarshalObject(name);
+            var str = (string?)System.Runtime.InteropServices.Marshal.MarshalObject(name);
             var type = AppDomain.GetTypeInternal(str, ignoreCase, throwOnError);
             res.GetObjectHandleOnStack<Type?>() = type;
         }

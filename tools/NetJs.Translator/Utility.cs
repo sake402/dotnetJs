@@ -154,11 +154,40 @@ namespace NetJs.Translator
             Stopwatch sw = new();
             sw.Start();
             depth++;
-            action();
-            depth--;
+            try
+            {
+                action();
+            }
+            finally
+            {
+                depth--;
+            }
             sw.Stop();
             Console.Write("  " + sw.ElapsedMilliseconds + "ms");
         }
 
+        public static string RemoveComments(this string str)
+        {
+            StringBuilder sb = new StringBuilder();
+            bool inComment = false;
+            for (int i = 0; i < str.Length; i++)
+            {
+                if (str[i] == '/' && i + 1 < str.Length && str[i + 1] == '*')
+                {
+                    i++;
+                    inComment = true;
+                }
+                else if (str[i] == '*' && i + 1 < str.Length && str[i + 1] == '/')
+                {
+                    i++;
+                    inComment = false;
+                }
+                else if (!inComment)
+                {
+                    sb.Append(str[i]);
+                }
+            }
+            return sb.ToString();
+        }
     }
 }

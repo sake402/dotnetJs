@@ -28,13 +28,15 @@ namespace NetJs.Translator.CSharpToJavascript
             string? enumeratorMoveNextInvocationName = null;
             string? enumeratorCurrentInvocationName = null;
 
+            IMethodSymbol? directGetEnumerator = null;
+
             if (enumerationTargetRhsTypeSymbol != null)
             {
                 //enumerableTypeSymbol = enumerableTypeSymbol.Construct([enumerationTargetRhsTypeSymbol]);
                 //If we can get the enumerator directly on the target, we dont need to call the interface method
                 //This is espcially useful if the target doesn't actually implement the IEnumerable Interface
-                var directGetEnumerator = enumerationTargetRhsTypeSymbol.TypeKind != TypeKind.Interface ?
-                    (IMethodSymbol?)(enumerationTargetRhsTypeSymbol.GetMembers("GetEnumerator", _global).FirstOrDefault()) : null;
+                directGetEnumerator = enumerationTargetRhsTypeSymbol.TypeKind != TypeKind.Interface ?
+                   (IMethodSymbol?)(enumerationTargetRhsTypeSymbol.GetMembers("GetEnumerator", _global).FirstOrDefault()) : null;
                 if (directGetEnumerator != null)
                 {
                     //var directGetENumeratorMetadata = _global.GetRequiredMetadata(directGetEnumerator);
@@ -88,22 +90,32 @@ namespace NetJs.Translator.CSharpToJavascript
             }
 
 
-            var enumarableName = $"$en{Writer.ClosureDepth}";
-            Writer.Write(node, $"var {enumarableName} = ", true);
-            WriteVariableAssignment(node, null, enumerableTypeSymbol, null, node.Expression, enumerationTargetRhsTypeSymbol);
-            //Visit(node.Expression);
-            Writer.WriteLine(node, $".{getEnumeratorInvocationName}();");
-            Writer.WriteLine(node, $"while ({enumarableName}.{enumeratorMoveNextInvocationName}())", true);
+            var enumarableName = $"$en{CurrentTypeWriter.ClosureDepth}";
+            CurrentTypeWriter.Write(node, $"var {enumarableName} = ", true);
+
+            if (directGetEnumerator != null)
+            {
+                WriteMethodInvocation(node, directGetEnumerator, null, null, node.Expression, enumerableTypeSymbol);
+                CurrentTypeWriter.WriteLine(node, $";");
+            }
+            else
+            {
+                WriteVariableAssignment(node, null, enumerableTypeSymbol, null, node.Expression, enumerationTargetRhsTypeSymbol);
+                //Visit(node.Expression);
+                CurrentTypeWriter.WriteLine(node, $".{getEnumeratorInvocationName}();");
+            }
+
+            CurrentTypeWriter.WriteLine(node, $"while ({enumarableName}.{enumeratorMoveNextInvocationName}())", true);
             //if (!node.Statement.IsKind(SyntaxKind.Block))
-            Writer.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, "{", true);
             if (variable is SyntaxToken identifierName2)
             {
-                Writer.WriteLine(node, $"var {identifierName2.ValueText} = {enumarableName}.{enumeratorCurrentInvocationName};", true);
+                CurrentTypeWriter.WriteLine(node, $"var {identifierName2.ValueText} = {enumarableName}.{enumeratorCurrentInvocationName};", true);
             }
             else if (variable is TupleExpressionSyntax tp)
             {
-                var i = ++Writer.CurrentClosure.NameManglingSeed;
-                Writer.WriteLine(node, $"var $t{i} = {enumarableName}.{enumeratorCurrentInvocationName};", true);
+                var i = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+                CurrentTypeWriter.WriteLine(node, $"var $t{i} = {enumarableName}.{enumeratorCurrentInvocationName};", true);
                 int item = 0;
                 foreach (var t in tp.Arguments)
                 {
@@ -112,14 +124,14 @@ namespace NetJs.Translator.CSharpToJavascript
                         continue;
                     if (t.Expression is IdentifierNameSyntax id && id.Identifier.ValueText == "_")
                         continue;
-                    Writer.Write(t.Expression, "", true);
+                    CurrentTypeWriter.Write(t.Expression, "", true);
                     Visit(t.Expression);
-                    Writer.WriteLine(node, $" = $t{i}.Item{item};");
+                    CurrentTypeWriter.WriteLine(node, $" = $t{i}.Item{item};");
                 }
             }
             Visit(node.Statement);
             //if (!node.Statement.IsKind(SyntaxKind.Block))
-            Writer.WriteLine(node, "}", true);
+            CurrentTypeWriter.WriteLine(node, "}", true);
             CloseClosure();
         }
 
@@ -143,32 +155,43 @@ namespace NetJs.Translator.CSharpToJavascript
                 bool conditionIsAlwaysFalse = _global.EvaluateConditionalExpressionAsConstant(node.Condition, this, out rewittenCondition) == false;
                 if (conditionIsAlwaysFalse)
                 {
-                    Writer.WriteLine(node, $"//for {node.Condition.ToString().Replace("\r", "").Replace("\n", "")} {{ ... }}", true);
+                    CurrentTypeWriter.WriteLine(node, $"//for {node.Condition.ToString().Replace("\r", "").Replace("\n", "")} {{ ... }}", true);
                     return;
                 }
             }
             OpenClosure(node);
-            Writer.Write(node, "for(", true);
+            CurrentTypeWriter.Write(node, "for(", true);
             if (node.Declaration != null)
                 Visit(node.Declaration);
-            Writer.Write(node, "; ");
+            else if (node.Initializers.Count > 0)
+            {
+                int ix = 0;
+                foreach (var init in node.Initializers)
+                {
+                    if (ix > 0)
+                        CurrentTypeWriter.Write(node, ", ");
+                    Visit(init);
+                    ix++;
+                }
+            }
+            CurrentTypeWriter.Write(node, "; ");
             if (node.Condition != null)
                 Visit(rewittenCondition ?? node.Condition);
-            Writer.Write(node, "; ");
+            CurrentTypeWriter.Write(node, "; ");
             int i = 0;
             foreach (var inc in node.Incrementors)
             {
                 if (i > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 Visit(inc);
                 i++;
             }
-            Writer.WriteLine(node, ")");
+            CurrentTypeWriter.WriteLine(node, ")");
             if (!node.Statement.IsKind(SyntaxKind.Block))
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             Visit(node.Statement);
             if (!node.Statement.IsKind(SyntaxKind.Block))
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
             CloseClosure();
         }
 

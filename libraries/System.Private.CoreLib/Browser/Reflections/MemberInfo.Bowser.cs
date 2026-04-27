@@ -3,15 +3,15 @@ using NetJs;
 namespace System.Reflection
 {
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
-    [NetJs.OutputOrder(int.MinValue + 3)]
+    //[NetJs.Reflectable(false)]
+    [NetJs.OutputOrder(int.MinValue + 6)]
     public abstract partial class MemberInfo
     {
-        internal MemberModel _miMetadata;
+        internal MemberModel _model;
 
-        protected MemberInfo(MemberModel metadata)
+        protected MemberInfo(MemberModel model)
         {
-            _miMetadata = metadata;
+            _model = model;
         }
 
         //public abstract MemberTypes MemberType { get; }
@@ -20,31 +20,31 @@ namespace System.Reflection
 
         //public Type DeclaringType => Type.GetTypeFromHandle(_miMetadata.DeclaringType) ?? throw new InvalidOperationException();
 
-        public bool IsStatic => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsStatic);
+        public bool IsStatic => _model.Flags.TypeHasFlag(MemberFlagsModel.IsStatic);
 
-        public bool IsOverride => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsOverride);
+        public bool IsOverride => _model.Flags.TypeHasFlag(MemberFlagsModel.IsOverride);
 
-        public bool IsVirtual => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsVirtual);
+        public bool IsVirtual => _model.Flags.TypeHasFlag(MemberFlagsModel.IsVirtual);
 
-        public bool IsFinal => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsFinal);
+        public bool IsFinal => _model.Flags.TypeHasFlag(MemberFlagsModel.IsFinal);
 
-        public bool IsAbstract => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsAbstract);
+        public bool IsAbstract => _model.Flags.TypeHasFlag(MemberFlagsModel.IsAbstract);
 
-        public bool IsSealed => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsSealed);
+        public bool IsSealed => _model.Flags.TypeHasFlag(MemberFlagsModel.IsSealed);
 
-        public bool IsSpecialName => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsSpecialName);
+        public bool IsSpecialName => _model.Flags.TypeHasFlag(MemberFlagsModel.IsSpecialName);
 
-        public bool IsFamily => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsFamily);
+        public bool IsFamily => _model.Flags.TypeHasFlag(MemberFlagsModel.IsFamily);
 
-        public bool IsFamilyOrAssembly => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsFamilyOrAssembly);
+        public bool IsFamilyOrAssembly => _model.Flags.TypeHasFlag(MemberFlagsModel.IsFamilyOrAssembly);
 
-        public bool IsFamilyAndAssembly => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsFamilyAndAssembly);
+        public bool IsFamilyAndAssembly => _model.Flags.TypeHasFlag(MemberFlagsModel.IsFamilyAndAssembly);
 
-        public bool IsPrivate => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsPrivate);
+        public bool IsPrivate => _model.Flags.TypeHasFlag(MemberFlagsModel.IsPrivate);
 
-        public bool IsPublic => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsPublic);
+        public bool IsPublic => _model.Flags.TypeHasFlag(MemberFlagsModel.IsPublic);
 
-        public bool IsAssembly => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsAssembly);
+        public bool IsAssembly => _model.Flags.TypeHasFlag(MemberFlagsModel.IsAssembly);
 
         ///// <summary>
         ///// Returns an array of all custom attributes applied to this member.
@@ -91,6 +91,6 @@ namespace System.Reflection
         //    return GetCustomAttributes().Some(f => attributeType.IsInstanceOfType(f));
         //}
 
-        public bool ContainsGenericParameters => _miMetadata.Flags.TypeHasFlag(MemberFlagsModel.IsGeneric);
+        public bool ContainsGenericParameters => _model.Flags.TypeHasFlag(MemberFlagsModel.IsGeneric);
     }
 }

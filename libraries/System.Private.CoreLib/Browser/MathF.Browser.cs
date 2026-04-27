@@ -101,8 +101,13 @@ namespace System
         [NetJs.Template("Math.log2")]
         public static extern float Log2Impl(float x);
 
-        //[dotnetJs.MemberReplace(nameof(ModF))]
-        //[dotnetJs.Template("({x} * {y}) + {z}")]
-        //private static extern unsafe float ModFImpl(float x, float* intptr);
+        [NetJs.MemberReplace(nameof(ModF))]
+        //[NetJs.Template("Math.truc(x)")]
+        private static unsafe float ModFImpl(float x, float* intptr)
+        {
+            var dd = NetJs.Script.Write<float>("Math.ceil(x)");
+            *intptr = dd;
+            return dd;
+        }
     }
 }

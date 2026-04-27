@@ -6,31 +6,34 @@ namespace System.Reflection
     [NetJs.ForcePartial(typeof(CustomAttribute))]
     internal static partial class CustomAttribute_Partial
     {
-        static object? ConvertAttributeType(object value, Type type)
+        static object? ConvertAttributeType(object? value, Type? type)
         {
             if (type == typeof(Type))
             {
-                uint v = (uint)value;
-                return AppDomain.GetType(new ReflectionHandleModel { Value = v });
+                uint v = (uint)value!;
+                return AppDomain.GetType(v);
             }
             return value;
         }
 
         static Attribute CreateAttribute(AttributeModel att, Type attType)
         {
-            var args = att.ConstructorArguments.Map(a =>
+            var args = NetJs.Script.IsDefined(att.ConstructorArguments) ? att.ConstructorArguments!.Map(a =>
             {
                 var type = AppDomain.GetType(a.Type);
                 return ConvertAttributeType(a.Value, type);
-            });
+            }) : NetJs.Script.CreateArrayFromValues<object?>();
             var constructor = (ConstructorInfo)AppDomain.GetMember(att.ConstructorHandle)!;
             var attribute = (Attribute)Activator.CreateInstance(attType, args)!;
-            for (int i = 0; i < att.NamedArguments.Length; i++)
+            if (NetJs.Script.IsDefined(att.NamedArguments))
             {
-                var type = AppDomain.GetType(att.NamedArguments[i].Type) ?? throw new InvalidOperationException();
-                var val = ConvertAttributeType(att.NamedArguments[i].Value, type);
-                var property = attType.GetProperty(att.NamedArguments[i].Name) ?? throw new InvalidOperationException();
-                property.SetValue(attribute, val);
+                for (int i = 0; i < att.NamedArguments!.Length; i++)
+                {
+                    var type = AppDomain.GetType(att.NamedArguments[i].Type) ?? throw new InvalidOperationException();
+                    var val = ConvertAttributeType(att.NamedArguments[i].Value, type);
+                    var property = attType.GetProperty(att.NamedArguments[i].Name) ?? throw new InvalidOperationException();
+                    property.SetValue(attribute, val);
+                }
             }
             return attribute;
         }
@@ -41,12 +44,12 @@ namespace System.Reflection
             var constructor = (ConstructorInfo)AppDomain.GetMember(att.ConstructorHandle)!;
             return new BrowserCustomAttributeData(
                 constructor,
-                att.ConstructorArguments.Map(a => new CustomAttributeTypedArgument(AppDomain.GetType(a.Type) ?? throw new InvalidOperationException(), a.Value)),
-                att.NamedArguments.Map(a =>
+                NetJs.Script.IsDefined(att.ConstructorArguments) ? (att.ConstructorArguments!.Map(a => new CustomAttributeTypedArgument(AppDomain.GetType(a.Type) ?? throw new InvalidOperationException(), a.Value))) : [],
+                NetJs.Script.IsDefined(att.NamedArguments) ? att.NamedArguments!.Map(a =>
                 {
                     var member = attributeType.GetMember(a.Name).ArraySingle();
                     return new CustomAttributeNamedArgument(member, new CustomAttributeTypedArgument(AppDomain.GetType(a.Type) ?? throw new InvalidOperationException(), a.Value));
-                }));
+                }) : NetJs.Script.CreateArrayFromValues<CustomAttributeNamedArgument>());
         }
 
         static AttributeModel[]? GetAttributeModel(ICustomAttributeProvider obj)
@@ -66,11 +69,11 @@ namespace System.Reflection
             }
             else if (obj is RuntimePropertyInfo rp)
             {
-                attributesModel = rp.As<RuntimePropertyInfo_Partial>()._model.Attributes;
+                attributesModel = rp.As<RuntimePropertyInfo>()._model.Attributes;
             }
             else if (obj is RuntimeFieldInfo rf)
             {
-                attributesModel = rf.As<RuntimeFieldInfo_Partial>()._model.Attributes;
+                attributesModel = rf.As<RuntimeFieldInfo>()._model.Attributes;
             }
             else if (obj is RuntimeParameterInfo rpp)
             {
@@ -84,7 +87,7 @@ namespace System.Reflection
         {
             var attHandle = attributeType.As<RuntimeType>()._model.Handle;
             AttributeModel[]? attributesModel = GetAttributeModel(obj);
-            return attributesModel?.Filter(a => a.TypeHandle.Value == attHandle.Value).Map(a => CreateAttribute(a, attributeType)) ?? [];
+            return attributesModel?.Filter(a => a.TypeHandle == attHandle).Map(a => CreateAttribute(a, attributeType)) ?? [];
         }
 
         [NetJs.MemberReplace]
@@ -99,7 +102,7 @@ namespace System.Reflection
         {
             var attHandle = AttributeType.As<RuntimeType>()._model.Handle;
             AttributeModel[]? attributesModel = GetAttributeModel(obj);
-            return attributesModel?.Some(a => a.TypeHandle.Value == attHandle.Value) ?? false;
+            return attributesModel?.Some(a => a.TypeHandle == attHandle) ?? false;
         }
     }
 }

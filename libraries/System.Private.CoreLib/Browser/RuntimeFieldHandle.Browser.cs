@@ -15,7 +15,7 @@ namespace System
         [NetJs.MemberReplace]
         private static void SetValueInternal(FieldInfo fi, object? obj, object? value)
         {
-            var model = fi.As<RuntimeFieldInfo_Partial>()._model;
+            var model = fi.As<RuntimeFieldInfo>()._model.As<FieldModel>();
             if (model.Flags.TypeHasFlag(MemberFlagsModel.IsStatic))
             {
                 var prototype = AppDomain.GetType(model.FieldType)!._prototype;
@@ -28,7 +28,7 @@ namespace System
         internal static  unsafe object GetValueDirect(RuntimeFieldInfo field, RuntimeType fieldType, void* pTypedRef, RuntimeType? contextType)
         {
             var obj = *(object*)pTypedRef;
-            var model = field.As<RuntimeFieldInfo_Partial>()._model;
+            var model = field.As<RuntimeFieldInfo>()._model.As<FieldModel>();
             if (model.Flags.TypeHasFlag(MemberFlagsModel.IsStatic))
             {
                 var prototype = AppDomain.GetType(model.FieldType)!._prototype;
@@ -41,7 +41,7 @@ namespace System
         internal static  unsafe void SetValueDirect(RuntimeFieldInfo field, RuntimeType fieldType, void* pTypedRef, object value, RuntimeType? contextType)
         {
             var obj = *(object*)pTypedRef;
-            var model = field.As<RuntimeFieldInfo_Partial>()._model;
+            var model = field.As<RuntimeFieldInfo>()._model.As<FieldModel>();
             if (model.Flags.TypeHasFlag(MemberFlagsModel.IsStatic))
             {
                 var prototype = fieldType._prototype;

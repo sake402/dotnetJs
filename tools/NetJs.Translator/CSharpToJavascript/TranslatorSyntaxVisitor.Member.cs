@@ -38,20 +38,21 @@ namespace NetJs.Translator.CSharpToJavascript
                 WriteMethodTemplate(node, _this, symbol, false, null, null, template, default);
             }
             var metadata = _global.GetRequiredMetadata(member);
-            Writer.Write(node, metadata.InvocationName ?? symbol.Name);
-            if (member.IsStaticCallConvention(_global))
+            var isStaticConvention = member.IsStaticCallConvention(_global);
+            CurrentTypeWriter.Write(node, metadata.InvocationName ?? symbol.Name);
+            if (isStaticConvention)
             {
                 if (_this == null)
                 {
                     throw new InvalidOperationException("Cannot literarily write a member with static convention wthout providing the this");
                 }
-                Writer.Write(node, ".call(");
+                CurrentTypeWriter.Write(node, "$get.call(");
                 VisitNode(_this);
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
         }
 
-        void WriteMemberAccess(CSharpSyntaxNode node, CodeNode? lhsExpression, ITypeSymbol? lhsSymbol, string? memberName, ISymbol? member)
+        void WriteMemberAccess(CSharpSyntaxNode node, CodeNode? lhsExpression, ISymbol? lhsSymbol, string? memberName, ISymbol? member)
         {
             if (lhsSymbol == null && lhsExpression == null)
                 throw new InvalidOperationException("Must supply one of lhsSymbol or lhsExpression");
@@ -61,8 +62,8 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 if (lhsExpression!.IsT0)
                 {
-                    CodeSymbol lhsType = GetExpressionReturnSymbol(lhsExpression!.AsT0);
-                    lhsSymbol = _global.ResolveSymbol(lhsType, this/*, out _, out _*/)?.GetTypeSymbol() ??
+                    CodeSymbol mlhsType = GetExpressionReturnSymbol(lhsExpression!.AsT0);
+                    lhsSymbol = _global.ResolveSymbol(mlhsType, this/*, out _, out _*/) ??
                         throw new InvalidOperationException($"Cannot resolve expreession type of {lhsExpression}");
                 }
                 else
@@ -70,7 +71,8 @@ namespace NetJs.Translator.CSharpToJavascript
                     throw new InvalidOperationException($"Cannot resolve expreession type of {lhsExpression}");
                 }
             }
-            member ??= lhsSymbol.GetMembers(memberName, _global).FirstOrDefault();
+            var lhsType = lhsSymbol.GetTypeSymbol();
+            member ??= lhsType.GetMembers(memberName, _global).FirstOrDefault();
             memberName ??= member.Name;
             bool isStaticConvention = member?.IsStaticCallConvention(_global) ?? false;
             if (member is IFieldSymbol field &&
@@ -128,22 +130,22 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     if (lhsSymbol is ITypeParameterSymbol tp)
                     {
-                        Writer.Write(node, tp.Name);
-                        Writer.Write(node, ".");
-                        Writer.Write(node, memberMetadata.OverloadName /*??memberMetadata.LocalName */?? member.Name);
+                        CurrentTypeWriter.Write(node, tp.Name);
+                        CurrentTypeWriter.Write(node, ".");
+                        CurrentTypeWriter.Write(node, memberMetadata.OverloadName /*??memberMetadata.LocalName */?? member.Name);
                     }
                     else
                     {
-                        Writer.Write(node, memberMetadata.InvocationName ?? member.Name);
+                        CurrentTypeWriter.Write(node, memberMetadata.InvocationName ?? member.Name);
                     }
                     if (isStaticConvention)
                     {
-                        Writer.Write(node, ".call(");
+                        CurrentTypeWriter.Write(node, "$get.call(");
                         if (lhsExpression != null)
                             VisitNode(lhsExpression);
                         else
-                            Writer.Write(node, "this");
-                        Writer.Write(node, ")");
+                            CurrentTypeWriter.Write(node, "this");
+                        CurrentTypeWriter.Write(node, ")");
                     }
                     return;
                 }
@@ -164,22 +166,40 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 else
                 {
-                    if (node.Parent.IsKind(SyntaxKind.SimpleMemberAccessExpression))
+                    if (SymbolIsThisTypeMember(member, out _))
                     {
-                        if (((MemberAccessExpressionSyntax)node.Parent).Expression == node)
-                        {
-                            Writer.Write(node, "this");
-                            lhsWritten = true;
-                        }
-                        else if (((MemberAccessExpressionSyntax)node.Parent).Name == node)
-                        {
-                        }
+                        ConditionalAccessExpressionSyntax? ce = null;
+                        if ((ce = node.FindClosestParent<ConditionalAccessExpressionSyntax>(isCandidate: (e) => e.Expression == node || e.WhenNotNull == node)) == null)
+                            CurrentTypeWriter.Write(node, "this.");
+                        else if (ce.Expression == node)
+                            CurrentTypeWriter.Write(node, "this.");
+                        else if (ce.WhenNotNull == node)
+                            CurrentTypeWriter.Write(node, ".");
+                        //lhsWritten = true;
                     }
-                    else
-                    {
-                        Writer.Write(node, "this");
-                        lhsWritten = true;
-                    }
+                    //else
+                    //{
+                    //    ConditionalAccessExpressionSyntax? ce = null;
+                    //    if (node.Parent.IsKind(SyntaxKind.SimpleMemberAccessExpression))
+                    //    {
+                    //        if (((MemberAccessExpressionSyntax)node.Parent).Expression == node)
+                    //        {
+                    //            CurrentTypeWriter.Write(node, "this");
+                    //            lhsWritten = true;
+                    //        }
+                    //        else if (((MemberAccessExpressionSyntax)node.Parent).Name == node)
+                    //        {
+                    //        }
+                    //    }
+                    //    else if ((ce = node.FindClosestParent<ConditionalAccessExpressionSyntax>()) != null && ce.WhenNotNull == node)
+                    //    {
+                    //    }
+                    //    else
+                    //    {
+                    //        CurrentTypeWriter.Write(node, "this");
+                    //        lhsWritten = true;
+                    //    }
+                    //}
                 }
             }
             else
@@ -190,25 +210,26 @@ namespace NetJs.Translator.CSharpToJavascript
             if (/*node.Expression.IsKind(SyntaxKind.IdentifierName) && */initialCurrentNamespace != currentExpressionNamespace)
             {
                 //Visit(node.Name);
-                Writer.Write(node, memberName);
+                CurrentTypeWriter.Write(node, memberName);
                 //if the above expression is captured into a namespace, don't write the dot
             }
             else
             {
                 if (lhsWritten)
                 {
-                    Writer.Write(node, ".");
+                    var lhsIsThis = lhsExpression != null && lhsExpression.IsT0 && lhsExpression.AsT0.IsKind(SyntaxKind.ThisExpression);
+                    if (!lhsIsThis && lhsSymbol.GetRefKind() != RefKind.None)
+                    {
+                        TryDereference(node);
+                    }
+                    CurrentTypeWriter.Write(node, ".");
                 }
-                Writer.Write(node, memberName);
+                CurrentTypeWriter.Write(node, memberName);
             }
         }
 
         public override void VisitMemberAccessExpression(MemberAccessExpressionSyntax node)
         {
-            if (node.ToFullString().Contains("char.MinValue") || node.ToFullString().Contains("char.MaxValue"))
-            {
-
-            }
             string? memberName = null;
             if (node.Name is GenericNameSyntax gn)
             {

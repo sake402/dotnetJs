@@ -1,14 +1,23 @@
-﻿using NetJs;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+using NetJs;
 using NetJs.Translator;
 using NetJs.Translator.CSharpToJavascript;
 using NetJs.Translator.CSharpToJavascript.SyntaxEmitter;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Array;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Index;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Indexer;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Number;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Numbers;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Pointer;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.Ref;
+using NetJs.Translator.CSharpToJavascript.SyntaxEmitter.String;
 using NetJs.Translator.RazorToCSharp;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 
@@ -26,21 +35,37 @@ namespace NetJs.Translator.CSharpToJavascript
         public GlobalCompilationVisitor Global => _global;
         public string? CurrentTypeNamespace => currentTypeNamespace;
         public Dictionary<INamedTypeSymbol, ScriptWriter> TypeWriters { get; private set; } = new Dictionary<INamedTypeSymbol, ScriptWriter>(SymbolEqualityComparer.Default);
+        public Dictionary<string, object> States { get; private set; } = new();
 
         //Stack<ScriptWriter> writers = new Stack<ScriptWriter>();
         //ScriptWriter Writer => writers.Peek();
-        public ScriptWriter Writer { get; set; } = new ScriptWriter();
+        public ScriptWriter CurrentTypeWriter { get; set; } = new ScriptWriter();
 
 
         static ISyntaxEmitter[] s_Emitters =
         [
+            new RefTypeDereferenceOnAccessSyntaxEmitter(),
+
+            new UnneccessaryUnsafeAddSyntaxEmitter(),
+
+            new StringConstructorSyntaxEmitter(),
+            new RefToStringFirstCharSyntaxEmitter(),
+            new RefArgumentToStringFirstCharSyntaxEmitter(),
+            new AddressOfStringFirstCharSyntaxEmitter(),
+            new MaterializeFastAllocatedStringOnReturnSyntaxEmitter(),
+            new MaterializeFastAllocatedStringOnAssignmentSyntaxEmitter(),
+
             new PointerCreateSyntaxEmitter(),
             new PointerArrayElementAccessSyntaxEmitter(),
+            new PointerArrayElementSetAccessSyntaxEmitter(),
             new PointerDereferenceSyntaxEmitter(),
             new PointerPreIncrementDecrementSyntaxEmitter(),
             new PointerPostIncrementDecrementSyntaxEmitter(),
-            new PointerAddSubtractToSelfSyntaxEmitter(),
-            new PointerAddSubtractSyntaxEmitter(),
+            new PointerAddSubtractIntegerToSelfSyntaxEmitter(),
+            new PointerAddSubtractIntegerSyntaxEmitter(),
+            new PointerSubtractPointerToIntegerSyntaxEmitter(),
+            new PointerComparisionSyntaxEmitter(),
+
             new CreateIndexSyntaxEmitter(),
             new ArrayRangeToSubArraySyntaxEmitter(),
             new IndexerPostIncrementDecrementSyntaxEmitter(),
@@ -51,8 +76,19 @@ namespace NetJs.Translator.CSharpToJavascript
             new SystemIndexToSetElementSyntaxEmitter(),
             new SystemIndexToGetElementSyntaxEmitter(),
             new ThisAssignmentSyntaxEmitter(),
+            new Utf8StringLiteralConcatSyntaxEmitter(),
             new Utf8StringLiteralToReadOnlySpanOfByteSyntaxEmitter(),
-            new StringConstructorSyntaxEmitter(),
+            new RecursiveOperatorSyntaxEmitter(),
+            new NumericShiftSyntaxEmitter(),
+            new ImplicitConversionSyntaxEmitter(),
+            new UnneccesaryNumericCastSyntaxEmitter(),
+            new UnwrapRefOfPointerDereferenceSyntaxEmitter(),
+            new UnwrapRefOfPointerDerefereceFromArgumentSyntaxEmitter(),
+            new FixedVariableDeclarationSyntaxEmitter(),
+
+            new TruncateIntegerDivisionSyntaxEmitter(),
+            new WrapIntegerMultiplicationSyntaxEmitter(),
+            new UnsignedNumberComparisonSyntaxEmitter(),
         ];
         public TranslatorSyntaxVisitor(GlobalCompilationVisitor global, SyntaxTree tree)
         {
@@ -77,9 +113,18 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (node != null)
             {
-                foreach (var emitter in s_Emitters)
+                if (node.ToString().Equals("(uint)bits[2]"))
                 {
-                    if (node.GetType() == emitter.SyntaxType)
+                }
+                for (int i = 0; i < s_Emitters.Length; i++)
+                {
+                    var emitter = s_Emitters[i];
+                    if (emitter.SyntaxType.IsAbstract && emitter.SyntaxType.IsAssignableFrom(node.GetType()))
+                    {
+                        if (emitter.TryEmit(node, this))
+                            return;
+                    }
+                    else if (node.GetType() == emitter.SyntaxType)
                     {
                         if (emitter.TryEmit(node, this))
                             return;
@@ -108,31 +153,31 @@ namespace NetJs.Translator.CSharpToJavascript
             Visit(mnewNode.Expression);
             return;
 
-            var syntaxAnnotation = new SyntaxAnnotation("NewNodeTracker");
-            newNode = newNode.WithAdditionalAnnotations(syntaxAnnotation);
-            var rewriter = new SingleNodeReplacer(target, newNode);
-            var result = rewriter.Visit(_tree.GetRoot());
-            var replacedNode = result!.DescendantNodes().Where(n => n.HasAnnotation(syntaxAnnotation)).Single();
-            if (replacedNode.SyntaxTree != result.SyntaxTree) //did not replace
-            {
+            //var syntaxAnnotation = new SyntaxAnnotation("NewNodeTracker");
+            //newNode = newNode.WithAdditionalAnnotations(syntaxAnnotation);
+            //var rewriter = new SingleNodeReplacer(target, newNode);
+            //var result = rewriter.Visit(_tree.GetRoot());
+            //var replacedNode = result!.DescendantNodes().Where(n => n.HasAnnotation(syntaxAnnotation)).Single();
+            //if (replacedNode.SyntaxTree != result.SyntaxTree) //did not replace
+            //{
 
-            }
-            var newCompilationUnit = _global.Compilation.AddSyntaxTrees(result.SyntaxTree);
-            var newGlobal = _global with { Compilation = newCompilationUnit };
-            var newVisitor = new TranslatorSyntaxVisitor(newGlobal, result.SyntaxTree)
-            {
-                Writer = Writer,
-                TypeWriters = TypeWriters,
-                alreadyTriedImport = alreadyTriedImport,
-                Dependencies = Dependencies,
-                closures = closures,
-                currentExpressionNamespace = currentExpressionNamespace,
-                currentTypeNamespace = currentTypeNamespace,
-                importedNamespace = importedNamespace,
-                imports = imports,
+            //}
+            //var newCompilationUnit = _global.Compilation.AddSyntaxTrees(result.SyntaxTree);
+            //var newGlobal = _global with { Compilation = newCompilationUnit };
+            //var newVisitor = new TranslatorSyntaxVisitor(newGlobal, result.SyntaxTree)
+            //{
+            //    CurrentTypeWriter = CurrentTypeWriter,
+            //    TypeWriters = TypeWriters,
+            //    alreadyTriedImport = alreadyTriedImport,
+            //    Dependencies = Dependencies,
+            //    closures = closures,
+            //    currentExpressionNamespace = currentExpressionNamespace,
+            //    currentTypeNamespace = currentTypeNamespace,
+            //    importedNamespace = importedNamespace,
+            //    imports = imports,
 
-            };
-            newVisitor.Visit(replacedNode);
+            //};
+            //newVisitor.Visit(replacedNode);
         }
 
         public override void VisitCompilationUnit(CompilationUnitSyntax node)
@@ -175,6 +220,7 @@ namespace NetJs.Translator.CSharpToJavascript
         public override void VisitFileScopedNamespaceDeclaration(FileScopedNamespaceDeclarationSyntax node)
         {
             currentTypeNamespace = node.Name.ToString();
+            VisitChildren(node.Members);
             //base.VisitFileScopedNamespaceDeclaration(node);
         }
 
@@ -188,26 +234,26 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 foreach (var variable in node.Declaration.Variables)
                 {
-                    Writer.WriteLine(node, $"const {variable.Identifier.ValueText} = null;", true);
+                    CurrentTypeWriter.WriteLine(node, $"const {variable.Identifier.ValueText} = null;", true);
                 }
             }
             else if (node.Expression != null)
             {
-                Writer.WriteLine(node, "const $disposable = null;", true);
+                CurrentTypeWriter.WriteLine(node, "const $disposable = null;", true);
             }
-            Writer.WriteLine(node, "try", true);
-            Writer.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, "try", true);
+            CurrentTypeWriter.WriteLine(node, "{", true);
             if (node.Expression != null)
             {
-                Writer.Write(node, "$disposable = ", true);
+                CurrentTypeWriter.Write(node, "$disposable = ", true);
                 Visit(node.Expression);
-                Writer.WriteLine(node, ";");
+                CurrentTypeWriter.WriteLine(node, ";");
             }
             else if (node.Declaration != null)
             {
-                Writer.Write(node, "", true);
+                CurrentTypeWriter.Write(node, "", true);
                 Visit(node.Declaration);
-                Writer.WriteLine(node, ";");
+                CurrentTypeWriter.WriteLine(node, ";");
             }
             //if (node.Expression != null)
             //{
@@ -222,17 +268,17 @@ namespace NetJs.Translator.CSharpToJavascript
                     Visit(node.Statement);
             }
             //base.VisitUsingStatement(node);
-            Writer.WriteLine(node, "}", true);
-            Writer.WriteLine(node, "finally", true);
-            Writer.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, "}", true);
+            CurrentTypeWriter.WriteLine(node, "finally", true);
+            CurrentTypeWriter.WriteLine(node, "{", true);
             if (node.Expression != null)
             {
                 //Writer.WriteLine(node, "$disposable?.System$IDisposable$Dispose();", true);
                 WriteMethodInvocation(node, "System.IDisposable.Dispose", lhsExpression: new CodeNode(() =>
                 {
-                    Writer.Write(node, "$disposable?", true);
+                    CurrentTypeWriter.Write(node, "$disposable?", true);
                 }));
-                Writer.WriteLine(node, ";");
+                CurrentTypeWriter.WriteLine(node, ";");
             }
             else if (node.Declaration != null)
             {
@@ -241,12 +287,12 @@ namespace NetJs.Translator.CSharpToJavascript
                     //Writer.WriteLine(node, $"{variable.Identifier.ValueText}?.System$IDisposable$Dispose();", true);
                     WriteMethodInvocation(node, "System.IDisposable.Dispose", lhsExpression: new CodeNode(() =>
                     {
-                        Writer.Write(node, $"{variable.Identifier.ValueText}?", true);
+                        CurrentTypeWriter.Write(node, $"{variable.Identifier.ValueText}?", true);
                     }));
-                    Writer.WriteLine(node, ";");
+                    CurrentTypeWriter.WriteLine(node, ";");
                 }
             }
-            Writer.WriteLine(node, "}", true);
+            CurrentTypeWriter.WriteLine(node, "}", true);
         }
 
         void VisitChildren(IEnumerable<SyntaxNode> nodes, string? separator = null)
@@ -255,7 +301,7 @@ namespace NetJs.Translator.CSharpToJavascript
             foreach (var node in nodes)
             {
                 if (separator != null && ix > 0)
-                    Writer.Write(node, separator, false);
+                    CurrentTypeWriter.Write(node, separator, false);
                 Visit(node);
                 ix++;
             }
@@ -274,10 +320,6 @@ namespace NetJs.Translator.CSharpToJavascript
             //base.VisitNamespaceDeclaration(node);
             currentTypeNamespace = currentTypeNamespace.Substring(0, currentTypeNamespace.Length - (addedName?.Length ?? 0));
         }
-        public override void VisitDelegateDeclaration(DelegateDeclarationSyntax node)
-        {
-            //base.VisitDelegateDeclaration(node);
-        }
 
         public override void VisitAccessorDeclaration(AccessorDeclarationSyntax node)
         {
@@ -286,9 +328,9 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitExpressionStatement(ExpressionStatementSyntax node)
         {
-            Writer.Write(node, "", true);
+            CurrentTypeWriter.Write(node, "", true);
             base.VisitExpressionStatement(node);
-            Writer.WriteLine(node, ";");
+            CurrentTypeWriter.WriteLine(node, ";");
         }
 
         public override void VisitLiteralExpression(LiteralExpressionSyntax node)
@@ -313,12 +355,13 @@ namespace NetJs.Translator.CSharpToJavascript
                 var type = GetExpressionReturnSymbol(node);
                 if (type.TypeSyntaxOrSymbol is ITypeSymbol typeSymbol)
                 {
-                    Writer.Write(node, $"{_global.GlobalName}.{Constants.DefaultTypeName}({typeSymbol.ComputeOutputTypeName(_global)})");
+                    var defaultValue = _global.GetDefaultValue(typeSymbol, true);
+                    CurrentTypeWriter.Write(node, defaultValue ?? "null");
                     return;
                 }
             }
             var txt = node.GetLiteralString(_global);
-            Writer.Write(node, txt);
+            CurrentTypeWriter.Write(node, txt);
             base.VisitLiteralExpression(node);
         }
 
@@ -326,7 +369,7 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (TryInvokeMethodOperator(node, node.OperatorToken.ValueText, null, node.Operand, [node.Operand]))
                 return;
-            Writer.Write(node, $"{node.OperatorToken.ValueText}");
+            CurrentTypeWriter.Write(node, $"{node.OperatorToken.ValueText}");
             Visit(node.Operand);
             DereferenceIfReference(node.Operand);
             //base.VisitPrefixUnaryExpression(node);
@@ -340,7 +383,7 @@ namespace NetJs.Translator.CSharpToJavascript
             Visit(node.Operand);
             DereferenceIfReference(node.Operand);
             if (!node.IsKind(SyntaxKind.SuppressNullableWarningExpression))//remove shebang after null and default
-                Writer.Write(node, $"{node.OperatorToken.ValueText}");
+                CurrentTypeWriter.Write(node, $"{node.OperatorToken.ValueText}");
         }
 
         public override void VisitBinaryExpression(BinaryExpressionSyntax node)
@@ -352,37 +395,69 @@ namespace NetJs.Translator.CSharpToJavascript
             var op = node.OperatorToken.ValueText.Trim();
             if (op == "??" && node.Right.IsKind(SyntaxKind.ThrowExpression)/* is ThrowExpressionSyntax*/)
             {
-                Writer.Write(node, $"{_global.GlobalName}.$FirstOf(");
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.FirstOf}(");
                 Visit(node.Left);
-                Writer.Write(node, ", function(){ ");
+                CurrentTypeWriter.Write(node, ", function(){ ");
                 Visit(node.Right);
-                Writer.Write(node, " }.bind(this))");
+                CurrentTypeWriter.Write(node, " }.bind(this))");
             }
             else if (op == "as")
             {
-                Writer.Write(node, $"{_global.GlobalName}.$as(");
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.$as(");
                 Visit(node.Left);
-                Writer.Write(node, ", ");
+                CurrentTypeWriter.Write(node, ", ");
                 Visit(node.Right);
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
             else if (op == "is" && node.Right is not LiteralExpressionSyntax)
             {
-                Writer.Write(node, $"{_global.GlobalName}.$is(");
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.$is(");
                 Visit(node.Left);
-                Writer.Write(node, ", ");
+                CurrentTypeWriter.Write(node, ", ");
                 Visit(node.Right);
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
             else
             {
+                //var leftType = _global.TryGetTypeSymbol(node.Left, this)?.GetTypeSymbol();
+                //var rightType = _global.TryGetTypeSymbol(node.Right, this)?.GetTypeSymbol();
+                //if (leftType != null && rightType != null)
+                //{
+                //    if (leftType.Equals(_global.SystemBoolean, SymbolEqualityComparer.Default) && rightType.Equals(_global.SystemBoolean, SymbolEqualityComparer.Default))
+                //    {
+                //        //Rewrite boolean logical & to &&, | to || and ^ to != as js interpret this differently from c# 
+                //        //if (op == "&")
+                //        //    op = "&&";
+                //        //else if (op == "|")
+                //        //    op = "||";
+                //        //else 
+                //        if (op == "^")
+                //            op = "!==";
+                //    }
+                //}
                 //Writer.Write(node, $"(");
                 Visit(node.Left);
+                //bool KeepOperator()
+                //{
+                //    //If the left is a bitwise or, js will not return a bool but an int 1 or 0, we should keep the == in this scenario
+                //    bool keep = false;
+                //    if (leftType != null && rightType != null && leftType.Equals(_global.SystemBoolean, SymbolEqualityComparer.Default) && rightType.Equals(_global.SystemBoolean, SymbolEqualityComparer.Default))
+                //    {
+                //        keep = true;
+                //    }
+                //    if ((node.Left is BinaryExpressionSyntax be && (be.OperatorToken.ValueText == "&" || be.OperatorToken.ValueText == "|"))
+                //        ||
+                //        (node.Left is ParenthesizedExpressionSyntax pe && pe.Expression is BinaryExpressionSyntax be2 && (be2.OperatorToken.ValueText == "&" || be2.OperatorToken.ValueText == "|")))
+                //    {
+                //        keep = true;
+                //    }
+                //    return keep;
+                //}
                 if (op == "is")
                 {
                     if (node.Right is LiteralExpressionSyntax)
                     {
-                        op = "==";
+                        op = "===";
                     }
                     else
                     {
@@ -391,13 +466,17 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 else if (op == "==")
                 {
+
+                    //Left type of a == operator may be a bool & bool
+                    //if (!KeepOperator())
                     op = "===";
                 }
                 else if (op == "!=")
                 {
+                    //if (!KeepOperator())
                     op = "!==";
                 }
-                Writer.Write(node, $" {op} ");
+                CurrentTypeWriter.Write(node, $" {op} ");
                 Visit(node.Right);
                 //Writer.Write(node, $")");
             }
@@ -406,26 +485,26 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitAwaitExpression(AwaitExpressionSyntax node)
         {
-            Writer.Write(node, $"await ");
+            CurrentTypeWriter.Write(node, $"await ");
             WriteMethodInvocation(node, "System.Runtime.CompilerServices.RuntimeHelpers.TaskToPromise", arguments: [node.Expression]);
             //base.VisitAwaitExpression(node);
         }
 
         public override void VisitParenthesizedExpression(ParenthesizedExpressionSyntax node)
         {
-            Writer.Write(node, "(");
+            CurrentTypeWriter.Write(node, "(");
             base.VisitParenthesizedExpression(node);
-            Writer.Write(node, ")");
+            CurrentTypeWriter.Write(node, ")");
         }
 
         public override void VisitBlock(BlockSyntax node)
         {
-            Writer.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, "{", true);
             OpenClosure(node);
             if (!BlockTryHandleJumpLabels(node))
                 base.VisitBlock(node);
             CloseClosure();
-            Writer.WriteLine(node, "}", true);
+            CurrentTypeWriter.WriteLine(node, "}", true);
         }
 
         //public override void VisitDeclarationPattern(DeclarationPatternSyntax node)
@@ -442,119 +521,133 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (node.RefKindKeyword.ValueText == "out" || node.RefKindKeyword.ValueText == "ref" || node.RefKindKeyword.ValueText == "in")
             {
-                string? boundIdentifierName = null;
-                string? bindToThis = null;
-                var iNameMangling = ++Writer.CurrentClosure.NameManglingSeed;
-                if (node.Expression is DeclarationExpressionSyntax dec && dec.Designation is SingleVariableDesignationSyntax sv)
-                {
-                    var boundLocalField = _global.TryGetTypeSymbol(sv, this/*, out _, out _*/);
-                    boundIdentifierName = sv.Identifier.ValueText;
-                    Writer.InsertInCurrentClosure(node, $"let {boundIdentifierName} = null;", true);
-                    if (boundLocalField != null)
-                    {
-                        CurrentClosure.DefineIdentifierType(boundIdentifierName, CodeSymbol.From(boundLocalField));
-                    }
-                    else if (node.RefKindKeyword.ValueText == "out" && !dec.Type.IsVar)
-                    {
-                        CurrentClosure.DefineIdentifierType(boundIdentifierName, CodeSymbol.From(dec.Type, SymbolKind.Local));
-                    }
-                }
-                else if (node.Expression is IdentifierNameSyntax id)
-                {
-                    var rhs = _global.TryGetTypeSymbol(id, this/*, out var rhs, out var rhsKind*/);
-                    var rhsKind = rhs?.Kind;
-                    //ISymbol? rhsRefTarget = (declaringType as IParameterSymbol) ??
-                    //    (declaringType as IFieldSymbol) ??
-                    //    (ISymbol?)(declaringType as ILocalSymbol);
-                    //var rhsType = (declaringType as IParameterSymbol)?.Type ??
-                    //    (declaringType as ILocalSymbol)?.Type ??
-                    //    (declaringType as IFieldSymbol)?.Type ??
-                    //    (declaringType as IPropertySymbol)?.Type ?? declaringType as ITypeSymbol;
-                    var rhsRefKind = (rhs as IParameterSymbol)?.RefKind ??
-                        (rhs as ILocalSymbol)?.RefKind ??
-                        (rhs as IFieldSymbol)?.RefKind ??
-                        (rhs as IPropertySymbol)?.RefKind;
-                    if (rhsKind == SymbolKind.Field || rhsKind == SymbolKind.Local || rhsKind == SymbolKind.Parameter)
-                    {
-                        if (rhsRefKind == RefKind.Ref || rhsRefKind == RefKind.RefReadOnly || rhsRefKind == RefKind.RefReadOnlyParameter || rhsRefKind == RefKind.Out || rhsRefKind == RefKind.In) //the reference field is already a ref itself. No need to create a new ref
-                        {
-                            Visit(node.Expression);
-                            return;
-                        }
-                        else
-                        {
-                            if (rhsKind == SymbolKind.Field)
-                            {
-                                //While we could be cheking if the accessed field is static.
-                                //The "this" in the static method is most likely the prototype of the class itself though
-                                //So we expect it to work
-                                if (!rhs!.IsStatic)
-                                    bindToThis = $"$this{iNameMangling}";
-                                var metadata = _global.GetRequiredMetadata(rhs!);
-                                boundIdentifierName = metadata.InvocationName ?? rhs!.Name;
-                                if (!rhs.IsStatic)
-                                {
-                                    Writer.InsertInCurrentClosure(node, $"const {bindToThis} = this;", true);
-                                    bindToThis += ".";
-                                }
-                            }
-                            else
-                            {
-                                boundIdentifierName = rhs!.Name;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        //if (declaringType is IParameterSymbol parameter && (parameter.RefKind == RefKind.Ref || parameter.RefKind == RefKind.RefReadOnly || parameter.RefKind == RefKind.RefReadOnlyParameter || parameter.RefKind == RefKind.Out || parameter.RefKind == RefKind.In))
-                        //{
-                        //    //if the parameter passed to this argument is itself a ref/in/out, no need to create a new reference
-                        //    Visit(node.Expression);
-                        //    return;
-                        //}
-                        //if (declaringType is ILocalSymbol local && (local.RefKind == RefKind.Ref || local.RefKind == RefKind.RefReadOnly || local.RefKind == RefKind.RefReadOnlyParameter || local.RefKind == RefKind.Out || local.RefKind == RefKind.In))
-                        //{
-                        //    //if the parameter passed to this argument is itself a ref/in/out, no need to create a new reference
-                        //    Visit(node.Expression);
-                        //    return;
-                        //}
-                        //if (declaringType is IFieldSymbol field && (field.RefKind == RefKind.Ref || field.RefKind == RefKind.RefReadOnly || field.RefKind == RefKind.RefReadOnlyParameter || field.RefKind == RefKind.Out || field.RefKind == RefKind.In))
-                        //{
-                        //    //if the parameter passed to this argument is itself a ref/in/out, no need to create a new reference
-                        //    Visit(node.Expression);
-                        //    return;
-                        //}
-                        boundIdentifierName = id.Identifier.ValueText;
-                    }
-                }
-                else if (node.Expression.IsKind(SyntaxKind.FieldExpression))
-                {
-                    var containigType = node.FindClosestParent<BaseTypeDeclarationSyntax>() ?? throw new InvalidOperationException("field must be inside a property");
-                    var typeSymbol = _global.GetTypeSymbol(containigType, this);
-                    var typeMetadata = _global.GetRequiredMetadata(typeSymbol);
-                    var containigProperty = node.FindClosestParent<PropertyDeclarationSyntax>() ?? throw new InvalidOperationException("field must be inside a property");
-                    var propertyName = containigProperty.Identifier.ValueText;
-                    bool isStatic = containigProperty.Modifiers.IsStatic();
-                    boundIdentifierName = $"{(!isStatic ? "this" : typeMetadata.InvocationName ?? typeSymbol.Name)}.{propertyName}$";
-                }
-                else
+                var iNameMangling = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+                var rhs = _global.TryGetTypeSymbol(node.Expression, this/*, out var rhs, out var rhsKind*/);
+                var rhsKind = rhs?.Kind;
+                //ISymbol? rhsRefTarget = (declaringType as IParameterSymbol) ??
+                //    (declaringType as IFieldSymbol) ??
+                //    (ISymbol?)(declaringType as ILocalSymbol);
+                //var rhsType = (declaringType as IParameterSymbol)?.Type ??
+                //    (declaringType as ILocalSymbol)?.Type ??
+                //    (declaringType as IFieldSymbol)?.Type ??
+                //    (declaringType as IPropertySymbol)?.Type ?? declaringType as ITypeSymbol;
+                var rhsRefKind = rhs?.GetRefKind();
+                //if (rhsKind == SymbolKind.Field || rhsKind == SymbolKind.Local || rhsKind == SymbolKind.Parameter)
+                //{
+                if (rhsRefKind != null && rhsRefKind != RefKind.None) //the referenced field is already a ref itself. No need to create a new ref
                 {
                     Visit(node.Expression);
                     return;
                 }
-                var fieldName = $"{bindToThis}{boundIdentifierName}";
-                if (boundIdentifierName == "_")//discard
+                //}
+                var expression = node.Expression;
+                IDisposable? dispose1 = null;
+                IDisposable? dispose2 = null;
+                if (expression is DeclarationExpressionSyntax decl && decl.Designation is SingleVariableDesignationSyntax svd)
                 {
-                    Writer.Write(node, $"$.{Constants.DiscardRefName}");
+                    CurrentTypeWriter.InsertInCurrentClosure(node, $"/*{decl.Type}*/ let {svd.Identifier.ValueText} = null;", true);
+                    dispose1 = CurrentTypeWriter.SetReplacement("let ", "");
+                    dispose2 = CurrentTypeWriter.SetReplacement($"/*{decl.Type}*/ ", "");
                 }
-                else
-                {
-                    var simpleBoundIdentifierName = boundIdentifierName.Split('.').Last();
-                    var ix = ++Writer.CurrentClosure.NameManglingSeed;
-                    WriteCreateRef(node, fieldName, $"/*{node.RefKindKeyword.ValueText} {boundIdentifierName}*/ const ${node.RefKindKeyword.ValueText}_{simpleBoundIdentifierName}{ix} = ", ";", _readOnly: node.RefKindKeyword.ValueText == "in");
-                    Writer.Write(node, $"${node.RefKindKeyword.ValueText}_{simpleBoundIdentifierName}{ix}");
-                }
-                //Writer.InsertInCurrentClosure($"/*{node.RefKindKeyword.ValueText} {boundIdentifierName}*/ const ${node.RefKindKeyword.ValueText}{iNameMangling} = {{ get value(){{ return {bindToThis}{boundIdentifierName}; }}, set value(v){{ {bindToThis}{boundIdentifierName} = v; }} }};", true);
+                WriteCreateRef(node, expression, rhs?.GetTypeSymbol());
+                dispose1?.Dispose();
+                dispose2?.Dispose();
+                return;
+                //string? boundIdentifierName = null;
+                //string? bindToThis = null;
+                //if (node.Expression is DeclarationExpressionSyntax dec && dec.Designation is SingleVariableDesignationSyntax sv)
+                //{
+                //    var boundLocalField = _global.TryGetTypeSymbol(sv, this/*, out _, out _*/);
+                //    boundIdentifierName = sv.Identifier.ValueText;
+                //    CurrentTypeWriter.InsertInCurrentClosure(node, $"let {boundIdentifierName} = null;", true);
+                //    if (boundLocalField != null)
+                //    {
+                //        CurrentClosure.DefineIdentifierType(boundIdentifierName, CodeSymbol.From(boundLocalField));
+                //    }
+                //    else if (node.RefKindKeyword.ValueText == "out" && !dec.Type.IsVar)
+                //    {
+                //        CurrentClosure.DefineIdentifierType(boundIdentifierName, CodeSymbol.From(dec.Type, SymbolKind.Local));
+                //    }
+                //}
+                //else if (node.Expression is IdentifierNameSyntax id)
+                //{
+                //    if (rhsKind == SymbolKind.Field || rhsKind == SymbolKind.Local || rhsKind == SymbolKind.Parameter)
+                //    {
+                //        if (rhsKind == SymbolKind.Field)
+                //        {
+                //            //While we could be cheking if the accessed field is static.
+                //            //The "this" in the static method is most likely the prototype of the class itself though
+                //            //So we expect it to work
+                //            if (!rhs!.IsStatic)
+                //                bindToThis = $"$this{iNameMangling}";
+                //            var metadata = _global.GetRequiredMetadata(rhs!);
+                //            boundIdentifierName = metadata.InvocationName ?? rhs!.Name;
+                //            if (!rhs.IsStatic)
+                //            {
+                //                CurrentTypeWriter.InsertInCurrentClosure(node, $"const {bindToThis} = this;", true);
+                //                bindToThis += ".";
+                //            }
+                //        }
+                //        else
+                //        {
+                //            boundIdentifierName = rhs!.Name;
+                //        }
+                //    }
+                //    else
+                //    {
+                //        boundIdentifierName = id.Identifier.ValueText;
+                //    }
+                //}
+                //else if (node.Expression.IsKind(SyntaxKind.SimpleMemberAccessExpression))
+                //{
+                //    var identifierName = $"${node.RefKindKeyword.ValueText}_{node.Expression.ToString().Replace(" ", "_").Replace(".", "_").Replace("[", "_").Replace("]", "_").Replace("!", "_").Replace("(", "_").Replace(")", "_")}{iNameMangling}";
+                //    CurrentTypeWriter.InsertAbove(node, () =>
+                //    {
+                //        var argType = _global.GetTypeSymbol(node.Expression, this).GetTypeSymbol();
+                //        //var _thisCache = $"const $this{iNameMangling} = this;";
+                //        //var line = CurrentTypeWriter.WriteLine(node, _thisCache, true);
+                //        CurrentTypeWriter.Write(node, $"const {identifierName} = ", true);
+                //        //var replaceThis = CurrentTypeWriter.SetReplacement("this", $"$this{iNameMangling}");
+                //        WriteCreateRef(node, node.Expression, argType);
+                //        //if (replaceThis.Hit == 0) //no this replacement was made, remove the redundant this assignment
+                //        //{
+                //        //    line.Remove(_thisCache);
+                //        //}
+                //        //replaceThis.Dispose();
+                //        CurrentTypeWriter.Write(node, $";");
+                //    }, true);
+                //    CurrentTypeWriter.Write(node, identifierName);
+                //    return;
+                //}
+                //else if (node.Expression.IsKind(SyntaxKind.FieldExpression))
+                //{
+                //    var containigType = node.FindClosestParent<BaseTypeDeclarationSyntax>() ?? throw new InvalidOperationException("field must be inside a property");
+                //    var typeSymbol = _global.GetTypeSymbol(containigType, this);
+                //    var typeMetadata = _global.GetRequiredMetadata(typeSymbol);
+                //    var containigProperty = node.FindClosestParent<PropertyDeclarationSyntax>() ?? throw new InvalidOperationException("field must be inside a property");
+                //    var propertyName = containigProperty.Identifier.ValueText;
+                //    bool isStatic = containigProperty.Modifiers.IsStatic();
+                //    boundIdentifierName = $"{(!isStatic ? "this" : typeMetadata.InvocationName ?? typeSymbol.Name)}.{propertyName}$";
+                //}
+                //else
+                //{
+                //    Visit(node.Expression);
+                //    return;
+                //}
+                //var fieldName = $"{bindToThis}{boundIdentifierName}";
+                //if (boundIdentifierName == "_")//discard
+                //{
+                //    CurrentTypeWriter.Write(node, $"$.{Constants.DiscardRefName}");
+                //}
+                //else
+                //{
+                //    var argType = _global.GetTypeSymbol(node, this).GetTypeSymbol();
+                //    var simpleBoundIdentifierName = boundIdentifierName.Split('.').Last();
+                //    var ix = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+                //    WriteCreateRef(node, argType, fieldName, $"/*{node.RefKindKeyword.ValueText} {boundIdentifierName}*/ const ${node.RefKindKeyword.ValueText}_{simpleBoundIdentifierName}{ix} = ", ";", _readOnly: node.RefKindKeyword.ValueText == "in");
+                //    CurrentTypeWriter.Write(node, $"${node.RefKindKeyword.ValueText}_{simpleBoundIdentifierName}{ix}");
+                //}
+                ////Writer.InsertInCurrentClosure($"/*{node.RefKindKeyword.ValueText} {boundIdentifierName}*/ const ${node.RefKindKeyword.ValueText}{iNameMangling} = {{ get value(){{ return {bindToThis}{boundIdentifierName}; }}, set value(v){{ {bindToThis}{boundIdentifierName} = v; }} }};", true);
             }
             //else if (node.RefKindKeyword.ValueText == "in")
             //{
@@ -569,16 +662,16 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitParenthesizedVariableDesignation(ParenthesizedVariableDesignationSyntax node)
         {
-            Writer.Write(node, " [ ");
+            CurrentTypeWriter.Write(node, " [ ");
             int i = 0;
             foreach (var v in node.Variables)
             {
                 if (i > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 Visit(v);
                 i++;
             }
-            Writer.Write(node, " ]");
+            CurrentTypeWriter.Write(node, " ]");
             //base.VisitParenthesizedVariableDesignation(node);
         }
 
@@ -587,7 +680,7 @@ namespace NetJs.Translator.CSharpToJavascript
             //if (node.Parent is InvocationExpressionSyntax)//dont insert super keyword into method calls. Can only be used as a dispatch prefix
             //    Writer.Write(node, "this");
             //else
-            Writer.Write(node, "super");
+            CurrentTypeWriter.Write(node, "super");
             base.VisitBaseExpression(node);
         }
 
@@ -602,76 +695,47 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (node.IsKind(SyntaxKind.ArrayInitializerExpression))
             {
-                Writer.Write(node, "[ ", false);
+                CurrentTypeWriter.Write(node, "[ ", false);
             }
             int i = 0;
             foreach (var n in node.Expressions)
             {
                 if (i > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 Visit(n);
                 i++;
             }
             if (node.IsKind(SyntaxKind.ArrayInitializerExpression))
             {
-                Writer.Write(node, " ]", false);
+                CurrentTypeWriter.Write(node, " ]", false);
             }
             //base.VisitInitializerExpression(node);
         }
 
         public override void VisitThrowExpression(ThrowExpressionSyntax node)
         {
-            Writer.Write(node, $"throw ");
+            CurrentTypeWriter.Write(node, $"throw ");
             base.VisitThrowExpression(node);
             if (node.Expression == null) //we must have being inside a catch if throw has no expression
             {
                 var _catch = node.FindClosestParent<CatchClauseSyntax>();
-                Writer.Write(node, !string.IsNullOrEmpty(_catch?.Declaration?.Identifier.ValueText) ? _catch!.Declaration!.Identifier.ValueText : "$e");
+                CurrentTypeWriter.Write(node, !string.IsNullOrEmpty(_catch?.Declaration?.Identifier.ValueText) ? _catch!.Declaration!.Identifier.ValueText : "$e");
             }
         }
 
 
         public override void VisitThrowStatement(ThrowStatementSyntax node)
         {
-            Writer.Write(node, $"throw ", true);
+            CurrentTypeWriter.Write(node, $"throw ", true);
             base.VisitThrowStatement(node);
             if (node.Expression == null) //we must have being inside a catch if throw has no expression
             {
                 var _catch = node.FindClosestParent<CatchClauseSyntax>();
-                Writer.Write(node, !string.IsNullOrEmpty(_catch?.Declaration?.Identifier.ValueText) ? _catch!.Declaration!.Identifier.ValueText : "$e");
+                CurrentTypeWriter.Write(node, !string.IsNullOrEmpty(_catch?.Declaration?.Identifier.ValueText) ? _catch!.Declaration!.Identifier.ValueText : "$e");
             }
-            Writer.WriteLine(node, $";");
+            CurrentTypeWriter.WriteLine(node, $";");
         }
 
-        public override void VisitConditionalExpression(ConditionalExpressionSyntax node)
-        {
-            Visit(node.Condition);
-            Writer.Write(node, " ? ");
-            if (node.WhenTrue.IsKind(SyntaxKind.ThrowExpression)/* is ThrowExpressionSyntax*/)
-            {
-                Writer.Write(node, $"{_global.GlobalName}.{Constants.Expression}(");
-                Writer.Write(node, "function(){ ");
-                Visit(node.WhenTrue);
-                Writer.Write(node, " }.bind(this))");
-            }
-            else
-            {
-                Visit(node.WhenTrue);
-            }
-            Writer.Write(node, " : ");
-            if (node.WhenFalse.IsKind(SyntaxKind.ThrowExpression)/* is ThrowExpressionSyntax*/)
-            {
-                Writer.Write(node, $"{_global.GlobalName}.{Constants.Expression}(");
-                Writer.Write(node, "function(){ ");
-                Visit(node.WhenFalse);
-                Writer.Write(node, " }.bind(this))");
-            }
-            else
-            {
-                Visit(node.WhenFalse);
-            }
-            //base.VisitConditionalExpression(node);
-        }
         public override void VisitElementAccessExpression(ElementAccessExpressionSyntax node)
         {
             //var type = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Expression), this/*, out _, out _*/)?.GetTypeSymbol();
@@ -693,18 +757,18 @@ namespace NetJs.Translator.CSharpToJavascript
             //    }
             //}
             Visit(node.Expression);
-            Writer.Write(node, "[");
+            CurrentTypeWriter.Write(node, "[");
             foreach (var a in node.ArgumentList.Arguments)
             {
                 Visit(a);
             }
-            Writer.Write(node, "]");
+            CurrentTypeWriter.Write(node, "]");
             //base.VisitElementAccessExpression(node);
         }
 
         public override void VisitThisExpression(ThisExpressionSyntax node)
         {
-            Writer.Write(node, "this");
+            CurrentTypeWriter.Write(node, "this");
             //base.VisitThisExpression(node);
         }
 
@@ -713,9 +777,17 @@ namespace NetJs.Translator.CSharpToJavascript
             EnsureImported(node.Type);
             //if (node.Type != null)
             //{
-            Writer.Write(node, $"{_global.GlobalName}.{Constants.DefaultTypeName}(");
-            Visit(node.Type);
-            Writer.Write(node, $")");
+            var defaultValue = _global.GetDefaultValue(node.Type, this);
+            if (defaultValue != null)
+            {
+                CurrentTypeWriter.Write(node, defaultValue);
+            }
+            else
+            {
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.DefaultTypeName}(");
+                Visit(node.Type);
+                CurrentTypeWriter.Write(node, $")");
+            }
             //}
             //else
             //{
@@ -733,171 +805,288 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitCheckedStatement(CheckedStatementSyntax node)
         {
-            Writer.WriteLine(node, $"//{node.Keyword.ValueText}", true);
+            CurrentTypeWriter.WriteLine(node, $"//{node.Keyword.ValueText}", true);
             var dispose = _global.DefinePragma(node.Keyword.ValueText);
             base.VisitCheckedStatement(node);
             dispose.Dispose();
         }
 
+        public override void VisitSizeOfExpression(SizeOfExpressionSyntax node)
+        {
+            CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.SizeOf}(");
+            Visit(node.Type);
+            CurrentTypeWriter.Write(node, $")");
+            //base.VisitSizeOfExpression(node);
+        }
+
+        bool IsRewiteCandidate(ConditionalAccessExpressionSyntax node)
+        {
+            if (node.WhenNotNull.IsKind(SyntaxKind.ConditionalAccessExpression))
+                return true;
+            var rhsSymbol = _global.GetTypeSymbol(node.WhenNotNull, this);
+            if (rhsSymbol is IMethodSymbol m && (m.IsExtensionMethod /*|| m.IsStaticCallConvention(_global)*/))
+            {
+                //We only rewite for extension method
+                return true;
+            }
+            return false;
+        }
+
+        public bool ConditionalAccessUseIfNotNull(ConditionalAccessExpressionSyntax node, out ISymbol rhs)
+        {
+            if (node.ToString().Contains("sb?.ToString()"))
+            {
+
+            }
+            var rhsExpression = node.WhenNotNull;
+            bool useIfNotNull = false;
+            int depth = 0;
+            void CheckNode(ExpressionSyntax node)
+            {
+                var nodeType = _global.GetTypeSymbol(node, this);
+                if (nodeType is IMethodSymbol ms && ms.IsStaticCallConvention(_global))
+                {
+                    useIfNotNull |= true;
+                }
+                if (nodeType.GetTemplateAttribute(_global, checkPropertyAccessors: true) != null)
+                {
+                    useIfNotNull |= true;
+                }
+                if (node.IsKind(SyntaxKind.ElementBindingExpression))
+                {
+                    var indexer = GetGetIndexer((ElementBindingExpressionSyntax)node);
+                    useIfNotNull |= indexer != null;
+                }
+            }
+            while (true)
+            {
+                if (depth == 0)
+                {
+                    CheckNode(rhsExpression);
+                }
+                if (rhsExpression.IsKind(SyntaxKind.SimpleMemberAccessExpression) && rhsExpression is MemberAccessExpressionSyntax me)
+                {
+                    rhsExpression = me.Expression;
+                }
+                else if (rhsExpression.IsKind(SyntaxKind.InvocationExpression) && rhsExpression is InvocationExpressionSyntax inv)
+                {
+                    rhsExpression = inv.Expression;
+                }
+                else break;
+                depth++;
+            }
+            rhs = _global.GetTypeSymbol(rhsExpression, this);
+            if (node.WhenNotNull.IsKind(SyntaxKind.SimpleAssignmentExpression))
+                useIfNotNull = true;
+            CheckNode(rhsExpression);
+            return useIfNotNull;
+        }
+
         public override void VisitConditionalAccessExpression(ConditionalAccessExpressionSyntax node)
         {
-            //This is rewritten, should not get called at all
-            Debug.Assert(false);
-            //invocation visit will handle the conditional invocation
-            //if (node.WhenNotNull is InvocationExpressionSyntax conditionalInvoke)
+            Debug.Assert(!IsRewiteCandidate(node));
+            var useIfNotNull = ConditionalAccessUseIfNotNull(node, out var rhs);
+            if (useIfNotNull)
             {
-                var i = ++Writer.CurrentClosure.NameManglingSeed;
-                var temporaryIdentifierName = $"$t{i}";
-                Writer.InsertInCurrentClosure(node, $"let {temporaryIdentifierName};", true);
-                var lhsType = GetExpressionReturnSymbol(node.Expression);
-                //var lhsSymbol = GetTypeSymbol(lhsType, out _);
-                //var lhsSymbol = GetTypeSymbol(lhsType, out _);
-                //VariableDeclarationSyntax variableDeclaration = SyntaxFactory.VariableDeclaration(
-                //    SyntaxFactory.ParseTypeName(lhsSymbol!.Name), // Type of the variable
-                //    SyntaxFactory.SingletonSeparatedList(
-                //        SyntaxFactory.VariableDeclarator(
-                //            SyntaxFactory.Identifier(temporaryIdentifierName) // Name of the variable
-                //        )
-                //    )
-                //);
-                //LocalDeclarationStatementSyntax localDeclarationStatement = SyntaxFactory.LocalDeclarationStatement(variableDeclaration);
-                //var block = node.FindClosest<BlockSyntax>();
-                //var newBlock = block.InsertNodesBefore(block.ChildNodes().FirstOrDefault()!, [localDeclarationStatement]);
-                ////node.InsertNodesBefore(node, [localDeclarationStatement]);
-                //var localField = semanticModel.GetDeclaredSymbol(localDeclarationStatement);
-                IDisposable? disposeTemporatyVariable = null;
-                //if (lhsSymbol != null)
-                //{
-                //    var field = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(lhsSymbol.Name), SyntaxFactory.SingletonSeparatedList<VariableDeclaratorSyntax>(SyntaxFactory.VariableDeclarator(temporaryIdentifierName))));
-                //    var block = node.FindClosest<BlockSyntax>();
-                //    node = (ConditionalAccessExpressionSyntax)node.Parent.InsertNodesBefore(node, [field]);
-                //    var localField = GetTypeSymbol(field);
-                //    disposeTemporatyVariable = CurrentClosure.DefineIdentifierType(temporaryIdentifierName, CodeType.From(localField));
-                //}
-                //else
-                //{
-                disposeTemporatyVariable = CurrentClosure.DefineIdentifierType(temporaryIdentifierName, lhsType with { Kind = SymbolKind.Local });
-                //}
-                if (false)
+                var iNameMangling = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+                var localTemporaryIdentifierName = $"{Constants.IfNotNullParameterName}{iNameMangling}";
+                CurrentTypeWriter.InsertAbove(node, () =>
                 {
-                    Writer.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
-                    Writer.WriteLine(node, $"{{", true);
-                    Writer.Write(node, $"let {temporaryIdentifierName} = ", true);
+                    CurrentTypeWriter.Write(node, $"const {localTemporaryIdentifierName} = {(node.Expression.IsKind(SyntaxKind.IdentifierName) ? "" : "() => ")}");
                     Visit(node.Expression);
-                    Writer.WriteLine(node, $";");
-                    Writer.WriteLine(node, $"if ({temporaryIdentifierName} != null)", true);
-                    Writer.WriteLine(node, $"{{", true);
-                    Writer.Write(node, "return ", true);
-                }
-                else
-                {
-                    Writer.Write(node, $"(({temporaryIdentifierName} = ");
-                    Visit(node.Expression);
-                    Writer.Write(node, $") && ");
-                }
-                ExpressionSyntax Combine(ExpressionSyntax lhs, ExpressionSyntax rhs)
-                {
-                    if (rhs is InvocationExpressionSyntax conditionalInvoke)
-                    {
-                        if (conditionalInvoke.Expression is MemberBindingExpressionSyntax mb)
-                        {
-                            var memberAccess = SyntaxFactory.MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                lhs,
-                                SyntaxFactory.Token(SyntaxKind.DotToken), mb.Name);
-                            return SyntaxFactory.InvocationExpression(memberAccess, conditionalInvoke.ArgumentList);
-                        }
-                        else if (conditionalInvoke.Expression is MemberAccessExpressionSyntax ma)
-                        {
-                            var memberAccess = SyntaxFactory.MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                Combine(lhs, ma.Expression),
-                                SyntaxFactory.Token(SyntaxKind.DotToken), ma.Name);
-                            return SyntaxFactory.InvocationExpression(memberAccess, conditionalInvoke.ArgumentList);
-                        }
-                    }
-                    else if (rhs is MemberBindingExpressionSyntax member)
-                    {
-                        return SyntaxFactory.MemberAccessExpression(
-                            SyntaxKind.SimpleMemberAccessExpression,
-                            lhs,
-                            SyntaxFactory.Token(SyntaxKind.DotToken), member.Name);
-                    }
-                    else if (rhs is MemberAccessExpressionSyntax ma)
-                    {
-                        return SyntaxFactory.MemberAccessExpression(
-                                SyntaxKind.SimpleMemberAccessExpression,
-                                Combine(lhs, ma.Expression),
-                                SyntaxFactory.Token(SyntaxKind.DotToken), ma.Name);
-                    }
-                    else if (rhs is ConditionalAccessExpressionSyntax cd)
-                    {
-                        var m = Combine(lhs, cd.Expression);
-                        return cd.ReplaceNode(cd.Expression, m);
-                    }
-                    else if (rhs is ElementAccessExpressionSyntax ae)
-                    {
-                        var newNode = Combine(lhs, ae.Expression);
-                        return ae.ReplaceNode(ae.Expression, newNode);
-                    }
-                    else if (rhs is ElementBindingExpressionSyntax ab)
-                    {
-                        var m = SyntaxFactory.ElementAccessExpression(lhs, ab.ArgumentList);
-                        return m;
-                    }
-                    else if (rhs is AssignmentExpressionSyntax asm)
-                    {
-                        var newNode = Combine(lhs, asm.Left);
-                        return asm.ReplaceNode(asm.Left, newNode);
-                    }
-                    return null;
-                }
-                ExpressionSyntax next = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), node.WhenNotNull);
-
-                //if (node.WhenNotNull is InvocationExpressionSyntax conditionalInvoke)
-                //{
-                //    next = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), node.WhenNotNull);
-                //    //var memberAccess = SyntaxFactory.MemberAccessExpression(
-                //    //    SyntaxKind.SimpleMemberAccessExpression,
-                //    //    SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"),
-                //    //    SyntaxFactory.Token(SyntaxKind.DotToken), ((MemberBindingExpressionSyntax)conditionalInvoke.Expression).Name);
-                //    //next = SyntaxFactory.InvocationExpression(memberAccess, conditionalInvoke.ArgumentList);
-                //}
-                //else if (node.WhenNotNull is MemberBindingExpressionSyntax member)
-                //{
-                //    next = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), node.WhenNotNull);
-                //    //next = SyntaxFactory.MemberAccessExpression(
-                //    //    SyntaxKind.SimpleMemberAccessExpression,
-                //    //    SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"),
-                //    //    SyntaxFactory.Token(SyntaxKind.DotToken), member.Name);
-                //}
-                //else if (node.WhenNotNull is ConditionalAccessExpressionSyntax cd)
-                //{
-                //    var m = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), cd.Expression);
-                //    next = cd.ReplaceNode(cd.Expression, m);
-                //}
-                //node.ReplaceToken(node.OperatorToken, SyntaxFactory.ope($"$loc"));
-                Visit(next);
-                if (false)
-                {
-                    Writer.WriteLine(node, $";");
-                    Writer.WriteLine(node, $"}}", true);
-                    Writer.WriteLine(node, $"return null;", true);
-                    Writer.Write(node, $"}}.bind(this))", true);
-                }
-                else
-                {
-                    Writer.Write(node, $")");
-                }
-                disposeTemporatyVariable.Dispose();
+                    CurrentTypeWriter.Write(node, ";");
+                }, true);
+                CurrentTypeWriter.Write(node, _global.GlobalName);
+                CurrentTypeWriter.Write(node, ".");
+                CurrentTypeWriter.Write(node, Constants.IfNotNull);
+                CurrentTypeWriter.Write(node, "(");
+                CurrentTypeWriter.Write(node, localTemporaryIdentifierName);
+                CurrentTypeWriter.Write(node, ", (");
+                CurrentTypeWriter.Write(node, Constants.IfNotNullParameterName);
+                CurrentTypeWriter.Write(node, ") => ");
+                if (node.WhenNotNull.IsKind(SyntaxKind.SimpleAssignmentExpression))
+                    CurrentTypeWriter.Write(node, Constants.IfNotNullParameterName);
+                Visit(node.WhenNotNull);
+                CurrentTypeWriter.Write(node, ")");
             }
-            //else
+            else
+            {
+                if (rhs != null)
+                {
+                    var lhs = _global.GetTypeSymbol(node.Expression, this).GetTypeSymbol();
+                    if (IsGenericInterfaceDispatch(lhs, rhs))
+                    {
+                        Visit(node.WhenNotNull);
+                        return;
+                    }
+                }
+                if (!(node.Parent is StatementSyntax))
+                    CurrentTypeWriter.Write(node, "(");
+                Visit(node.Expression);
+                CurrentTypeWriter.Write(node, node.OperatorToken.ValueText);
+                Visit(node.WhenNotNull);
+                CurrentTypeWriter.Write(node, " ?? null"); //js null?.member is undefined, we need to convert it to null to be consistent with c#
+                if (!(node.Parent is StatementSyntax))
+                    CurrentTypeWriter.Write(node, ")");
+            }
+            return;
+            ////This is rewritten, should not get called at all
+            ////Debug.Assert(false);
+            ////invocation visit will handle the conditional invocation
+            ////if (node.WhenNotNull is InvocationExpressionSyntax conditionalInvoke)
             //{
-            //    Visit(node.Expression);
-            //    Writer.Write(node, node.OperatorToken.ValueText/*.ToFullString()*/);
-            //    Visit(node.WhenNotNull);
+            //    var i = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
+            //    var temporaryIdentifierName = $"$t{i}";
+            //    CurrentTypeWriter.InsertInCurrentClosure(node, $"let {temporaryIdentifierName};", true);
+            //    var lhsType = GetExpressionReturnSymbol(node.Expression);
+            //    //var lhsSymbol = GetTypeSymbol(lhsType, out _);
+            //    //var lhsSymbol = GetTypeSymbol(lhsType, out _);
+            //    //VariableDeclarationSyntax variableDeclaration = SyntaxFactory.VariableDeclaration(
+            //    //    SyntaxFactory.ParseTypeName(lhsSymbol!.Name), // Type of the variable
+            //    //    SyntaxFactory.SingletonSeparatedList(
+            //    //        SyntaxFactory.VariableDeclarator(
+            //    //            SyntaxFactory.Identifier(temporaryIdentifierName) // Name of the variable
+            //    //        )
+            //    //    )
+            //    //);
+            //    //LocalDeclarationStatementSyntax localDeclarationStatement = SyntaxFactory.LocalDeclarationStatement(variableDeclaration);
+            //    //var block = node.FindClosest<BlockSyntax>();
+            //    //var newBlock = block.InsertNodesBefore(block.ChildNodes().FirstOrDefault()!, [localDeclarationStatement]);
+            //    ////node.InsertNodesBefore(node, [localDeclarationStatement]);
+            //    //var localField = semanticModel.GetDeclaredSymbol(localDeclarationStatement);
+            //    IDisposable? disposeTemporatyVariable = null;
+            //    //if (lhsSymbol != null)
+            //    //{
+            //    //    var field = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.ParseTypeName(lhsSymbol.Name), SyntaxFactory.SingletonSeparatedList<VariableDeclaratorSyntax>(SyntaxFactory.VariableDeclarator(temporaryIdentifierName))));
+            //    //    var block = node.FindClosest<BlockSyntax>();
+            //    //    node = (ConditionalAccessExpressionSyntax)node.Parent.InsertNodesBefore(node, [field]);
+            //    //    var localField = GetTypeSymbol(field);
+            //    //    disposeTemporatyVariable = CurrentClosure.DefineIdentifierType(temporaryIdentifierName, CodeType.From(localField));
+            //    //}
+            //    //else
+            //    //{
+            //    disposeTemporatyVariable = CurrentClosure.DefineIdentifierType(temporaryIdentifierName, lhsType with { Kind = SymbolKind.Local });
+            //    //}
+            //    if (false)
+            //    {
+            //        CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
+            //        CurrentTypeWriter.WriteLine(node, $"{{", true);
+            //        CurrentTypeWriter.Write(node, $"let {temporaryIdentifierName} = ", true);
+            //        Visit(node.Expression);
+            //        CurrentTypeWriter.WriteLine(node, $";");
+            //        CurrentTypeWriter.WriteLine(node, $"if ({temporaryIdentifierName} != null)", true);
+            //        CurrentTypeWriter.WriteLine(node, $"{{", true);
+            //        CurrentTypeWriter.Write(node, "return ", true);
+            //    }
+            //    else
+            //    {
+            //        CurrentTypeWriter.Write(node, $"(({temporaryIdentifierName} = ");
+            //        Visit(node.Expression);
+            //        CurrentTypeWriter.Write(node, $") && ");
+            //    }
+            //    ExpressionSyntax Combine(ExpressionSyntax lhs, ExpressionSyntax rhs)
+            //    {
+            //        if (rhs is InvocationExpressionSyntax conditionalInvoke)
+            //        {
+            //            if (conditionalInvoke.Expression is MemberBindingExpressionSyntax mb)
+            //            {
+            //                var memberAccess = SyntaxFactory.MemberAccessExpression(
+            //                    SyntaxKind.SimpleMemberAccessExpression,
+            //                    lhs,
+            //                    SyntaxFactory.Token(SyntaxKind.DotToken), mb.Name);
+            //                return SyntaxFactory.InvocationExpression(memberAccess, conditionalInvoke.ArgumentList);
+            //            }
+            //            else if (conditionalInvoke.Expression is MemberAccessExpressionSyntax ma)
+            //            {
+            //                var memberAccess = SyntaxFactory.MemberAccessExpression(
+            //                    SyntaxKind.SimpleMemberAccessExpression,
+            //                    Combine(lhs, ma.Expression),
+            //                    SyntaxFactory.Token(SyntaxKind.DotToken), ma.Name);
+            //                return SyntaxFactory.InvocationExpression(memberAccess, conditionalInvoke.ArgumentList);
+            //            }
+            //        }
+            //        else if (rhs is MemberBindingExpressionSyntax member)
+            //        {
+            //            return SyntaxFactory.MemberAccessExpression(
+            //                SyntaxKind.SimpleMemberAccessExpression,
+            //                lhs,
+            //                SyntaxFactory.Token(SyntaxKind.DotToken), member.Name);
+            //        }
+            //        else if (rhs is MemberAccessExpressionSyntax ma)
+            //        {
+            //            return SyntaxFactory.MemberAccessExpression(
+            //                    SyntaxKind.SimpleMemberAccessExpression,
+            //                    Combine(lhs, ma.Expression),
+            //                    SyntaxFactory.Token(SyntaxKind.DotToken), ma.Name);
+            //        }
+            //        else if (rhs is ConditionalAccessExpressionSyntax cd)
+            //        {
+            //            var m = Combine(lhs, cd.Expression);
+            //            return cd.ReplaceNode(cd.Expression, m);
+            //        }
+            //        else if (rhs is ElementAccessExpressionSyntax ae)
+            //        {
+            //            var newNode = Combine(lhs, ae.Expression);
+            //            return ae.ReplaceNode(ae.Expression, newNode);
+            //        }
+            //        else if (rhs is ElementBindingExpressionSyntax ab)
+            //        {
+            //            var m = SyntaxFactory.ElementAccessExpression(lhs, ab.ArgumentList);
+            //            return m;
+            //        }
+            //        else if (rhs is AssignmentExpressionSyntax asm)
+            //        {
+            //            var newNode = Combine(lhs, asm.Left);
+            //            return asm.ReplaceNode(asm.Left, newNode);
+            //        }
+            //        return null;
+            //    }
+            //    ExpressionSyntax next = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), node.WhenNotNull);
+
+            //    //if (node.WhenNotNull is InvocationExpressionSyntax conditionalInvoke)
+            //    //{
+            //    //    next = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), node.WhenNotNull);
+            //    //    //var memberAccess = SyntaxFactory.MemberAccessExpression(
+            //    //    //    SyntaxKind.SimpleMemberAccessExpression,
+            //    //    //    SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"),
+            //    //    //    SyntaxFactory.Token(SyntaxKind.DotToken), ((MemberBindingExpressionSyntax)conditionalInvoke.Expression).Name);
+            //    //    //next = SyntaxFactory.InvocationExpression(memberAccess, conditionalInvoke.ArgumentList);
+            //    //}
+            //    //else if (node.WhenNotNull is MemberBindingExpressionSyntax member)
+            //    //{
+            //    //    next = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), node.WhenNotNull);
+            //    //    //next = SyntaxFactory.MemberAccessExpression(
+            //    //    //    SyntaxKind.SimpleMemberAccessExpression,
+            //    //    //    SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"),
+            //    //    //    SyntaxFactory.Token(SyntaxKind.DotToken), member.Name);
+            //    //}
+            //    //else if (node.WhenNotNull is ConditionalAccessExpressionSyntax cd)
+            //    //{
+            //    //    var m = Combine(SyntaxFactory.IdentifierName($"{temporaryIdentifierName}"), cd.Expression);
+            //    //    next = cd.ReplaceNode(cd.Expression, m);
+            //    //}
+            //    //node.ReplaceToken(node.OperatorToken, SyntaxFactory.ope($"$loc"));
+            //    Visit(next);
+            //    if (false)
+            //    {
+            //        CurrentTypeWriter.WriteLine(node, $";");
+            //        CurrentTypeWriter.WriteLine(node, $"}}", true);
+            //        CurrentTypeWriter.WriteLine(node, $"return null;", true);
+            //        CurrentTypeWriter.Write(node, $"}}.bind(this))", true);
+            //    }
+            //    else
+            //    {
+            //        CurrentTypeWriter.Write(node, $")");
+            //    }
+            //    disposeTemporatyVariable.Dispose();
             //}
-            //base.VisitConditionalAccessExpression(node);
+            ////else
+            ////{
+            ////    Visit(node.Expression);
+            ////    Writer.Write(node, node.OperatorToken.ValueText/*.ToFullString()*/);
+            ////    Visit(node.WhenNotNull);
+            ////}
+            ////base.VisitConditionalAccessExpression(node);
         }
 
         public override void VisitTupleElement(TupleElementSyntax node)
@@ -914,33 +1103,33 @@ namespace NetJs.Translator.CSharpToJavascript
                     //assigning tuple to tuple in an expression like (T start, T end) = (_start, _endExclusive);
                     //should create a simple object desctructured back to the lhs a simple
                     //no need to instantiate a tuple type
-                    Writer.Write(node, "{ ");
+                    CurrentTypeWriter.Write(node, "{ ");
                     int i = 0;
                     foreach (var e in node.Arguments)
                     {
                         if (i > 0)
-                            Writer.Write(node, ", ");
-                        Writer.Write(node, "Item");
-                        Writer.Write(node, (i + 1).ToString());
-                        Writer.Write(node, ": ");
+                            CurrentTypeWriter.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, "Item");
+                        CurrentTypeWriter.Write(node, (i + 1).ToString());
+                        CurrentTypeWriter.Write(node, ": ");
                         Visit(e.Expression);
                         i++;
                     }
-                    Writer.Write(node, " }");
+                    CurrentTypeWriter.Write(node, " }");
                 }
                 else
                 {
                     if (node.Arguments.All(a => a.Expression.IsKind(SyntaxKind.DeclarationExpression)))
                     {
-                        Writer.Write(node, "const { ");
+                        CurrentTypeWriter.Write(node, "const { ");
                         int i = 0;
                         foreach (var e in node.Arguments)
                         {
                             if (i > 0)
-                                Writer.Write(node, ", ");
-                            Writer.Write(node, "Item");
-                            Writer.Write(node, (i + 1).ToString());
-                            Writer.Write(node, ": ");
+                                CurrentTypeWriter.Write(node, ", ");
+                            CurrentTypeWriter.Write(node, "Item");
+                            CurrentTypeWriter.Write(node, (i + 1).ToString());
+                            CurrentTypeWriter.Write(node, ": ");
                             if (e.Expression is DeclarationExpressionSyntax de)
                             {
                                 Visit(de.Designation);
@@ -951,7 +1140,7 @@ namespace NetJs.Translator.CSharpToJavascript
                             }
                             i++;
                         }
-                        Writer.Write(node, " }");
+                        CurrentTypeWriter.Write(node, " }");
                     }
                     else
                     {
@@ -960,18 +1149,18 @@ namespace NetJs.Translator.CSharpToJavascript
                             if (e.Expression is DeclarationExpressionSyntax de)
                             {
                                 Visit(de);
-                                Writer.WriteLine(node, ";");
+                                CurrentTypeWriter.WriteLine(node, ";");
                             }
                         }
-                        Writer.WriteLine(node, $"{_global.GlobalName}.{Constants.TupleUnPack}(function($tp)");
-                        Writer.WriteLine(node, "{", true);
+                        CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.TupleUnPack}(($tp) =>", true);
+                        CurrentTypeWriter.WriteLine(node, "{", true);
                         int ix = 0;
                         foreach (var arg in node.Arguments)
                         {
-                            Writer.Write(node, "", true);
-                            WriteVariableAssignment(node, arg.Expression, null, "=", new CodeNode(() =>
+                            CurrentTypeWriter.Write(node, "", true);
+                            WriteVariableAssignment(node, arg.Expression is DeclarationExpressionSyntax de ? de.Designation : arg.Expression, null, "=", new CodeNode(() =>
                             {
-                                Writer.Write(node, $"$tp.Item{(ix + 1)}");
+                                CurrentTypeWriter.Write(node, $"$tp.Item{(ix + 1)}");
                             }), rhs: _global.TryGetTypeSymbol(arg.Expression, this)?.GetTypeSymbol());
                             //if (arg.Expression is DeclarationExpressionSyntax de)
                             //{
@@ -984,10 +1173,10 @@ namespace NetJs.Translator.CSharpToJavascript
                             //Writer.Write(node, " = ");
                             //Writer.Write(node, "$tp.Item");
                             //Writer.Write(node, ix.ToString());
-                            Writer.WriteLine(node, ";");
+                            CurrentTypeWriter.WriteLine(node, ";");
                             ix++;
                         }
-                        Writer.Write(node, "}.bind(this)).$v", true);
+                        CurrentTypeWriter.Write(node, "}).$v", true);
                     }
                 }
             }
@@ -1019,42 +1208,47 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitTupleType(TupleTypeSyntax node)
         {
-            Writer.Write(node, $"System.ValueTuple(");
+            CurrentTypeWriter.Write(node, $"System.ValueTuple(");
             int i = 0;
             foreach (var e in node.Elements)
             {
                 if (i > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 Visit(e);
                 i++;
             }
-            Writer.Write(node, $")");
+            CurrentTypeWriter.Write(node, $")");
             //base.VisitTupleType(node);
         }
 
         public override void VisitLockStatement(LockStatementSyntax node)
         {
-            //skip lock, js is single threaded anyway
-            Writer.WriteLine(node, "//lock", true);
+            CurrentTypeWriter.WriteLine(node, "//lock", true);
+            CurrentTypeWriter.Write(node, "", true);
+            WriteMethodInvocation(node, "System.Threading.Monitor.Enter", methodFilter: (m) => m.Parameters.Length == 1, arguments: [node.Expression]);
+            CurrentTypeWriter.WriteLine(node, "");
             Visit(node.Statement);
+            CurrentTypeWriter.Write(node, "", true);
+            WriteMethodInvocation(node, "System.Threading.Monitor.Exit", methodFilter: (m) => m.Parameters.Length == 1, arguments: [node.Expression]);
+            CurrentTypeWriter.WriteLine(node, "");
             //base.VisitLockStatement(node);
         }
 
         public override void VisitBracketedArgumentList(BracketedArgumentListSyntax node)
         {
-            Writer.Write(node, node.OpenBracketToken.ValueText);
+            CurrentTypeWriter.Write(node, node.OpenBracketToken.ValueText);
             if (node.Arguments.Count > 1)
             {
-                Writer.Write(node, "getItem(");
+                CurrentTypeWriter.Write(node, "getItem(");
                 int i = 0;
                 foreach (var a in node.Arguments)
                 {
                     if (i > 0)
-                        Writer.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, ", ");
                     Visit(a);
                     i++;
                 }
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
             else
             {
@@ -1062,18 +1256,26 @@ namespace NetJs.Translator.CSharpToJavascript
                 foreach (var a in node.Arguments)
                 {
                     if (i > 0)
-                        Writer.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, ", ");
                     Visit(a);
                     i++;
                 }
             }
-            Writer.Write(node, node.CloseBracketToken.ValueText);
+            CurrentTypeWriter.Write(node, node.CloseBracketToken.ValueText);
             //base.VisitBracketedArgumentList(node);
         }
 
         public override void VisitMemberBindingExpression(MemberBindingExpressionSyntax node)
         {
-            Writer.Write(node, node.OperatorToken.ValueText);
+            var rhs = _global.GetTypeSymbol(node.Name, this);
+            if (rhs.GetTemplateAttribute(_global, checkPropertyAccessors: true) != null)
+            {
+                //dont write the dot, if we will be writing a template
+            }
+            else
+            {
+                CurrentTypeWriter.Write(node, node.OperatorToken.ValueText);
+            }
             Visit(node.Name);
             //base.VisitMemberBindingExpression(node);
         }
@@ -1081,19 +1283,25 @@ namespace NetJs.Translator.CSharpToJavascript
         public override void VisitElementBindingExpression(ElementBindingExpressionSyntax node)
         {
             //javascript doesnt support ?[] conditional array access notation, rewrite as ?.[
-            if (node.Parent is ConditionalAccessExpressionSyntax cond)
+            if (node.Parent.IsKind(SyntaxKind.ConditionalAccessExpression))
             {
-                Writer.Write(cond, ".");
+                CurrentTypeWriter.Write(node, ".");
             }
             base.VisitElementBindingExpression(node);
+            ////If the lhs of the ConditionalAccessExpression is null, null?.[0] returns undefined, make it null with null?.[0]??null
+            //if (node.Parent.IsKind(SyntaxKind.ConditionalAccessExpression))
+            //{
+            //    CurrentTypeWriter.Write(node, " ?? null");
+            //}
         }
 
         void WriteTypeOf(CSharpSyntaxNode node, CodeNode typePrototype)
         {
-            Writer.Write(node, $"$.{Constants.TypeOf}(");
+            CurrentTypeWriter.Write(node, $"$.{Constants.TypeOf}(");
             VisitNode(typePrototype);
-            Writer.Write(node, ")");
+            CurrentTypeWriter.Write(node, ")");
         }
+
         public override void VisitTypeOfExpression(TypeOfExpressionSyntax node)
         {
             WriteTypeOf(node, node.Type);
@@ -1105,13 +1313,16 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitFixedStatement(FixedStatementSyntax node)
         {
-            Writer.WriteLine(node, "/*fixed*/ ", true);
             OpenClosure(node);
-            Writer.WriteLine(node, "{", true);
+            if (!node.Statement.IsKind(SyntaxKind.Block))
+                CurrentTypeWriter.WriteLine(node, "{", true);
+            CurrentTypeWriter.Write(node, "/*fixed*/ ", true);
+            //CurrentTypeWriter.Write(node, "", true);
             Visit(node.Declaration);
-            Writer.WriteLine(node, ";");
+            CurrentTypeWriter.WriteLine(node, ";");
             Visit(node.Statement);
-            Writer.WriteLine(node, "}", true);
+            if (!node.Statement.IsKind(SyntaxKind.Block))
+                CurrentTypeWriter.WriteLine(node, "}", true);
             CloseClosure();
             //base.VisitFixedStatement(node);
         }
@@ -1119,12 +1330,12 @@ namespace NetJs.Translator.CSharpToJavascript
         public override void VisitWithExpression(WithExpressionSyntax node)
         {
             var type = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Expression), this)!.GetTypeSymbol();
-            Writer.Write(node, $"{_global.GlobalName}.{Constants.With}(");
+            CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.With}(");
             Visit(node.Expression);
-            Writer.WriteLine(node, ", function($clone)");
-            Writer.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, ", ($clone) =>");
+            CurrentTypeWriter.WriteLine(node, "{", true);
             WriteInitializer(node, "$clone", type, node.Initializer.Expressions);
-            Writer.Write(node, "})", true);
+            CurrentTypeWriter.Write(node, "})", true);
             //base.VisitWithExpression(node);
         }
 
@@ -1160,10 +1371,15 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public void WrapStatementsInExpression(CSharpSyntaxNode node, Action statementsWriter)
         {
-            Writer.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
-            Writer.WriteLine(node, $"{{", true);
+            CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(() =>");
+            CurrentTypeWriter.WriteLine(node, $"{{", true);
             statementsWriter();
-            Writer.Write(node, $"}})", true);
+            CurrentTypeWriter.Write(node, $"}})", true);
+
+            //CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
+            //CurrentTypeWriter.WriteLine(node, $"{{", true);
+            //statementsWriter();
+            //CurrentTypeWriter.Write(node, $"}}.bind(this))", true);
         }
 
         public string Build(int formatTabs)

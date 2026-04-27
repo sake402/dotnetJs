@@ -21,28 +21,28 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             if (svd != null)
             {
-                Writer.InsertInCurrentClosure(node, $"let {svd.Identifier.ValueText};", true);
-                Writer.Write(node, "(");
-                Writer.Write(node, svd.Identifier.ValueText);
-                Writer.Write(node, $" = ");
+                CurrentTypeWriter.InsertInCurrentClosure(node, $"let {svd.Identifier.ValueText};", true);
+                CurrentTypeWriter.Write(node, "(");
+                CurrentTypeWriter.Write(node, svd.Identifier.ValueText);
+                CurrentTypeWriter.Write(node, $" = ");
                 WritePatternExpressionFilter(node);
-                Writer.Write(node, $", ");
+                CurrentTypeWriter.Write(node, $", ");
             }
-            Writer.Write(node, $"{_global.GlobalName}.{Constants.IsTypeName}(");
+            CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.IsTypeName}(");
             if (svd != null)
             {
-                Writer.Write(node, svd.Identifier.ValueText);
+                CurrentTypeWriter.Write(node, svd.Identifier.ValueText);
             }
             else
             {
                 WritePatternExpressionFilter(node);
             }
-            Writer.Write(node, $", ");
+            CurrentTypeWriter.Write(node, $", ");
             Visit(node.Type);
-            Writer.Write(node, $")");
+            CurrentTypeWriter.Write(node, $")");
             if (svd != null)
             {
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
             if (svd != null)
             {
@@ -64,17 +64,17 @@ namespace NetJs.Translator.CSharpToJavascript
             var switchStatement = node.FindClosestParent<SwitchStatementSyntax>() ?? throw new InvalidOperationException("Case should be inside a switch");
             if (IsSimpleSwitchCase(switchStatement))
             {
-                Writer.Write(node, "case ", true);
+                CurrentTypeWriter.Write(node, "case ", true);
                 Visit(node.Value);
-                Writer.WriteLine(node, ":");
+                CurrentTypeWriter.WriteLine(node, ":");
             }
             else
             {
-                Writer.Write(node, $"{_global.GlobalName}.{Constants.IsTypeName}(");
+                CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.IsTypeName}(");
                 WritePatternExpressionFilter(node);
-                Writer.Write(node, $", ");
+                CurrentTypeWriter.Write(node, $", ");
                 Visit(node.Value);
-                Writer.Write(node, $")");
+                CurrentTypeWriter.Write(node, $")");
             }
             //base.VisitCaseSwitchLabel(node);
         }
@@ -87,23 +87,23 @@ namespace NetJs.Translator.CSharpToJavascript
                 if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern))
                 {
                     WritePatternExpressionFilter(node);
-                    Writer.Write(node, " != null && ");
+                    CurrentTypeWriter.Write(node, " != null && ");
                     Visit(node.Pattern);
                 }
                 if (node.WhenClause != null)
                 {
                     if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern))
                     {
-                        Writer.Write(node, " && ");
+                        CurrentTypeWriter.Write(node, " && ");
                     }
                     Visit(node.WhenClause);
                 }
             }
             else
             {
-                Writer.Write(node, "case ", true);
+                CurrentTypeWriter.Write(node, "case ", true);
                 Visit(node.Pattern);
-                Writer.WriteLine(node, ":");
+                CurrentTypeWriter.WriteLine(node, ":");
             }
         }
 
@@ -139,47 +139,47 @@ namespace NetJs.Translator.CSharpToJavascript
             var switchClosure = CurrentClosure;
             if (hasGotoCase)
             {
-                var manglingSeed = ++Writer.CurrentClosure.NameManglingSeed;
+                var manglingSeed = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
                 string jumpStart = $"$switchJumpStart{manglingSeed}";
                 string jumpState = $"$switchJumpState{manglingSeed}";
                 CurrentClosure.JumpStartLabelName = jumpStart;
                 CurrentClosure.JumpStateMachineVariableName = jumpState;
-                Writer.WriteLine(node, $"let {jumpState} = null;", true);
-                Writer.WriteLine(node, $"{jumpStart}: while(true)", true);
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, $"let {jumpState} = null;", true);
+                CurrentTypeWriter.WriteLine(node, $"{jumpStart}: while(true)", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
             else if (!isSimpleSwitchCase)
             {
-                Writer.WriteLine(node, $"while(true)", true);
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, $"while(true)", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
-            var i = ++Writer.CurrentClosure.NameManglingSeed;
+            var i = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
             switchClosure.Tags.Add(SwitchExpressionVariableName, $"$switch{i}");
             if (!isSimpleSwitchCase)
             {
-                Writer.WriteLine(node, $"//switch ({node.Expression.ToString().Escape()})", true);
+                CurrentTypeWriter.WriteLine(node, $"//switch ({node.Expression.ToString().Escape()})", true);
             }
-            Writer.Write(node, $"let $switch{i} = ", true);
+            CurrentTypeWriter.Write(node, $"let $switch{i} = ", true);
             Visit(node.Expression);
-            Writer.WriteLine(node, $";");
+            CurrentTypeWriter.WriteLine(node, $";");
             if (isSimpleSwitchCase)
             {
-                Writer.Write(node, "switch(", true);
+                CurrentTypeWriter.Write(node, "switch(", true);
                 if (hasGotoCase)
                 {
-                    Writer.Write(node, $"{CurrentClosure.JumpStateMachineVariableName} ?? ");
+                    CurrentTypeWriter.Write(node, $"{CurrentClosure.JumpStateMachineVariableName} ?? ");
                 }
                 //if (isTypeSwitch)
                 //{
                 //    Writer.Write(node, $"{_global.GlobalName}.System.Object.GetType.call(");
                 //}
-                Writer.Write(node, $"$switch{i}");
+                CurrentTypeWriter.Write(node, $"$switch{i}");
                 //if (isTypeSwitch)
                 //{
                 //    Writer.Write(node, $").{Constants.TypePrototypeName}");
                 //}
-                Writer.WriteLine(node, ")");
-                Writer.WriteLine(node, "{", true, forbidInsertion: true);
+                CurrentTypeWriter.WriteLine(node, ")");
+                CurrentTypeWriter.WriteLine(node, "{", true, forbidInsertion: true);
             }
             else
             {
@@ -190,12 +190,12 @@ namespace NetJs.Translator.CSharpToJavascript
             //base.VisitSwitchStatement(node);
             if (isSimpleSwitchCase)
             {
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
             }
             if (hasGotoCase || !isSimpleSwitchCase)
             {
-                Writer.WriteLine(node, "break;", true); //end while
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "break;", true); //end while
+                CurrentTypeWriter.WriteLine(node, "}", true);
             }
             switchClosure.Tags.Remove(SwitchExpressionVariableName);
         }
@@ -214,13 +214,13 @@ namespace NetJs.Translator.CSharpToJavascript
                     if (node.Labels.Any(l => l.IsKind(SyntaxKind.CasePatternSwitchLabel)))
                     {
                         OpenClosure(node);
-                        Writer.WriteLine(node, "{", true);
+                        CurrentTypeWriter.WriteLine(node, "{", true);
                     }
                     foreach (var label in node.Labels)
                     {
-                        Writer.WriteLine(node, $"//{label.ToString().Escape()}", true);
+                        CurrentTypeWriter.WriteLine(node, $"//{label.ToString().Escape()}", true);
                     }
-                    Writer.Write(node, "if (", true);
+                    CurrentTypeWriter.Write(node, "if (", true);
                 }
                 //if (hasGotoCase)
                 //{
@@ -234,7 +234,7 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 if (!isSimpleSwitch && ix > 0)
                 {
-                    Writer.Write(node, " || ");
+                    CurrentTypeWriter.Write(node, " || ");
                 }
                 Visit(label);
                 ix++;
@@ -243,7 +243,7 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 if (!sectionIsDefault)
                 {
-                    Writer.WriteLine(node, ")");
+                    CurrentTypeWriter.WriteLine(node, ")");
                 }
             }
             var swClosure = CurrentClosure;
@@ -252,13 +252,13 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 if (sectionIsDefault)
                 {
-                    Writer.WriteLine(node, $"//default", true);
+                    CurrentTypeWriter.WriteLine(node, $"//default", true);
                 }
             }
             if (!childIsBlock)
             {
                 OpenClosure(node);
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
             //foreach (var label in node.Labels)
             //{
@@ -275,7 +275,7 @@ namespace NetJs.Translator.CSharpToJavascript
             //base.VisitSwitchSection(node);
             if (!childIsBlock)
             {
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
                 CloseClosure();
             }
             if (!isSimpleSwitch)
@@ -285,7 +285,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     if (node.Labels.Any(l => l.IsKind(SyntaxKind.CasePatternSwitchLabel)))
                     {
                         CloseClosure();
-                        Writer.WriteLine(node, "}", true);
+                        CurrentTypeWriter.WriteLine(node, "}", true);
                     }
                 }
             }
@@ -296,7 +296,7 @@ namespace NetJs.Translator.CSharpToJavascript
             var switchStatement = node.FindClosestParent<SwitchStatementSyntax>() ?? throw new InvalidOperationException("Case should be inside a switch");
             if (IsSimpleSwitchCase(switchStatement))
             {
-                Writer.WriteLine(node, "default:", true);
+                CurrentTypeWriter.WriteLine(node, "default:", true);
             }
             //base.VisitDefaultSwitchLabel(node);
         }

@@ -7,21 +7,34 @@ namespace System.Threading
 {
     public static partial class Monitor
     {
+        [NetJs.MemberReplace(nameof(IsEntered))]
+        public static bool IsEnteredImpl(object obj)
+        {
+            ArgumentNullException.ThrowIfNull(obj);
+            return NetJs.Script.Write<bool>("obj[\"$monitor_entered\"] == true");
+        }
+
         [NetJs.MemberReplace(nameof(Enter))]
         public static void EnterImpl(object obj)
         {
+            obj["$monitor_entered"] = true.As<object>();
+        }
+
+        [NetJs.MemberReplace(nameof(Exit))]
+        public static void ExitImpl(object obj)
+        {
+            obj["$monitor_entered"] = false.As<object>();
         }
 
         [NetJs.MemberReplace(nameof(InternalExit))]
         private static void InternalExitImpl(object obj)
         {
-
+            obj["$monitor_entered"] = false.As<object>();
         }
 
         [NetJs.MemberReplace(nameof(Monitor_pulse))]
         private static void Monitor_pulseImpl(object obj)
         {
-
         }
 
         [NetJs.MemberReplace(nameof(Monitor_pulse_all))]
@@ -29,7 +42,7 @@ namespace System.Threading
         {
 
         }
-
+        
         [NetJs.MemberReplace(nameof(Monitor_wait))]
         internal static bool Monitor_waitImpl(object obj, int ms, bool allowInterruption)
         {

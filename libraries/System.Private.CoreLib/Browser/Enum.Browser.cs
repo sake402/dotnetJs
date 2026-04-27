@@ -6,6 +6,7 @@ using System.Text;
 
 namespace System
 {
+    [NetJs.StaticCallConvention]
     public partial class Enum
     {
         [NetJs.MemberReplace(nameof(GetEnumValuesAndNames))]
@@ -23,7 +24,7 @@ namespace System
             var type = prototype.UnderlyingType.Type.As<RuntimeType>();
             return RuntimeTypeHandle.GetCorElementType(new QCallTypeHandle(ref type));
         }
-        
+
         [NetJs.MemberReplace(nameof(InternalGetUnderlyingType))]
         private static void InternalGetUnderlyingTypeImpl(QCallTypeHandle enumType, ObjectHandleOnStack res)
         {
@@ -31,5 +32,19 @@ namespace System
             res.GetObjectHandleOnStack<Type?>() = prototype.UnderlyingType.Type;
         }
 
+        [NetJs.MemberReplace(nameof(HasFlag))]
+        [NetJs.Template("({this} & {flag}) != 0")]
+        public extern bool HasFlagImpl(Enum flag);
+        //{
+        //    var thisV = this.As<int>();
+        //    var flagV = flag.As<int>();
+        //    return (thisV & flagV) != 0;
+        //}
+
+        [NetJs.Name(NetJs.Constants.IsTypeName)]
+        public static bool Is(object value)
+        {
+            return NetJs.Script.TypeOf(value).NativeEquals("number");
+        }
     }
 }

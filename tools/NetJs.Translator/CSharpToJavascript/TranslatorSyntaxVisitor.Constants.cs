@@ -17,62 +17,64 @@ namespace NetJs.Translator.CSharpToJavascript
         //The only way we can serialize it as a constant without loosing value is through a string or primitive values(if possible without loosing precision
         void WriteLongConstant(CSharpSyntaxNode node, string longValue)
         {
-            Writer.Write(node, longValue);
+            CurrentTypeWriter.Write(node, longValue);
+            CurrentTypeWriter.Write(node, "n");
             return;
-            var longType = (INamedTypeSymbol)_global.GetTypeSymbol("long", this/*, out _, out _*/);
-            long ilong = long.Parse(longValue);
-            if (Math.Abs(ilong) < int.MaxValue) //if the long can fit an int, we call the int constructor otherwise string
-            {
-                var intType = (ITypeSymbol)_global.GetTypeSymbol("int", this/*, out _, out _*/);
-                var intBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(intType, SymbolEqualityComparer.Default));
-                //WriteConstructorCall(node, longType, intBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((int)ilong)))]);
-                WriteConstructorCall(node, longType, intBasedConstructor, null, [new CodeNode(() =>
-                {
-                    Writer.Write(node, ((int)ilong).ToString());
-                })]);
-            }
-            else
-            {
-                var stringType = (ITypeSymbol)_global.GetTypeSymbol("string", this/*, out _, out _*/);
-                var stringBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(stringType, SymbolEqualityComparer.Default));
-                //WriteConstructorCall(node, longType, stringBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(longValue)))]);
-                WriteConstructorCall(node, longType, stringBasedConstructor, null, [new CodeNode(() =>
-                {
-                    Writer.Write(node, "\"");
-                    Writer.Write(node, longValue.ToString());
-                    Writer.Write(node, "\"");
-                })]);
-            }
+            //var longType = (INamedTypeSymbol)_global.GetTypeSymbol("long", this/*, out _, out _*/);
+            //long ilong = long.Parse(longValue);
+            //if (Math.Abs(ilong) < int.MaxValue) //if the long can fit an int, we call the int constructor otherwise string
+            //{
+            //    var intType = (ITypeSymbol)_global.GetTypeSymbol("int", this/*, out _, out _*/);
+            //    var intBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(intType, SymbolEqualityComparer.Default));
+            //    //WriteConstructorCall(node, longType, intBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((int)ilong)))]);
+            //    WriteConstructorCall(node, longType, intBasedConstructor, null, [new CodeNode(() =>
+            //    {
+            //        CurrentTypeWriter.Write(node, ((int)ilong).ToString());
+            //    })]);
+            //}
+            //else
+            //{
+            //    var stringType = (ITypeSymbol)_global.GetTypeSymbol("string", this/*, out _, out _*/);
+            //    var stringBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(stringType, SymbolEqualityComparer.Default));
+            //    //WriteConstructorCall(node, longType, stringBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(longValue)))]);
+            //    WriteConstructorCall(node, longType, stringBasedConstructor, null, [new CodeNode(() =>
+            //    {
+            //        CurrentTypeWriter.Write(node, "\"");
+            //        CurrentTypeWriter.Write(node, longValue.ToString());
+            //        CurrentTypeWriter.Write(node, "\"");
+            //    })]);
+            //}
         }
 
         void WriteULongConstant(CSharpSyntaxNode node, string longValue)
         {
-            Writer.Write(node, longValue);
+            CurrentTypeWriter.Write(node, longValue);
+            CurrentTypeWriter.Write(node, "n");
             return;
-            var longType = (INamedTypeSymbol)_global.GetTypeSymbol("ulong", this/*, out _, out _*/);
-            ulong ilong = ulong.Parse(longValue);
-            if (ilong < uint.MaxValue) //if the long can fit an int, we call the int constructor otherwise string
-            {
-                var intType = (ITypeSymbol)_global.GetTypeSymbol("uint", this/*, out _, out _*/);
-                var intBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(intType, SymbolEqualityComparer.Default));
-                //WriteConstructorCall(node, longType, intBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((int)ilong)))]);
-                WriteConstructorCall(node, longType, intBasedConstructor, null, [new CodeNode(() =>
-                {
-                    Writer.Write(node, ((uint)ilong).ToString());
-                })]);
-            }
-            else
-            {
-                var stringType = (ITypeSymbol)_global.GetTypeSymbol("string", this/*, out _, out _*/);
-                var stringBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(stringType, SymbolEqualityComparer.Default));
-                //WriteConstructorCall(node, longType, stringBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(longValue)))]);
-                WriteConstructorCall(node, longType, stringBasedConstructor, null, [new CodeNode(() =>
-                {
-                    Writer.Write(node, "\"");
-                    Writer.Write(node, longValue.ToString());
-                    Writer.Write(node, "\"");
-                })]);
-            }
+            //var longType = (INamedTypeSymbol)_global.GetTypeSymbol("ulong", this/*, out _, out _*/);
+            //ulong ilong = ulong.Parse(longValue);
+            //if (ilong < uint.MaxValue) //if the long can fit an int, we call the int constructor otherwise string
+            //{
+            //    var intType = (ITypeSymbol)_global.GetTypeSymbol("uint", this/*, out _, out _*/);
+            //    var intBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(intType, SymbolEqualityComparer.Default));
+            //    //WriteConstructorCall(node, longType, intBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((int)ilong)))]);
+            //    WriteConstructorCall(node, longType, intBasedConstructor, null, [new CodeNode(() =>
+            //    {
+            //        CurrentTypeWriter.Write(node, ((uint)ilong).ToString());
+            //    })]);
+            //}
+            //else
+            //{
+            //    var stringType = (ITypeSymbol)_global.GetTypeSymbol("string", this/*, out _, out _*/);
+            //    var stringBasedConstructor = longType.GetMembers(".ctor").Cast<IMethodSymbol>().Single(e => e.Parameters.Count() == 1 && e.Parameters.Single().Type.Equals(stringType, SymbolEqualityComparer.Default));
+            //    //WriteConstructorCall(node, longType, stringBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(longValue)))]);
+            //    WriteConstructorCall(node, longType, stringBasedConstructor, null, [new CodeNode(() =>
+            //    {
+            //        CurrentTypeWriter.Write(node, "\"");
+            //        CurrentTypeWriter.Write(node, longValue.ToString());
+            //        CurrentTypeWriter.Write(node, "\"");
+            //    })]);
+            //}
         }
 
         void WriteDecimalConstant(CSharpSyntaxNode node, string decimalValue)
@@ -86,7 +88,7 @@ namespace NetJs.Translator.CSharpToJavascript
                 //WriteConstructorCall(node, decimalType, intBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((int)idecimal)))]);
                 WriteConstructorCall(node, decimalType, intBasedConstructor, null, [new CodeNode(() =>
                 {
-                    Writer.Write(node, ((int)idecimal).ToString());
+                    CurrentTypeWriter.Write(node, ((int)idecimal).ToString());
                 })]);
             }
             else
@@ -98,9 +100,9 @@ namespace NetJs.Translator.CSharpToJavascript
                     //WriteConstructorCall(node, decimalType, stringBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(decimalValue)))]);
                     WriteConstructorCall(node, decimalType, stringBasedConstructor, null, [new CodeNode(() =>
                     {
-                        Writer.Write(node, "\"");
-                        Writer.Write(node, decimalValue);
-                        Writer.Write(node, "\"");
+                        CurrentTypeWriter.Write(node, "\"");
+                        CurrentTypeWriter.Write(node, decimalValue);
+                        CurrentTypeWriter.Write(node, "\"");
                     })]);
                 }
                 else
@@ -118,16 +120,16 @@ namespace NetJs.Translator.CSharpToJavascript
                         //WriteConstructorCall(node, decimalType, arrayBasedConstructor, null, [SyntaxFactory.Argument(parameter)]);
                         WriteConstructorCall(node, decimalType, arrayBasedConstructor, null, [new CodeNode(()=>
                         {
-                            Writer.Write(node, "[");
+                            CurrentTypeWriter.Write(node, "[");
                             int ix = 0;
                             foreach(var b in bits)
                             {
                                 if (ix > 0)
-                                    Writer.Write(node, ", ");
-                                Writer.Write(node, b.ToString());
+                                    CurrentTypeWriter.Write(node, ", ");
+                                CurrentTypeWriter.Write(node, b.ToString());
                                 ix++;
                             }
-                            Writer.Write(node, "]");
+                            CurrentTypeWriter.Write(node, "]");
                         })]);
                     }
                     else
@@ -139,7 +141,7 @@ namespace NetJs.Translator.CSharpToJavascript
                             //WriteConstructorCall(node, decimalType, doubleBasedConstructor, null, [SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.NumericLiteralExpression, SyntaxFactory.Literal((double)idecimal)))]);
                             WriteConstructorCall(node, decimalType, doubleBasedConstructor, null, [new CodeNode(() =>
                             {
-                                Writer.Write(node, ((double)idecimal).ToString());
+                                CurrentTypeWriter.Write(node, ((double)idecimal).ToString());
                             })]);
                         }
                     }
@@ -186,55 +188,55 @@ namespace NetJs.Translator.CSharpToJavascript
                 else if ((constantExpression.IsKind(SyntaxKind.CharacterLiteralExpression) || constantType.SpecialType == SpecialType.System_Char) && constantValue.Value != null)
                 {
                     var val = constantValue.Value!.ToString().GetLiteralString(SyntaxKind.CharacterLiteralExpression, _global);
-                    Writer.Write(node, val);
+                    CurrentTypeWriter.Write(node, val);
                     return true;
                 }
                 if (constantType.SpecialType == SpecialType.System_String && constantValue.Value != null)
-                    Writer.Write(node, "\"");
+                    CurrentTypeWriter.Write(node, "\"");
                 if (constantValue.Value == null)
-                    Writer.Write(node, "null");
+                    CurrentTypeWriter.Write(node, "null");
                 else
                 {
                     if (constantType.SpecialType == SpecialType.System_Boolean)
-                        Writer.Write(node, (bool)constantValue.Value ? "true" : "false");
+                        CurrentTypeWriter.Write(node, (bool)constantValue.Value ? "true" : "false");
                     else if (constantType.SpecialType == SpecialType.System_Char)
                     {
                         var c = (int)(char)constantValue.Value;
-                        Writer.Write(node, c.ToString());
+                        CurrentTypeWriter.Write(node, c.ToString());
                     }
                     else if (constantType.SpecialType == SpecialType.System_Double && constantValue.Value is double d && d == double.PositiveInfinity)
                     {
-                        Writer.Write(node, "Number.POSITIVE_INFINITY");
+                        CurrentTypeWriter.Write(node, "Number.POSITIVE_INFINITY");
                     }
                     else if (constantType.SpecialType == SpecialType.System_Double && constantValue.Value is double d2 && d2 == double.NegativeInfinity)
                     {
-                        Writer.Write(node, "Number.NEGATIVE_INFINITY");
+                        CurrentTypeWriter.Write(node, "Number.NEGATIVE_INFINITY");
                     }
                     else if (constantType.SpecialType == SpecialType.System_Double && constantValue.Value is double d3 && double.IsNaN(d3))
                     {
-                        Writer.Write(node, "Number.NaN");
+                        CurrentTypeWriter.Write(node, "Number.NaN");
                     }
                     else if (constantType.SpecialType == SpecialType.System_Single && constantValue.Value is float f && f == float.PositiveInfinity)
                     {
-                        Writer.Write(node, "Number.POSITIVE_INFINITY");
+                        CurrentTypeWriter.Write(node, "Number.POSITIVE_INFINITY");
                     }
                     else if (constantType.SpecialType == SpecialType.System_Single && constantValue.Value is float f2 && f2 == float.NegativeInfinity)
                     {
-                        Writer.Write(node, "Number.NEGATIVE_INFINITY");
+                        CurrentTypeWriter.Write(node, "Number.NEGATIVE_INFINITY");
                     }
                     else if (constantType.SpecialType == SpecialType.System_Single && constantValue.Value is float f3 && float.IsNaN(f3))
                     {
-                        Writer.Write(node, "Number.NaN");
+                        CurrentTypeWriter.Write(node, "Number.NaN");
                     }
                     else
                     {
                         var str = constantValue.Value.ToString();
                         str = str.Escape();
-                        Writer.Write(node, str);
+                        CurrentTypeWriter.Write(node, str);
                     }
                 }
                 if (constantType.SpecialType == SpecialType.System_String && constantValue.Value != null)
-                    Writer.Write(node, "\"");
+                    CurrentTypeWriter.Write(node, "\"");
                 return true;
             }
             return false;

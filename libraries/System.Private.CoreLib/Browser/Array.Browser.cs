@@ -17,7 +17,7 @@ namespace System
         public const string SizesName = "$sizes";
         [NetJs.InlineConst]
         public const string LowerBoundsName = "$lb";
-        
+
         //Type ElementType
         //{
         //    get => this[ElementTypeName].As<TypePrototype>()?.Type;
@@ -25,7 +25,7 @@ namespace System
 
         [NetJs.MemberReplace(nameof(Length))]
         [NetJs.StaticCallConvention(false)]
-        public extern int IntrinsicLength
+        public extern int LengthImpl
         {
             [NetJs.Template("{this}.length")]
             get;
@@ -34,7 +34,7 @@ namespace System
         [NetJs.MemberReplace(nameof(NativeLength))]
         [NetJs.StaticCallConvention(false)]
         [CLSCompliant(false)]
-        public extern nuint IntrinsicNativeLength
+        public extern nuint NativeLengthImpl
         {
             [NetJs.Template("{this}.length")]
             get;
@@ -42,16 +42,16 @@ namespace System
 
         [NetJs.MemberReplace(nameof(LongLength))]
         [NetJs.StaticCallConvention(false)]
-        public extern int IntrinsicLongLength
+        public extern int LongLengthImpl
         {
             [NetJs.Template("{this}.length")]
             get;
         }
 
         [NetJs.MemberReplace(nameof(Rank))]
-        public int IntrinsicRank
+        public int RankImpl
         {
-            //[dotnetJs.Template("{global.}System.Array." + nameof(_GetRank) + "({this})")]
+            //[dotnetJs.Template("{assembly.}System.Array." + nameof(_GetRank) + "({this})")]
             //get;
             get
             {
@@ -62,19 +62,78 @@ namespace System
             }
         }
 
+        [NetJs.MemberReplace(nameof(Clone))]
+        public object CloneImpl()
+        {
+            var clone = this.ArrayClone();
+            if (NetJs.Script.IsDefined(this[ElementTypeName]))
+                clone[ElementTypeName] = this[ElementTypeName];
+            if (NetJs.Script.IsDefined(this[SizesName]))
+                clone[SizesName] = this[SizesName];
+            if (NetJs.Script.IsDefined(this[LowerBoundsName]))
+                clone[LowerBoundsName] = this[LowerBoundsName];
+            return clone;
+        }
+
         [NetJs.Name(NetJs.Constants.IsTypeName)]
         public static bool Is(object? instance)
         {
             return NetJs.Script.Write<bool>("window.Array.isArray(instance)");
         }
 
+        [NetJs.StaticCallConvention]
+        [NetJs.Name("$Read")]
+        protected object? Read(params int[] indices)
+        {
+            if (indices == null)
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.indices);
+            var rank = Rank;
+            if (rank != indices.Length)
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankIndices);
+            if (rank == 1)
+            {
+                unchecked
+                {
+                    var index = indices[0];
+                    //if (NetJs.Script.IsUndefined(this[ElementTypeName])) //Not a dotnet array, morelikely a pure js array, so we can just index it directly
+                    return this[index];
+                    //return InternalGetValue(index);
+                }
+            }
+            return InternalGetValue(GetFlattenedIndex(indices));
+        }
+
+        [NetJs.StaticCallConvention]
+        [NetJs.Name("$Write")]
+        protected void Write(object? value, params int[] indices)
+        {
+            if (indices == null)
+                ThrowHelper.ThrowArgumentNullException(ExceptionArgument.indices);
+            var rank = Rank;
+            if (rank != indices.Length)
+                ThrowHelper.ThrowArgumentException(ExceptionResource.Arg_RankIndices);
+            if (rank == 1)
+            {
+                unchecked
+                {
+                    var index = indices[0];
+                    //if (NetJs.Script.IsUndefined(this[ElementTypeName])) //Not a dotnet array, more likely a pure js array, so we can just index it directly
+                    this[index] = value;
+                    //else
+                    //InternalSetValue(value, index);
+                }
+            }
+            else
+                InternalSetValue(value, GetFlattenedIndex(indices));
+        }
+
         [NetJs.Unbox(false)]
         public extern object? this[int index]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index}])")]
             [NetJs.Template("{this}[{index}]", "unchecked")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index}])")]
             [NetJs.Template("{this}[{index}] = {value}", "unchecked")]
             set;
         }
@@ -82,77 +141,91 @@ namespace System
         //public extern object this[Range range]
         //{
         //    [dotnetJs.External]
-        //    [dotnetJs.Template("{global.}System.Array." + nameof(_Range) + "({this}, {range})")]
+        //    [dotnetJs.Template("{assembly.}System.Array." + nameof(_Range) + "({this}, {range})")]
         //    get;
         //}
 
         //public extern object this[Index index]
         //{
         //    [dotnetJs.External]
-        //    [dotnetJs.Template("{global.}System.Array." + nameof(_Index) + "({this}, {index})")]
+        //    [dotnetJs.Template("{assembly.}System.Array." + nameof(_Index) + "({this}, {index})")]
         //    get;
         //}        
 
         [NetJs.Unbox(false)]
         public extern object? this[int index1, int index2]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}])")]
             set;
         }
 
         [NetJs.Unbox(false)]
         public extern object? this[int index1, int index2, int index3]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}, {index3}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}, {index3}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}, {index3}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}, {index3}])")]
             set;
         }
 
         [NetJs.Unbox(false)]
         public extern object? this[int index1, int index2, int index3, int index4]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}, {index3}, {index4}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}, {index3}, {index4}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}, {index3}, {index4}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}, {index3}, {index4}])")]
             set;
         }
 
         [NetJs.Unbox(false)]
         public extern object? this[int index1, int index2, int index3, int index4, int index5]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
             set;
         }
 
-        internal static Array _Create(Type type, int[] sizes, int[]? lowerBounds, NetJs.Union<object, object[]>? fill, int depth)
+        internal static Type GetArrayType(Array array)
+        {
+            var et = array[ElementTypeName].As<RuntimeType?>();
+            if (NetJs.Script.IsUndefined(et))
+            {
+                et = null;
+            }
+            var elementPrototype = et?._prototype ?? typeof(object).As<RuntimeType>()._prototype;
+            //var prototype = elementType._prototype;
+            return NetJs.Script.Write<Type>($"$.{NetJs.Constants.TypeOf}($.{NetJs.Constants.TypeArray}(elementPrototype))");
+            //return typeof(Array<>).MakeGenericType(elementType);
+        }
+
+        internal static void AddMetadata(Array arr, Type elementType, int[]? sizes = null, int[]? lowerBounds = null)
+        {
+            arr[SizesName] = sizes ?? [arr.Length];
+            arr[ElementTypeName] = elementType;
+            if (lowerBounds != null)
+            {
+                arr[LowerBoundsName] = lowerBounds;
+            }
+        }
+
+        internal static Array CreateNested(RuntimeType type, int[] sizes, int[]? lowerBounds, NetJs.Union<object, object[]>? fill, int depth)
         {
             unchecked
             {
                 Array arr = NetJs.Script.Write<Array>("window.Array(sizes[depth])"); //make sure we dont create this Array class itself again
-                                                                               //new object[sizes[depth]];
                 if (depth == 0)
                 {
-                    //arr[Constants.ObjectTypeName] = typeof(ArrayInterface<T>);
-                    //arr[InterfaceImplementationName] = new ArrayInterface<T>(arr.As<T[]>());
-                    arr[SizesName] = sizes;
-                    arr[ElementTypeName] = type;
-                    if (lowerBounds != null)
-                    {
-                        arr[LowerBoundsName] = lowerBounds;
-                    }
+                    AddMetadata(arr, type, sizes, lowerBounds);
                 }
                 if (depth < sizes.Length - 1)
                 {
                     for (int i = 0; i < sizes[depth]; i++)
                     {
-                        var innerArray = _Create(type, sizes, lowerBounds, fill, depth + 1);
-                        NetJs.Script.Write("arr[i] = innerArray");
-                        //arr[i] = innerArray;
+                        var innerArray = CreateNested(type, sizes, lowerBounds, fill, depth + 1);
+                        arr[i] = innerArray;
                     }
                 }
                 else
@@ -173,9 +246,14 @@ namespace System
                     }
                     else
                     {
+                        var prototype = type._prototype;
+                        //For struct, non primitive types, make sure we create different instance for each array item
+                        var defaultValue = type._model.Flags.TypeHasFlag(TypeFlagsModel.IsValueType) && !type._model.Flags.TypeHasFlag(TypeFlagsModel.IsPrimitive) ?
+                            NetJs.Script.Undefined :
+                            NetJs.Script.Write<object>($"$.{NetJs.Constants.DefaultTypeName}(prototype)");
                         for (int i = 0; i < sizes[depth]; i++)
                         {
-                            arr[i] = NetJs.Script.Write<object>("$.default(type)");
+                            arr[i] = defaultValue ?? NetJs.Script.Write<object>($"$.{NetJs.Constants.DefaultTypeName}(prototype)");
                         }
                     }
                 }
@@ -187,19 +265,22 @@ namespace System
         [NetJs.MemberReplace(nameof(InternalCreate))]
         private static unsafe void InternalCreateImpl(ref Array? result, IntPtr elementType, int rank, int* lengths, int* lowerBounds)
         {
-            var sizes = new int[rank];
-            var lb = lowerBounds != null ? new int[rank] : null;
-            for (int i = 0; i < rank; i++)
+            unchecked
             {
-                sizes[i] = lengths[i];
-                if (lowerBounds != null)
+                var sizes = NetJs.Script.Write<int[]>("window.Array(rank)");
+                var lb = lowerBounds != null ? NetJs.Script.Write<int[]>("window.Array(rank)") : null;
+                for (int i = 0; i < rank; i++)
                 {
-                    lb![i] = lowerBounds[i];
+                    sizes[i] = lengths[i];
+                    if (lowerBounds != null)
+                    {
+                        lb![i] = lowerBounds[i];
+                    }
                 }
+                var type = AppDomain.GetType((uint)elementType) ?? throw new InvalidOperationException();
+                var arr = CreateNested(type, sizes, lb, null, 0);
+                result = arr;
             }
-            var type = AppDomain.GetType(new ReflectionHandleModel { Value = (uint)elementType }) ?? throw new InvalidOperationException();
-            var arr = _Create(type, sizes, lb, null, 0);
-            result = arr;
         }
 
         [NetJs.MemberReplace(nameof(GetCorElementTypeOfElementTypeInternal))]
@@ -254,7 +335,12 @@ namespace System
         {
             var marr = arr.GetObjectHandleOnStack<Array>();
             var sizes = marr[SizesName].As<int[]>();
-            return sizes[dimension];
+            if (NetJs.Script.IsUndefinedOrNull(sizes) && dimension == 0)
+                return marr.Length;
+            unchecked
+            {
+                return sizes[dimension];
+            }
         }
 
         [NetJs.MemberReplace(nameof(GetLowerBoundInternal))]
@@ -262,17 +348,23 @@ namespace System
         {
             var marr = arr.GetObjectHandleOnStack<Array>();
             var bounds = marr[LowerBoundsName].As<int[]?>();
-            if (bounds == null)
+            if (NetJs.Script.IsUndefinedOrNull(bounds))
                 return 0;
-            return bounds[dimension];
+            unchecked
+            {
+                return bounds![dimension];
+            }
         }
 
         // CAUTION! No bounds checking!
-        [NetJs.MemberReplace(nameof(GetGenericValue_icall))]
+        [NetJs.MemberReplace(nameof(GetGenericValue_icall) + "<>")]
         private static void GetGenericValue_icallImpl<T>(ObjectHandleOnStack self, int pos, out T value)
         {
             var marr = self.GetObjectHandleOnStack<Array>();
-            value = marr[pos].As<T>();
+            unchecked
+            {
+                value = marr[pos].As<T>();
+            }
         }
 
         // CAUTION! No bounds checking!
@@ -280,15 +372,21 @@ namespace System
         private static void GetValueImplImpl(ObjectHandleOnStack arr, ObjectHandleOnStack res, int pos)
         {
             var marr = arr.GetObjectHandleOnStack<Array>();
-            res.GetObjectHandleOnStack<object?>() = marr[pos];
+            unchecked
+            {
+                res.GetObjectHandleOnStack<object?>() = marr[pos];
+            }
         }
 
         // CAUTION! No bounds checking!
-        [NetJs.MemberReplace(nameof(SetGenericValue_icall))]
+        [NetJs.MemberReplace(nameof(SetGenericValue_icall) + "<>")]
         private static void SetGenericValue_icallImpl<T>(ObjectHandleOnStack arr, int pos, ref T value)
         {
             var marr = arr.GetObjectHandleOnStack<Array>();
-            marr[pos] = value;
+            unchecked
+            {
+                marr[pos] = value;
+            }
         }
 
         // CAUTION! No bounds checking!
@@ -296,7 +394,10 @@ namespace System
         private static void SetValueImplImpl(ObjectHandleOnStack arr, ObjectHandleOnStack value, int pos)
         {
             var marr = arr.GetObjectHandleOnStack<Array>();
-            value.GetObjectHandleOnStack<object?>() = marr[pos];
+            unchecked
+            {
+                marr[pos] = value.GetObjectHandleOnStack<object?>();
+            }
         }
 
         [NetJs.MemberReplace(nameof(InitializeInternal))]
@@ -310,23 +411,26 @@ namespace System
         private static void SetValueRelaxedImplImpl(ObjectHandleOnStack arr, ObjectHandleOnStack value, int pos)
         {
             var marr = arr.GetObjectHandleOnStack<Array>();
-            value.GetObjectHandleOnStack<object?>() = marr[pos];
+            unchecked
+            {
+                marr[pos] = value.GetObjectHandleOnStack<object?>();
+            }
         }
 
     }
 
     //Class only defined for generator use
     //This class makes indexing a typed array work
-    [NetJs.External]
+    //[NetJs.External]
     public abstract class Array<T> : Array
     {
         [NetJs.Unbox(false)]
         public new extern T this[int index]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index}])")]
             [NetJs.Template("{this}[{index}]", "unchecked")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index}])")]
             [NetJs.Template("{this}[{index}] = {value}", "unchecked")]
             set;
         }
@@ -334,50 +438,50 @@ namespace System
         //public extern T this[Range range]
         //{
         //    [dotnetJs.External]
-        //    [dotnetJs.Template("{global.}System.Array." + nameof(_Range) + "({this}, {range})")]
+        //    [dotnetJs.Template("{assembly.}System.Array." + nameof(_Range) + "({this}, {range})")]
         //    get;
         //}
 
         //public new extern T this[Index index]
         //{
         //    [dotnetJs.External]
-        //    [dotnetJs.Template("{global.}System.Array." + nameof(_Index) + "({this}, {index})")]
+        //    [dotnetJs.Template("{assembly.}System.Array." + nameof(_Index) + "({this}, {index})")]
         //    get;
         //}
 
         [NetJs.Unbox(false)]
         public new extern T this[int index1, int index2]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}])")]
             set;
         }
 
         [NetJs.Unbox(false)]
         public new extern T this[int index1, int index2, int index3]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}, {index3}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}, {index3}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}, {index3}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}, {index3}])")]
             set;
         }
 
         [NetJs.Unbox(false)]
         public new extern T this[int index1, int index2, int index3, int index4]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}, {index3}, {index4}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}, {index3}, {index4}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}, {index3}, {index4}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}, {index3}, {index4}])")]
             set;
         }
 
         [NetJs.Unbox(false)]
         public new extern T this[int index1, int index2, int index3, int index4, int index5]
         {
-            [NetJs.Template("{global.}System.Array." + nameof(GetValue) + "({this}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Read) + ".call({this}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
             get;
-            [NetJs.Template("{global.}System.Array." + nameof(SetValue) + "({this}, {value}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
+            [NetJs.Template("{assembly.}System.Array.$" + nameof(Write) + ".call({this}, {value}, [{index1}, {index2}, {index3}, {index4}, {index5}])")]
             set;
         }
     }

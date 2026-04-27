@@ -9,7 +9,9 @@ namespace NetJs.Translator.CSharpToJavascript
     class GeneratedLocalSymbol : ILocalSymbol
 #pragma warning restore RS1009 // Only internal implementations of this interface are allowed
     {
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         public GeneratedLocalSymbol(ITypeSymbol type, string name)
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
         {
             Type = type;
             Name = name;

@@ -8,19 +8,53 @@ namespace NetJs.Translator.CSharpToJavascript
 {
     public class ScriptWriter
     {
+        public class Replacement : IDisposable
+        {
+            public string Token { get; }
+            Action dispose;
+            public int Hit { get; set; }
+            public Replacement(string token, Action dispose)
+            {
+                Token = token;
+                this.dispose = dispose;
+            }
+
+            public void Dispose()
+            {
+                dispose();
+            }
+        }
         LinkedList<CodeLineWriter> lines = new LinkedList<CodeLineWriter>([new CodeLineWriter()]);
         //StringWriter writer = new StringWriter();
         public int ClosureDepth { get; set; }
         //LinkedListNode<CodeLineWriter> currentWriterNode => lines.Last;
         CodeLineWriter currentWriter => lines.Last!.Value;
+        Dictionary<string, Replacement> _replaceToken = new();
+        public Replacement SetReplacement(string token, string replacement)
+        {
+            var rep = new Replacement(replacement, () => _replaceToken.Remove(token));
+            _replaceToken.Add(token, rep);
+            return rep;
+        }
+
+        string ProcessReplacement(string token)
+        {
+            if (_replaceToken.TryGetValue(token, out var replacement))
+            {
+                replacement.Hit++;
+                return replacement.Token;
+            }
+            return token;
+        }
+
         void WriteTabs()
         {
             for (int i = 0; i < ClosureDepth; i++)
             {
                 if (temporaryWriter.TryPeek(out var tpw))
-                    tpw.Write("    ");
+                    tpw.Write(ProcessReplacement("    "));
                 else
-                    currentWriter.Write("    ");
+                    currentWriter.Write(ProcessReplacement("    "));
             }
         }
 
@@ -66,7 +100,7 @@ namespace NetJs.Translator.CSharpToJavascript
             if (withTabs)
             {
                 for (int i = 0; i < closureDepth; i++)
-                    writer.Write("    ");
+                    writer.Write(ProcessReplacement("    "));
             }
             temporaryWriter.Push(writer);
             lineWriter();
@@ -78,7 +112,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public void InsertAbove(SyntaxNode source, string line, bool withTabs)
         {
-            InsertAbove(source, () => temporaryWriter.Peek().Write(line), withTabs);
+            InsertAbove(source, () => temporaryWriter.Peek().Write(ProcessReplacement(line)), withTabs);
         }
 
         public void InsertInCurrentClosure(SyntaxNode source, Action lineWriter, bool withTabs)
@@ -97,7 +131,7 @@ namespace NetJs.Translator.CSharpToJavascript
             if (withTabs)
             {
                 for (int i = 0; i < closureDepth; i++)
-                    writer.Write("    ");
+                    writer.Write(ProcessReplacement("    "));
             }
             temporaryWriter.Push(writer);
             lineWriter();
@@ -117,13 +151,16 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public void InsertInCurrentClosure(SyntaxNode source, string line, bool withTabs)
         {
-            InsertInCurrentClosure(source, () => temporaryWriter.Peek().Write(line), withTabs);
+            InsertInCurrentClosure(source, () => temporaryWriter.Peek().Write(ProcessReplacement(line)), withTabs);
         }
 
         public CodeLineWriter Write(SyntaxNode source, char code)
         {
             if (temporaryWriter.TryPeek(out var tpw))
+            {
                 tpw.Write(code);
+                return tpw;
+            }
             else
                 currentWriter.Write(code);
             return currentWriter;
@@ -146,15 +183,18 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
             }
             if (temporaryWriter.TryPeek(out var tpw))
-                tpw.Write(code);
+            {
+                tpw.Write(ProcessReplacement(code));
+                return tpw;
+            }
             else
-                currentWriter.Write(code);
+                currentWriter.Write(ProcessReplacement(code));
             return currentWriter;
         }
 
         public CodeLineWriter WriteLine(CSharpSyntaxNode source, string code, bool withTabs = false, bool forbidInsertion = false)
         {
-            var usedLineWriter = currentWriter;
+            var usedLineWriter = temporaryWriter.Count > 0 ? temporaryWriter.Peek() : currentWriter;
             Write(source, code, withTabs, forbidInsertion: forbidInsertion);
             if (temporaryWriter.Count == 0)
             {
@@ -163,7 +203,7 @@ namespace NetJs.Translator.CSharpToJavascript
                 writer.Node = node;
             }
             else
-                Write(source, "\r\n", withTabs, forbidInsertion: forbidInsertion);
+                return Write(source, ProcessReplacement("\r\n"), withTabs, forbidInsertion: forbidInsertion);
             return usedLineWriter;
         }
 
@@ -175,6 +215,13 @@ namespace NetJs.Translator.CSharpToJavascript
                 var node = lines.AddLast(writer);
                 writer.Node = node;
             }
+        }
+
+        public bool EndsWith(string token)
+        {
+            if (temporaryWriter.TryPeek(out var tpw))
+                return tpw.EndsWith(token);
+            return lines.Last.Value.EndsWith(token);
         }
 
         public string Build(int formatTabs)

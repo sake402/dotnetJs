@@ -20,7 +20,7 @@ namespace NetJs.Translator.CSharpToJavascript
         }
 
 
-        public CodeBlockClosure FindHierachy<T>() where T : CSharpSyntaxNode
+        public CodeBlockClosure? FindHierachy<T>() where T : CSharpSyntaxNode
         {
             var current = this;
             while (current != null)
@@ -37,6 +37,7 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             TypeInitializers.Add((action, _static));
         }
+
 
         Dictionary<string, (CodeSymbol, string?, string?, int)> _identifiers = new Dictionary<string, (CodeSymbol, string?, string?, int)>();
         //Dictionary<string, CodeType> _tempIdentifiers = new Dictionary<string, CodeType>();
@@ -86,7 +87,8 @@ namespace NetJs.Translator.CSharpToJavascript
         public Dictionary<string, string> Tags { get; } = new Dictionary<string, string>();
         public string? JumpStartLabelName { get; set; }
         public string? JumpStateMachineVariableName { get; set; }
-        public List<string> JumpLabels { get; } = new List<string>();
+        public Dictionary<CSharpSyntaxNode, string> JumpLabels { get; } = new Dictionary<CSharpSyntaxNode, string>();
+        public List<string> GotoJumpLabels { get; } = new List<string>();
         Stack<IEnumerable<ISymbol>> _anonymousMethodParameterTypes = new Stack<IEnumerable<ISymbol>>();
         public IDisposable DefineAnonymousMethodParameterTypes(IEnumerable<ISymbol> types)
         {
@@ -152,7 +154,7 @@ namespace NetJs.Translator.CSharpToJavascript
             return Symbol?.ToString() ?? Syntax.ToString();
         }
 
-        public event EventHandler OnClosing;
+        public event EventHandler? OnClosing;
         public void Dispose()
         {
             OnClosing?.Invoke(this, EventArgs.Empty);

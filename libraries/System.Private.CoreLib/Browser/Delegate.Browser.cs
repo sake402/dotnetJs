@@ -9,8 +9,8 @@ using System.Text;
 
 namespace System
 {
-    [NetJs.Base(typeof(Delegate))]
-    internal class Delegate_Partial : ForcedPartialBase<Delegate>
+    //[NetJs.ForcePartial(typeof(Delegate))]
+    public class Delegate_Partial : ForcedPartialBase<Delegate>
     {
         public Delegate_Partial(object target, string method)
         {

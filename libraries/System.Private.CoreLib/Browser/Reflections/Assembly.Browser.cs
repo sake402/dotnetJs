@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 namespace System.Reflection
 {
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     public partial class Assembly
     {
         internal static Assembly? _entry;

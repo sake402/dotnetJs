@@ -110,6 +110,23 @@ namespace NetJs.Compiler
             return sourceFiles;
         }
 
+        public IList<string> GetEmbeddedFiles()
+        {
+            IList<string> sourceFiles = new List<string>();
+
+            foreach (var projectItem in project.AllEvaluatedItems.Where(i => i.ItemType == "EmbeddedResource"))
+            {
+                if (projectItem.EvaluatedInclude.Contains(".NETCoreApp,"))
+                    continue;
+                if (projectItem.EvaluatedInclude.Contains(':')) //check if it has volume label already
+                    sourceFiles.Add(projectItem.EvaluatedInclude);
+                else
+                    sourceFiles.Add(Path.Join(project.DirectoryPath, projectItem.EvaluatedInclude));
+            }
+
+            return sourceFiles;
+        }
+
         public bool Build()
         {
             return project.Build();

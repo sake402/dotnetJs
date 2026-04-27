@@ -5,6 +5,9 @@ namespace NetJs.Translator.CSharpToJavascript
 {
     public class CodeLineWriter
     {
+#if DEBUG
+        string line = "";
+#endif
         StringWriter internalWriter = new StringWriter();
         char lastChar;
         string? lastWord;
@@ -28,6 +31,12 @@ namespace NetJs.Translator.CSharpToJavascript
                 throw new InvalidOperationException("Syntax would not be valid");
             if (lastWord == "throw" && word == ";")
                 throw new InvalidOperationException("Syntax would not be valid");
+#if DEBUG
+            if (line.EndsWith(Constants.RefValueName + ".") && word == Constants.RefValueName)
+                throw new InvalidOperationException("Double dereference would fail");
+#endif
+            //if (lastWord == Constants.RefValueName && lastChar == '.' && word == Constants.RefValueName)
+            //throw new InvalidOperationException("Double dereference would fail");
             //if (lastChar == '.' && word == "this")
             //throw new InvalidOperationException("Syntax would not be valid");
         }
@@ -35,6 +44,9 @@ namespace NetJs.Translator.CSharpToJavascript
         public void Write(char value)
         {
             ValidateChar(value, null);
+#if DEBUG
+            line += value;
+#endif
             internalWriter.Write(value);
             lastChar = value;
         }
@@ -42,9 +54,17 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (value.Length == 0)
                 return;
+            if (value.Length == 1)
+            {
+                Write(value[0]);
+                return;
+            }
             ValidateChar(value[0], value);
             ValidateWord(value.Trim().Split([' '], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault());
             internalWriter.Write(value);
+#if DEBUG
+            line += value;
+#endif
             var trimmedValue = value.Trim();
             if (trimmedValue.Length > 0)
             {
@@ -55,7 +75,19 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public bool StartsWith(string value)
         {
-            return internalWriter.ToString().TrimStart().StartsWith(value);
+            return ToString().TrimStart().StartsWith(value);
+        }
+
+        public bool EndsWith(string value)
+        {
+            return ToString().TrimEnd().EndsWith(value);
+        }
+
+        public void Remove(string token)
+        {
+            var newContents = internalWriter.ToString().Replace(token, "");
+            internalWriter = new();
+            internalWriter.Write(newContents);
         }
 
         public override string ToString()

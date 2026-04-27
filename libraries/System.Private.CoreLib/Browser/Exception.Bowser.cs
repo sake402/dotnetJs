@@ -7,5 +7,6 @@ namespace System
 {
     public partial class Exception : Error
     {
+        
     }
 }

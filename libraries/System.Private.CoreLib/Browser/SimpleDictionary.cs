@@ -35,6 +35,14 @@ namespace System
         }
 
         [Template("delete {this}[{key}]")]
+        public extern void Remove(int key);
+        [Template("Object.getOwnPropertyNames({this}).some(e => e == {key}.toString())")]
+        public extern bool ContainsKey(int key);
+        [Template("delete {this}[{key}]")]
+        public extern void Remove(uint key);
+        [Template("Object.getOwnPropertyNames({this}).some(e => e == {key}.toString())")]
+        public extern bool ContainsKey(uint key);
+        [Template("delete {this}[{key}]")]
         public extern void Remove(string key);
         [Template("Object.getOwnPropertyNames({this}).some(e => e == {key})")]
         public extern bool ContainsKey(string key);
@@ -60,7 +68,7 @@ namespace System
         [Template("s.split({by})")]
         static extern string[] NativeSplit(this string s, string by);
         [IgnoreGeneric]
-        public static void SetNested<T>(this SimpleDictionary<T> dic, string name, T value, bool throwIfExisting = true, Action<T>? onAccess = null)
+        public static void SetNested<T>(this SimpleDictionary<T> dic, string name, T value, bool throwIfExisting = true, Func<T, bool>? onAccess = null)
         {
             unchecked
             {
@@ -87,11 +95,14 @@ namespace System
                 if (onAccess != null)
                 {
                     // this is a bit hacky, but it allows us to call onAccess when the value is accessed, without having to create a wrapper object
-                    Script.Write("Object.defineProperty(dic, typeName, {{  get:function(){{ onAccess(value); return value;  }} }})");
+                    Script.Write("Object.defineProperty(dic, typeName, {{ configurable:true, get:function(){{ let done = onAccess(value); if (done){{ Object.defineProperty(dic, typeName, {{ value:value }}); }} return value; }} }})");
                     //dic[typeName] = Script.Write<T>("{{ get {{ onAccess(value); return value; }} }}");
                 }
                 else
                 {
+                    // Let there be an exception if we try to overwrite an existing property,
+                    // as that would be a bug in the code using this method, and we want to catch it early.
+                    //Script.Write("Object.defineProperty(dic, typeName, value)");
                     dic[typeName] = value;
                 }
             }

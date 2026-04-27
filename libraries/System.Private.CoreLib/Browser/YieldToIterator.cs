@@ -4,10 +4,10 @@ using System.Collections.Generic;
 
 namespace System
 {
-    internal class YieldToIterator<T> : IEnumerable<T>
+    public class YieldToIterator<T> : IEnumerable<T>
     {
         [ObjectLiteral]
-        internal class IteratorResult
+        public class IteratorResult
         {
             [Name("value")]
             public T? Value { get; set; }
@@ -15,14 +15,14 @@ namespace System
             public bool Done { get; set; }
         }
 
-        internal interface IGenerator
+        public interface IGenerator
         {
             [Name("next")]
             IteratorResult Next();
         }
 
         Func<IGenerator> _getGenerator;
-        internal YieldToIterator(Func<IGenerator> getGenerator)
+        public YieldToIterator(Func<IGenerator> getGenerator)
         {
             _getGenerator = getGenerator;
         }
@@ -60,7 +60,7 @@ namespace System
                 var nxt = _generator.Next();
                 alreadyDone = nxt.Done;
                 _current = nxt.Value;
-                return true;
+                return !nxt.Done;
             }
 
             public void Reset()

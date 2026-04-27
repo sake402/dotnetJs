@@ -87,7 +87,7 @@ namespace NetJs.Translator.CSharpToJavascript
                 var arg = GetArgument(index);
                 var argSubstitution = overloadResult.ParameterValueSubstitutions?.GetValueOrDefault(parameter);
                 var argType = argSubstitution?.ArgumentType;
-                WriteSingleMethodInvocationArgument(node, index, arg, argType, parameter, overloadResult);
+                WriteSingleMethodInvocationArgument(node, index, arg, argType, parameter, overloadResult, enableBoxing: false);
                 //if (isExtensionCall)
                 //{
                 //    if (index == 0)
@@ -119,13 +119,13 @@ namespace NetJs.Translator.CSharpToJavascript
                         var closing = template.IndexOf('}', i);
                         if (closing == -1)
                         {
-                            Writer.Write(node, template[i]);
+                            CurrentTypeWriter.Write(node, template[i]);
                             continue;
                         }
                         var extract = template.Substring(i + 1, closing - i - 1);
                         if (extract.Contains(' '))
                         {
-                            Writer.Write(node, template[i]);
+                            CurrentTypeWriter.Write(node, template[i]);
                             continue;
                         }
                         string name = extract;
@@ -141,16 +141,16 @@ namespace NetJs.Translator.CSharpToJavascript
                         {
                             if (constraint == "!super" && lhsExpression != null && lhsExpression.IsT0 && lhsExpression.AsT0 is BaseExpressionSyntax)
                             {
-                                Writer.Write(node, "this");
+                                CurrentTypeWriter.Write(node, "this");
                             }
                             else
                             {
                                 if (conditionallyInvoke)
-                                    Writer.Write(node, mlhsLabel);
+                                    CurrentTypeWriter.Write(node, mlhsLabel);
                                 else if (lhsExpression != null)
                                 {
                                     if (lhsExpression.IsT0)
-                                        WriteVariableAssignment(node, null, lhsSymbol?.GetTypeSymbol(), null, lhsExpression.AsT0, lhsSymbol);
+                                        WriteVariableAssignment(node, null, lhsSymbol, null, lhsExpression.AsT0, lhsSymbol);
                                     else
                                         lhsExpression.AsT1();
                                     //Visit(lhsExpression);
@@ -160,35 +160,71 @@ namespace NetJs.Translator.CSharpToJavascript
                                     if (method?.IsStatic ?? false)
                                     {
                                         var containgMetadata = _global.GetRequiredMetadata(method.ContainingType);
-                                        Writer.Write(node, containgMetadata.InvocationName ?? "this");
+                                        CurrentTypeWriter.Write(node, containgMetadata.InvocationName ?? "this");
                                     }
                                     else
                                     {
-                                        Writer.Write(node, "this");
+                                        ConditionalAccessExpressionSyntax? ce = null;
+                                        if ((ce = node.FindClosestParent<ConditionalAccessExpressionSyntax>()) != null)
+                                        {
+                                            if (ConditionalAccessUseIfNotNull(ce, out _))
+                                            {
+                                                CurrentTypeWriter.Write(node, Constants.IfNotNullParameterName);
+                                            }
+                                            else
+                                            {
+                                                Visit(ce.Expression);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            CurrentTypeWriter.Write(node, "this");
+                                        }
                                     }
                                 }
                             }
                         }
                         else if (name == "global")
                         {
-                            Writer.Write(node, _global.GlobalName);
+                            CurrentTypeWriter.Write(node, _global.GlobalName);
                         }
                         else if (name == "global.")
                         {
-                            Writer.Write(node, _global.GlobalName);
-                            Writer.Write(node, ".");
+                            CurrentTypeWriter.Write(node, _global.GlobalName);
+                            CurrentTypeWriter.Write(node, ".");
+                        }
+                        else if (name == "assembly")
+                        {
+                            var assembly = method?.ContainingAssembly;
+                            CurrentTypeWriter.Write(node, _global.GlobalName);
+                            if (assembly != null)
+                            {
+                                CurrentTypeWriter.Write(node, ".");
+                                CurrentTypeWriter.Write(node, _global.GetAssemblyGlobalSlug(assembly));
+                            }
+                        }
+                        else if (name == "assembly.")
+                        {
+                            var assembly = method?.ContainingAssembly;
+                            CurrentTypeWriter.Write(node, _global.GlobalName);
+                            if (assembly != null)
+                            {
+                                CurrentTypeWriter.Write(node, ".");
+                                CurrentTypeWriter.Write(node, _global.GetAssemblyGlobalSlug(assembly));
+                            }
+                            CurrentTypeWriter.Write(node, ".");
                         }
                         //Define a variable in a template by starting it with $v$. Whatever comes after identifies the variable uniquely within the template
                         else if (name.StartsWith(Constants.TemplateVariablePrefix))
                         {
                             if (!variables.TryGetValue(name, out var vName))
                             {
-                                var manglingIndex = ++Writer.CurrentClosure.NameManglingSeed;
+                                var manglingIndex = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
                                 vName = $"$t{name.Substring(Constants.TemplateVariablePrefix.Length)}{manglingIndex}";
                                 variables.Add(name, vName);
-                                Writer.InsertInCurrentClosure(node, $"let {vName};", true);
+                                CurrentTypeWriter.InsertInCurrentClosure(node, $"let {vName};", true);
                             }
-                            Writer.Write(node, vName);
+                            CurrentTypeWriter.Write(node, vName);
                         }
                         else if (method != null && name == "value" && method.Parameters.Count() == (parameterArgs?.Count() ?? 0) + 1 && suffixArguments != null) //if we are writing an indexer, suffix is value
                         {
@@ -237,7 +273,7 @@ namespace NetJs.Translator.CSharpToJavascript
                                     var targ = method.OriginalDefinition.TypeParameters.Select((t, i) => (t, i)).FirstOrDefault(t => t.t.Name == name);
                                     if (targ.t?.Name != null)
                                     {
-                                        Writer.Write(node, method.TypeArguments.ElementAt(targ.i).ComputeOutputTypeName(_global));
+                                        CurrentTypeWriter.Write(node, method.TypeArguments.ElementAt(targ.i).ComputeOutputTypeName(_global));
                                         continue;
                                     }
                                 }
@@ -246,7 +282,7 @@ namespace NetJs.Translator.CSharpToJavascript
                                     var targ = method.ContainingType.OriginalDefinition.TypeParameters.Select((t, i) => (t, i)).FirstOrDefault(t => t.t.Name == name);
                                     if (targ.t?.Name != null)
                                     {
-                                        Writer.Write(node, method.ContainingType.TypeArguments.ElementAt(targ.i).ComputeOutputTypeName(_global));
+                                        CurrentTypeWriter.Write(node, method.ContainingType.TypeArguments.ElementAt(targ.i).ComputeOutputTypeName(_global));
                                         continue;
                                     }
                                 }
@@ -255,7 +291,7 @@ namespace NetJs.Translator.CSharpToJavascript
                                     var tParameter = overloadResult.GenericTypeSubstitutions.FirstOrDefault(e => e.Key.Name == name).Value;
                                     if (tParameter != null)
                                     {
-                                        Writer.Write(node, tParameter.ComputeOutputTypeName(_global));
+                                        CurrentTypeWriter.Write(node, tParameter.ComputeOutputTypeName(_global));
                                         continue;
                                     }
                                 }
@@ -273,9 +309,9 @@ namespace NetJs.Translator.CSharpToJavascript
                             }
                             if (parameter == null) //reconstruct it as is
                             {
-                                Writer.Write(node, "{");
-                                Writer.Write(node, extract);
-                                Writer.Write(node, "}");
+                                CurrentTypeWriter.Write(node, "{");
+                                CurrentTypeWriter.Write(node, extract);
+                                CurrentTypeWriter.Write(node, "}");
                             }
                             else
                             {
@@ -299,17 +335,17 @@ namespace NetJs.Translator.CSharpToJavascript
                                     //}
                                     //else
                                     {
-                                        Writer.Write(node, "[ ", false);
+                                        CurrentTypeWriter.Write(node, "[ ", false);
                                         int ix = 0;
                                         foreach (var remaining in remainingParams)
                                         {
                                             if (ix > 0)
-                                                Writer.Write(node, ", ");
-                                            WriteSingleMethodInvocationArgument(node, parameterIndex, remaining, null, parameter, overloadResult);
+                                                CurrentTypeWriter.Write(node, ", ");
+                                            WriteSingleMethodInvocationArgument(node, parameterIndex, remaining, null, parameter, overloadResult, enableBoxing: false);
                                             //Visit(remaining);
                                             ix++;
                                         }
-                                        Writer.Write(node, " ]", false);
+                                        CurrentTypeWriter.Write(node, " ]", false);
                                     }
                                 }
                                 else
@@ -321,14 +357,14 @@ namespace NetJs.Translator.CSharpToJavascript
                     }
                     else
                     {
-                        Writer.Write(node, template[i]);
+                        CurrentTypeWriter.Write(node, template[i]);
                         if (template[i] == '{' && i + 1 < template.Length && template[i + 1] == '{')
                             i++;
                         if (template[i] == '}' && i + 1 < template.Length && template[i + 1] == '}')
                             i++;
                         if (template[i] == '\n' && i + 1 < template.Length && template[i + 1] == '\t')
                         {
-                            Writer.Write(node, "", true);
+                            CurrentTypeWriter.Write(node, "", true);
                             i++;
                         }
                     }
@@ -339,10 +375,10 @@ namespace NetJs.Translator.CSharpToJavascript
                 var fn = templateAttribute.NamedArguments.FirstOrDefault(f => f.Key == "Fn").Value.Value?.ToString();
                 if (fn != null)
                 {
-                    Writer.Write(node, fn);
-                    Writer.Write(node, "(");
+                    CurrentTypeWriter.Write(node, fn);
+                    CurrentTypeWriter.Write(node, "(");
                     VisitNode(lhsExpression);
-                    Writer.Write(node, ")");
+                    CurrentTypeWriter.Write(node, ")");
                 }
             }
             if (conditionallyInvoke)

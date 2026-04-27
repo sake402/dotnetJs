@@ -1,8 +1,9 @@
 ﻿namespace System
 {
+    //[NetJs.NonScriptable]
     public class ForcedPartialBase<T>
     {
-        protected extern T This
+        protected extern T THIS
         {
             [NetJs.Name("this")]
             get;

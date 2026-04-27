@@ -18,7 +18,7 @@ namespace System.Reflection
         [NetJs.MemberReplace(nameof(GetNativeName))]
         private static unsafe MonoAssemblyName* GetNativeNameImpl(IntPtr assemblyPtr)
         {
-            var assembly = AppDomain.GetAssembly(new ReflectionHandleModel { Value = (uint)assemblyPtr });
+            var assembly = AppDomain.GetAssembly((uint)assemblyPtr);
             MonoAssemblyName name = new MonoAssemblyName();
             var model = assembly.As<RuntimeAssembly_Partial>()._model;
             name.major = 1;

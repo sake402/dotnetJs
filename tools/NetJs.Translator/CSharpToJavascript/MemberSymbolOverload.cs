@@ -5,7 +5,7 @@ namespace NetJs.Translator.CSharpToJavascript
 {
     public struct MemberSymbolOverload()
     {
-        public IEnumerable<ISymbol> Overloads { get; set; }
+        public IEnumerable<ISymbol> Overloads { get; set; } = Enumerable.Empty<ISymbol>();
 
         public IMethodSymbol? ResolveMethod(TranslatorSyntaxVisitor visitor, TypeArgumentListSyntax? explicitGenericArgs, ArgumentListSyntax? parameterArgs, out MethodOverloadResult overloadResult)
         {

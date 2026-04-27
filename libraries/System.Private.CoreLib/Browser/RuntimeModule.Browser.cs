@@ -5,24 +5,23 @@ namespace System.Reflection
 {
     //Our simplified module implementation is on a per assembly basis
     //So a module handle is the same as an assembly handle
-    //Most if the implemetations here are simply forwarded to the assembly
+    //Most of the implemetations here are simply forwarded to the assembly
     [NetJs.ForcePartial(typeof(RuntimeModule))]
-    [NetJs.Name(nameof(RuntimeModule))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     internal sealed partial class RuntimeModule_Partial : ForcedPartialBase<RuntimeModule>
     {
         public RuntimeModule_Partial(RuntimeAssembly_Partial assembly)
         {
             //_assembly = assembly;
-            This._impl = (nint)assembly._model.Handle.Value;
-            This.assembly = assembly.As<Assembly>();
+            THIS._impl = assembly._model.Handle.As<nint>();
+            THIS.assembly = assembly.As<Assembly>();
         }
 
         [NetJs.MemberReplace]
         internal static int get_MetadataToken(Module module)
         {
-            return (int)module.As<RuntimeModule>().assembly.As<RuntimeAssembly_Partial>()._model.Handle.Value;
+            return (int)module.As<RuntimeModule>().assembly.As<RuntimeAssembly_Partial>()._model.Handle;
         }
 
         [NetJs.MemberReplace]
@@ -35,7 +34,7 @@ namespace System.Reflection
         [NetJs.MemberReplace]
         internal static Type[] InternalGetTypes(IntPtr module)
         {
-            return AppDomain.GetAssembly(new  ReflectionHandleModel { Value = (uint)module })?.GetTypes() ?? [];
+            return AppDomain.GetAssembly((uint)module)?.GetTypes() ?? [];
         }
 
         [NetJs.MemberReplace]

@@ -4,11 +4,17 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.IO;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace NetJs.Tests
 {
     public static class Program
     {
+        [ModuleInitializer]
+        internal static void MInit()
+        {
+
+        }
         //public struct Foo
         //{
         //    public static implicit operator Foo(int x)

@@ -4,7 +4,7 @@ namespace System.Reflection
 {
     [NetJs.ForcePartial(typeof(RuntimeEventInfo))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     internal sealed partial class RuntimeEventInfo_Partial : ForcedPartialBase<RuntimeEventInfo>
     {
         internal EventModel _model;
@@ -32,13 +32,13 @@ namespace System.Reflection
         [NetJs.MemberReplace]
         internal static int get_metadata_token(RuntimeEventInfo monoEvent)
         {
-            return (int)monoEvent.As<RuntimeEventInfo_Partial>()._model.Handle.Value;
+            return (int)monoEvent.As<RuntimeEventInfo_Partial>()._model.Handle;
         }
 
         [NetJs.MemberReplace]
         private static EventInfo? internal_from_handle_type(IntPtr event_handle, IntPtr type_handle)
         {
-            return (EventInfo?)AppDomain.GetMember(new ReflectionHandleModel { Value = (uint)event_handle });
+            return (EventInfo?)AppDomain.GetMember((uint)event_handle);
         }
 
     }

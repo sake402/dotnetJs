@@ -18,8 +18,8 @@ namespace NetJs.Translator
 {
     public static class Translator
     {
-        const string GeneratedFolderName = "__dotnetJs";
-        static string TempFolder = Path.GetTempPath() + "dotnetJs\\";
+        //const string GeneratedFolderName = "__dotnetJs";
+        static string TempFolder = Path.GetTempPath() + "NetJs\\";
         public static void Build(IProject project, IProjectOutputProvider output, IEnumerable<IIncrementalGenerator>? sourceGenerators = null)
         {
             Random random = new Random();
@@ -28,6 +28,7 @@ namespace NetJs.Translator
             var sourceFiles = project.GetSourceFiles();
             var contentFiles = project.GetContentFiles();
             var linkerFiles = project.GetLinkerFiles();
+            var embeddedFiles = project.GetEmbeddedFiles();
             //var projectFolder = Path.GetDirectoryName(project.FullPath)!;
             Console.WriteLine($"\r\nProcessing in {project.DirectoryPath}...");
             //var outputPath = Path.Combine(project.DirectoryPath, project.GetOutputPath(), GeneratedFolderName);
@@ -53,7 +54,7 @@ namespace NetJs.Translator
 
                 List<string> outStartupCodes = new List<string>();
 
-                var referencedAssemblySymbols = compilation.ExternalReferences.Select(r => (IAssemblySymbol?)compilation.GetAssemblyOrModuleSymbol(r));
+                var referencedAssemblySymbols = compilation!.ExternalReferences.Select(r => (IAssemblySymbol?)compilation.GetAssemblyOrModuleSymbol(r));
 
                 //var types = compilation.GetSymbolsWithName(e =>
                 //{
@@ -419,14 +420,41 @@ namespace {project.GetNamespace()}
                 }
             }
 
-            int OutputRank(INamedTypeSymbol symbol, int depth)
+            void RecursiveDependentTypes(INamedTypeSymbol symbol, HashSet<INamedTypeSymbol> found, int depth)
             {
-                int baseRank = (symbol.BaseType != null ? OutputRank(symbol.BaseType, depth + 1) : 0);
-                return
-                    (symbol.TypeKind == TypeKind.Interface ? 100 : symbol.IsAbstract ? 10000 : 1000000) + //self rank
-                     symbol.Arity +
-                    baseRank +
-                    symbol.Interfaces.Sum(i => OutputRank(i, depth + 1)); //interfaces rank
+                if (depth != 0)
+                {
+                    if (!found.Add(symbol))
+                        return;
+                }
+                if (symbol.BaseType != null)
+                {
+                    //found.Add(symbol.BaseType);
+                    RecursiveDependentTypes(symbol.BaseType, found, depth + 1);
+                }
+                if (symbol.Arity > 0)
+                {
+                    foreach (var t in symbol.TypeArguments)
+                    {
+                        if (t is INamedTypeSymbol genericArgument)
+                        {
+                            //found.Add(genericArgument);
+                            RecursiveDependentTypes(genericArgument, found, depth + 1);
+                        }
+                    }
+                }
+                foreach (var i in symbol.AllInterfaces)
+                {
+                    //found.Add(i);
+                    RecursiveDependentTypes(i, found, depth + 1);
+                }
+            }
+
+            IEnumerable<INamedTypeSymbol> DependentTypes(INamedTypeSymbol symbol)
+            {
+                var found = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
+                RecursiveDependentTypes(symbol, found, 0);
+                return found;
             }
 
             HashSet<INamedTypeSymbol> outputted = new HashSet<INamedTypeSymbol>(SymbolEqualityComparer.Default);
@@ -443,102 +471,152 @@ namespace {project.GetNamespace()}
                         SortedOutputBuild(root, type, stringBuilder, formatTabs, ref _dependsOnSelf);
                     }
                 }
-                if (symbol.Arity > 0)
+                var dependentTypes = DependentTypes(symbol);
+                if (dependentTypes.Contains(symbol, SymbolEqualityComparer.Default))
                 {
-                    foreach (var t in symbol.TypeArguments)
+                    var metadata = global.GetMetadata(symbol.OriginalDefinition);
+                    if (metadata != null)
                     {
-                        if (t is INamedTypeSymbol genericArgument)
+                        if (stubbed.Add(symbol.OriginalDefinition))
+                            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                    }
+                }
+                IEnumerable<INamedTypeSymbol> GetDirectDependecies(INamedTypeSymbol symbol)
+                {
+                    if (symbol.BaseType != null)
+                    {
+                        yield return symbol.BaseType;
+                        foreach (var ss in symbol.BaseType.TypeArguments)
                         {
-                            if (OutputRank(genericArgument, 0) > OutputRank(symbol, 0) && !outputted.Contains(genericArgument.OriginalDefinition))
+                            if (ss is INamedTypeSymbol nt)
                             {
-                                var metadata = global.GetMetadata(t);
-                                if (metadata != null)
-                                {
-                                    if (stubbed.Add(genericArgument.OriginalDefinition))
-                                        stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
-                                }
+                                yield return nt;
+                                //foreach(var sss in GetDirectDependecies)
                             }
-                            //if (!nt.IsGenericType && t.OriginalDefinition.Equals(root.OriginalDefinition, SymbolEqualityComparer.Default))
-                            //{
-                            //    if (!dependsOnSelf)
-                            //    {
-                            //        dependsOnSelf = true;
-                            //        var metadata = global.GetMetadata(t);
-                            //        if (metadata != null)
-                            //        {
-                            //            if (stubbed.Add(nt))
-                            //                stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
-                            //        }
-                            //    }
-                            //}
-
-                            //SortedOutputBuild(root, nt, stringBuilder, formatTabs, ref dependsOnSelf);
+                        }
+                    }
+                    foreach (var s in symbol.Interfaces)
+                    {
+                        yield return s;
+                        foreach (var ss in s.TypeArguments)
+                        {
+                            if (ss is INamedTypeSymbol nt)
+                            {
+                                yield return nt;
+                                //foreach(var sss in GetDirectDependecies)
+                            }
                         }
                     }
                 }
-                //bool isOutputted = outputted.Contains(symbol.OriginalDefinition);
-                //if (isOutputted)
+                var directDependency = GetDirectDependecies(symbol);
+                foreach (var dep in directDependency)
+                {
+                    if (dep.ContainingAssembly.Equals(symbol.ContainingAssembly, SymbolEqualityComparer.Default) && dep.ContainingSymbol.Kind != SymbolKind.NamedType && !symbol.Equals(dep, SymbolEqualityComparer.Default) && !outputted.Contains(dep.OriginalDefinition))
+                    {
+                        var metadata = global.GetMetadata(dep.OriginalDefinition);
+                        if (metadata != null)
+                        {
+                            if (stubbed.Add(dep.OriginalDefinition))
+                                stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                        }
+                    }
+                }
+                //if (symbol.Arity > 0)
                 //{
-                //    return;
-                //}
-                //bool isOutputting = outputting.Contains(symbol.OriginalDefinition);
-                //if (isOutputting) //this symbol has dependency on self
-                //{
-                //    var metadata = global.GetMetadata(symbol);
-                //    if (metadata != null)
+                //    foreach (var t in symbol.TypeArguments)
                 //    {
-                //        if (stubbed.Add(symbol))
-                //            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                //        if (t is INamedTypeSymbol genericArgument)
+                //        {
+                //            if (genericArgument.OutputRank(0) > symbol.OutputRank(0) && !outputted.Contains(genericArgument.OriginalDefinition))
+                //            {
+                //                var metadata = global.GetMetadata(t);
+                //                if (metadata != null)
+                //                {
+                //                    if (stubbed.Add(genericArgument.OriginalDefinition))
+                //                        stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                //                }
+                //            }
+                //            //if (!nt.IsGenericType && t.OriginalDefinition.Equals(root.OriginalDefinition, SymbolEqualityComparer.Default))
+                //            //{
+                //            //    if (!dependsOnSelf)
+                //            //    {
+                //            //        dependsOnSelf = true;
+                //            //        var metadata = global.GetMetadata(t);
+                //            //        if (metadata != null)
+                //            //        {
+                //            //            if (stubbed.Add(nt))
+                //            //                stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                //            //        }
+                //            //    }
+                //            //}
+
+                //            //SortedOutputBuild(root, nt, stringBuilder, formatTabs, ref dependsOnSelf);
+                //        }
                 //    }
-                //    return;
                 //}
-                //outputting.Add(symbol.OriginalDefinition);
-                if (symbol.BaseType != null)
-                {
-                    if (symbol.BaseType.Arity > 0)
-                    {
-                        foreach (var t in symbol.BaseType.TypeArguments)
-                        {
-                            if (t is INamedTypeSymbol genericArgument)
-                            {
-                                if (OutputRank(genericArgument, 0) > OutputRank(symbol, 0) && !outputted.Contains(genericArgument.OriginalDefinition))
-                                {
-                                    var metadata = global.GetMetadata(t);
-                                    if (metadata != null)
-                                    {
-                                        if (stubbed.Add(genericArgument.OriginalDefinition))
-                                            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    //bool mdependsOnSelf = false;
-                    //SortedOutputBuild(symbol, symbol.BaseType, stringBuilder, formatTabs, ref mdependsOnSelf);
-                }
-                foreach (var i in symbol.AllInterfaces)
-                {
-                    if (i.Arity > 0)
-                    {
-                        foreach (var t in i.TypeArguments)
-                        {
-                            if (t is INamedTypeSymbol genericArgument)
-                            {
-                                if ((OutputRank(genericArgument, 0) > OutputRank(symbol, 0) || symbol.Equals(genericArgument, SymbolEqualityComparer.Default)) && !outputted.Contains(genericArgument.OriginalDefinition))
-                                {
-                                    var metadata = global.GetMetadata(t);
-                                    if (metadata != null)
-                                    {
-                                        if (stubbed.Add(genericArgument.OriginalDefinition))
-                                            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    //bool mdependsOnSelf = false;
-                    //SortedOutputBuild(symbol, i, stringBuilder, formatTabs, ref mdependsOnSelf);
-                }
+                ////bool isOutputted = outputted.Contains(symbol.OriginalDefinition);
+                ////if (isOutputted)
+                ////{
+                ////    return;
+                ////}
+                ////bool isOutputting = outputting.Contains(symbol.OriginalDefinition);
+                ////if (isOutputting) //this symbol has dependency on self
+                ////{
+                ////    var metadata = global.GetMetadata(symbol);
+                ////    if (metadata != null)
+                ////    {
+                ////        if (stubbed.Add(symbol))
+                ////            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                ////    }
+                ////    return;
+                ////}
+                ////outputting.Add(symbol.OriginalDefinition);
+                //if (symbol.BaseType != null)
+                //{
+                //    if (symbol.BaseType.Arity > 0)
+                //    {
+                //        foreach (var t in symbol.BaseType.TypeArguments)
+                //        {
+                //            if (t is INamedTypeSymbol genericArgument)
+                //            {
+                //                if (genericArgument.OutputRank(0) > symbol.OutputRank(0) && !outputted.Contains(genericArgument.OriginalDefinition))
+                //                {
+                //                    var metadata = global.GetMetadata(t.OriginalDefinition);
+                //                    if (metadata != null)
+                //                    {
+                //                        if (stubbed.Add(genericArgument.OriginalDefinition))
+                //                            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                //                    }
+                //                }
+                //            }
+                //        }
+                //    }
+                //    //bool mdependsOnSelf = false;
+                //    //SortedOutputBuild(symbol, symbol.BaseType, stringBuilder, formatTabs, ref mdependsOnSelf);
+                //}
+                //foreach (var i in symbol.AllInterfaces)
+                //{
+                //    if (i.Arity > 0)
+                //    {
+                //        foreach (var t in i.TypeArguments)
+                //        {
+                //            if (t is INamedTypeSymbol genericArgument)
+                //            {
+                //                if ((genericArgument.OutputRank(0) > symbol.OutputRank(0) || symbol.Equals(genericArgument, SymbolEqualityComparer.Default)) && !outputted.Contains(genericArgument.OriginalDefinition))
+                //                {
+                //                    var metadata = global.GetMetadata(t.OriginalDefinition);
+                //                    if (metadata != null)
+                //                    {
+                //                        if (stubbed.Add(genericArgument.OriginalDefinition))
+                //                            stringBuilder.AppendLine($"        {Constants.AssemblyRegistryName}.{Constants.AssemblyTypeProxyName}(\"{metadata.FullName}\");");
+                //                    }
+                //                }
+                //            }
+                //        }
+                //    }
+                //    //bool mdependsOnSelf = false;
+                //    //SortedOutputBuild(symbol, i, stringBuilder, formatTabs, ref mdependsOnSelf);
+                //}
                 //var visitor = global.TypeVisitors.GetValueOrDefault(symbol.OriginalDefinition);
                 //if (visitor != null)
                 //{
@@ -568,9 +646,9 @@ namespace {project.GetNamespace()}
                 {
                     StringBuilder stringBuilder = new();
                     StringBuilder bootStringBuilder = new();
-                    foreach (var tw in global.TypeVisitors.Keys.Where(e =>
+                    foreach (var type in global.TypeVisitors.Keys.Where(e =>
                     {
-                        return global.HasAttribute(e, typeof(BootAttribute).FullName, null, false, out _);
+                        return global.IsBootClass(e);
                     }).OrderBy(o =>
                     {
                         if (global.HasAttribute(o, typeof(OutputOrderAttribute).FullName, null, false, out var args))
@@ -578,21 +656,27 @@ namespace {project.GetNamespace()}
                             int a = int.Parse(args[0].ToString());
                             return a;
                         }
-                        return OutputRank(o, 0);
+                        return o.OutputRank(0);
                         //return 0;
                     }))
                     {
-                        var visitor = global.TypeVisitors.GetValueOrDefault(tw.OriginalDefinition);
-                        if (visitor != null)
+                        var writer = global.TypeWriters.GetValueOrDefault(type.OriginalDefinition);
+                        if (writer != null)
                         {
-                            var code = visitor.Writer.Build(1);
+                            //var writer = visitor.TypeWriters[type];
+                            //foreach (var writer in visitor.TypeWriters.Values)
+                            //{
+                            var code = writer.Build(1);
                             if (!string.IsNullOrWhiteSpace(code))
                                 bootStringBuilder.AppendLine(code);
+                            //}
+                            outputted.Add(type.OriginalDefinition);
                         }
                     }
                     foreach (var tw in global.TypeVisitors.Keys.Where(e =>
                     {
-                        return !global.HasAttribute(e, typeof(BootAttribute).FullName, null, false, out _);
+                        return !global.IsBootClass(e);
+                        //return !global.HasAttribute(e, typeof(BootAttribute).FullName, null, false, out _);
                     }).OrderBy(o =>
                     {
                         if (global.HasAttribute(o, typeof(OutputOrderAttribute).FullName, null, false, out var args))
@@ -600,7 +684,7 @@ namespace {project.GetNamespace()}
                             int a = int.Parse(args[0].ToString());
                             return a;
                         }
-                        return OutputRank(o, 0);
+                        return o.OutputRank(0);
                         //if (o.BaseType == null && !o.Interfaces.Any())
                         //    return 0;
                         //if (o.BaseType == null && o.Interfaces.Any())
@@ -618,7 +702,25 @@ namespace {project.GetNamespace()}
                 {
                     codes = string.Join("\r\n", global.Visitors.Select(v => v.Value.Build(2).Trim()).Where(e => !string.IsNullOrEmpty(e)));
                 }
-                var metadataBuilder = new ReflectionMetadataBuilder(global, contentFiles.Where(e => e.EndsWith(".resx")).ToArray());
+                bool isSystemPrivateCoreLib = project.GetAssemblyName() == "NetJs.System.Private.CoreLib";
+                if (isSystemPrivateCoreLib)
+                {
+                    bootCodes += @$"
+
+    {global.GlobalName}.{global.GetAssemblyGlobalSlug(global.Compilation.Assembly)}.System.AppDomain.{Constants.AppDomainInitialize}()
+";
+                }
+                //                if (global.ModuleInitializers.Count > 0)
+                //                {
+                //                    codes +=
+                //                        @$"
+                //        static {Constants.RunModuleInitializersName}()
+                //        {{
+                //{string.Join("\r\n", global.ModuleInitializers.Select(e => "            " + e))}
+                //        }}
+                //";
+                //                }
+                var metadataBuilder = new ReflectionMetadataBuilder(global, isSystemPrivateCoreLib, contentFiles.Where(e => e.EndsWith(".resx")).ToArray(), embeddedFiles.ToArray());
                 var reflectionMetadata = metadataBuilder.FromAssemblySymbol(csCompilation.Assembly);
                 var metadataSerializationOption = new JsonSerializerOptions
                 {
@@ -627,14 +729,17 @@ namespace {project.GetNamespace()}
                 output.Output(global, project.GetName() + ".js", StringToStream(global.OutputMode.HasFlag(OutputMode.Global) ? @$"
 (function ({global.GlobalName}, $global) {{
     ""use strict"";
+    let _;
+    {(isSystemPrivateCoreLib ? "let $asm; function $setasm(v){ $asm = v; }" : "")}
     {bootCodes}
     $.$meta(""{project.GetAssemblyName()}"", {JsonSerializer.Serialize(reflectionMetadata, metadataSerializationOption)});
 
 	{global.GlobalName}.{Constants.AssemblyRegistryName}(""{project.GetAssemblyName()}"", function({Constants.AssemblyRegistryName})
 	{{
+        {(isSystemPrivateCoreLib ? "$setasm($asm);" : "")}
         {codes}
 	}});
-}})(window.dotnetJs.{Constants.BootName}(), window)" : codes), null);
+}})(window.{Constants.ProjectName}.{Constants.BootName}(), window)" : codes), null);
             }
             else
             {
@@ -651,11 +756,12 @@ namespace {project.GetNamespace()}
                         output.Output(global, filePath, StringToStream(global.OutputMode.HasFlag(OutputMode.Global) ? @$"
 (function ({global.GlobalName}, $global) {{
     ""use strict"";
+    let _;
 	{global.GlobalName}.{Constants.AssemblyRegistryName}(""{project.GetAssemblyName()}"", function({Constants.AssemblyRegistryName})
 	{{
         {codes}
 	}});
-}})(window.dotnetJs.{Constants.BootName}(), window)" : codes), null);
+}})(window.{Constants.ProjectName}.{Constants.BootName}(), window)" : codes), null);
                         //var path = Path.Combine(outputPath, "js", filePath);
                         ////var path = Path.Combine(outputPath, "js", $"{Path.ChangeExtension(Path.GetFileName(visitor.Key.FilePath), "js")}");
                         //var dir = Path.GetDirectoryName(path);
@@ -691,7 +797,7 @@ namespace {project.GetNamespace()}
             {(!global.OutputMode.HasFlag(OutputMode.Global) ? $"import {global.MainEntry.ContainingSymbol.Name} from \"/{Path.GetFileNameWithoutExtension(global.MainEntry.DeclaringSyntaxReferences.First().SyntaxTree.FilePath)}.js\"" : "")}
             {(!global.OutputMode.HasFlag(OutputMode.Global) ? $"{global.MainEntry.ContainingSymbol.Name}.Main();" : "")}
             {(global.OutputMode.HasFlag(OutputMode.Global) ? $"{meta.InvocationName}();" : "")}
-        }})(window.dotnetJs.{Constants.BootName}(), window)
+        }})(window.{Constants.ProjectName}.{Constants.BootName}(), window)
 	</script>
 </head>
 <body>

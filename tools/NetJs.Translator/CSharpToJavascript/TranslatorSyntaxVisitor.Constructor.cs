@@ -20,7 +20,8 @@ namespace NetJs.Translator.CSharpToJavascript
             StaticCall,
             InstanceCall
         }
-        const ConstructorCallConvention constructorCallConvention = ConstructorCallConvention.InstanceCall;
+
+        ConstructorCallConvention constructorCallConvention = ConstructorCallConvention.InstanceCall;
         List<CSharpSyntaxNode> _primaryConstructorInitialized = new List<CSharpSyntaxNode>();
         void MarkMemberAsInitializedByPrimaryConstructor(CSharpSyntaxNode member)
         {
@@ -44,7 +45,7 @@ namespace NetJs.Translator.CSharpToJavascript
 
         void WritePrimaryConstructor(BaseTypeDeclarationSyntax node, INamedTypeSymbol typeSymbol, IEnumerable<ParameterSyntax> primaryConstructorParameters)
         {
-            Writer.WriteLine(node, "//Begin primary constructor", true);
+            CurrentTypeWriter.WriteLine(node, "//Begin primary constructor", true);
             IMethodSymbol? constructorSymbol = null;
             foreach (var parameter in primaryConstructorParameters)
             {
@@ -70,35 +71,35 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 //We cant be sure if there will be a method/property that accesses this primary constructor parameter
                 //So we create is as a field always 
-                Writer.Write(parameter, $"/*{parameter.Type}*/ ", true);
-                Writer.Write(parameter, parameter.Identifier.ValueText);
-                Writer.WriteLine(parameter, ";");
+                CurrentTypeWriter.Write(parameter, $"/*{parameter.Type}*/ ", true);
+                CurrentTypeWriter.Write(parameter, parameter.Identifier.ValueText);
+                CurrentTypeWriter.WriteLine(parameter, ";");
             }
             constructorSymbol ??= typeSymbol.GetMembers(".ctor").Cast<IMethodSymbol>().Where(e => e.IsPrimaryConstructor(_global)).Single();
             var metadata = _global.GetRequiredMetadata(constructorSymbol);
-            Writer.Write(node, metadata.OverloadName!, true);
-            Writer.Write(node, "(");
+            CurrentTypeWriter.Write(node, metadata.OverloadName!, true);
+            CurrentTypeWriter.Write(node, "(");
             int i = 0;
             foreach (var parameter in primaryConstructorParameters)
             {
                 if (i > 0)
-                    Writer.Write(node, ", ");
-                Writer.Write(parameter, $"/*{parameter.Type}*/");
-                Writer.Write(parameter, $"$");
-                Writer.Write(parameter, parameter.Identifier.ValueText);
+                    CurrentTypeWriter.Write(node, ", ");
+                CurrentTypeWriter.Write(parameter, $"/*{parameter.Type}*/");
+                CurrentTypeWriter.Write(parameter, $"$");
+                CurrentTypeWriter.Write(parameter, parameter.Identifier.ValueText);
                 i++;
             }
-            Writer.WriteLine(node, ")");
-            Writer.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, ")");
+            CurrentTypeWriter.WriteLine(node, "{", true);
             //We cant be sure if there will be a method/property that accesses this primary constructor parameter
             //So we create is as a field always and intialize it from the passed parameter
             foreach (var parameter in primaryConstructorParameters)
             {
-                Writer.Write(parameter, $"this.", true);
-                Writer.Write(parameter, parameter.Identifier.ValueText);
-                Writer.Write(parameter, $" = $");
-                Writer.Write(parameter, parameter.Identifier.ValueText);
-                Writer.WriteLine(parameter, ";");
+                CurrentTypeWriter.Write(parameter, $"this.", true);
+                CurrentTypeWriter.Write(parameter, parameter.Identifier.ValueText);
+                CurrentTypeWriter.Write(parameter, $" = $");
+                CurrentTypeWriter.Write(parameter, parameter.Identifier.ValueText);
+                CurrentTypeWriter.WriteLine(parameter, ";");
                 i++;
             }
             //Find all fields and properties that are initialized using a primary constructor parameter and initialize such in this constructor
@@ -118,12 +119,12 @@ namespace NetJs.Translator.CSharpToJavascript
                 .Where(v => MemberReferencesConstructorParameter(v));
             foreach (var field in fields)
             {
-                Writer.Write(field, $"this.", true);
-                Writer.Write(field, field.Identifier.ValueText);
-                Writer.Write(field, $" = $");
+                CurrentTypeWriter.Write(field, $"this.", true);
+                CurrentTypeWriter.Write(field, field.Identifier.ValueText);
+                CurrentTypeWriter.Write(field, $" = $");
                 //Writer.Write(field, ((IdentifierNameSyntax)field.Initializer!.Value).Identifier.ValueText);
                 Visit(field.Initializer);
-                Writer.WriteLine(field, ";");
+                CurrentTypeWriter.WriteLine(field, ";");
                 MarkMemberAsInitializedByPrimaryConstructor(field);
                 i++;
             }
@@ -133,35 +134,35 @@ namespace NetJs.Translator.CSharpToJavascript
                 .Where(v => MemberReferencesConstructorParameter(v));
             foreach (var property in properties)
             {
-                Writer.Write(property, $"this.", true);
-                Writer.Write(property, property.Identifier.ValueText);
-                Writer.Write(property, $" = $");
+                CurrentTypeWriter.Write(property, $"this.", true);
+                CurrentTypeWriter.Write(property, property.Identifier.ValueText);
+                CurrentTypeWriter.Write(property, $" = $");
                 //Writer.Write(property, ((IdentifierNameSyntax)property.Initializer!.Value).Identifier.ValueText);
                 Visit(property.Initializer);
-                Writer.WriteLine(property, ";");
+                CurrentTypeWriter.WriteLine(property, ";");
                 MarkMemberAsInitializedByPrimaryConstructor(property);
                 i++;
             }
-            Writer.WriteLine(node, "}", true);
-            Writer.WriteLine(node, "//End primary constructor", true);
+            CurrentTypeWriter.WriteLine(node, "}", true);
+            CurrentTypeWriter.WriteLine(node, "//End primary constructor", true);
         }
 
         void WriteConstructorDeclaration(BaseMethodDeclarationSyntax node, IMethodSymbol constructorSymbol, IEnumerable<ParameterSyntax> parameters, ConstructorInitializerSyntax? baseInitializer)
         {
-            string? modifier = null;
-            if (node.Modifiers.Any(e => e.ValueText == "async"))
-            {
-                modifier += "async ";
-            }
+            string? modifier = GetMethodModifier(node, node.Modifiers, null);
+            //if (node.Modifiers.Any(e => e.ValueText == "async"))
+            //{
+            //    modifier += "async ";
+            //}
             var typeSymbol = (INamedTypeSymbol)constructorSymbol.ContainingSymbol;
             var constructors = typeSymbol.Constructors;
             //A class may have multiple constructor, use a named ($ctor) method as the constructor
             var meta = _global.GetRequiredMetadata(constructorSymbol);
             //need to make sure the parameters of a constructor are available early before body, as base clas call may use it
             //this will be repeated uneccassrily by WriteMethodBody though
-            var cParameters = string.Join(", ", parameters.Select(p => $"/*{p.Type?.ToFullString().Trim()}*/ {Utilities.ResolveIdentifierName(p.Identifier)}"));
+            var cParameters = string.Join(", ", parameters.Select(p => $"{GetMethodParameterModifier(p)} {Utilities.ResolveIdentifierName(p.Identifier)}"));
             DefineParametersInClosure(parameters, constructorSymbol);
-            Writer.WriteLine(node, $"{modifier}{(constructorCallConvention == ConstructorCallConvention.StaticCall ? "static " : "")}{meta.OverloadName}({cParameters})", true);
+            CurrentTypeWriter.WriteLine(node, $"{modifier}{(constructorCallConvention == ConstructorCallConvention.StaticCall ? "static " : "")}{meta.OverloadName}({cParameters})", true);
             WriteMethodBody(node, null, null, parameters, writePrologue: () =>
             {
                 var systemObject = _global.GetTypeSymbol("System.Object", this/*, out _, out _*/);
@@ -175,14 +176,14 @@ namespace NetJs.Translator.CSharpToJavascript
                     EnsureImported(baseType);
                     if (baseConstructor.ContainingSymbol.Equals(typeSymbol, SymbolEqualityComparer.Default))
                     {
-                        Writer.Write(node, $"this.{(baseConstructorMeta?.OverloadName ?? "$ctor")}", true);
+                        CurrentTypeWriter.Write(node, $"this.{(baseConstructorMeta?.OverloadName ?? "$ctor")}", true);
                     }
                     else if (baseConstructorMeta != null)
                     {
-                        Writer.Write(node, $"super.{(baseConstructorMeta.OverloadName ?? "$ctor")}", true);
+                        CurrentTypeWriter.Write(node, $"super.{(baseConstructorMeta.OverloadName ?? "$ctor")}", true);
                     }
-                    WriteMethodInvocationParameter(node, baseConstructor, null, baseInitializer!.ArgumentList.Arguments.Select(a => new CodeNode(a)), constructorCallConvention != ConstructorCallConvention.InstanceCall ? (Action)(() => Writer.Write(node, "this")) : null);
-                    Writer.WriteLine(node, $";");
+                    WriteMethodInvocationParameter(node, baseConstructor, null, baseInitializer!.ArgumentList.Arguments.Select(a => new CodeNode(a)), constructorCallConvention != ConstructorCallConvention.InstanceCall ? (Action)(() => CurrentTypeWriter.Write(node, "this")) : null);
+                    CurrentTypeWriter.WriteLine(node, $";");
                 }
                 else if (baseType == null || !baseType.Equals(systemObject, SymbolEqualityComparer.Default))
                 {
@@ -191,7 +192,7 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
             }, writeEpilogue: () =>
             {
-                Writer.WriteLine(node, $"return this;", true);
+                CurrentTypeWriter.WriteLine(node, $"return this;", true);
             });
         }
 
@@ -209,7 +210,7 @@ namespace NetJs.Translator.CSharpToJavascript
             bool _static = node.Modifiers.IsStatic();
             if (_static)
             {
-                Writer.WriteLine(node, "/*Static constructor*/ static $cctor()", true);
+                CurrentTypeWriter.WriteLine(node, "/*Static constructor*/ static $cctor()", true);
                 WriteMethodBody(node, null, null, node.ParameterList.Parameters);
             }
             else
@@ -275,15 +276,15 @@ namespace NetJs.Translator.CSharpToJavascript
             var typeMetadata = typeSymbol.Kind != SymbolKind.TypeParameter ? _global.GetRequiredMetadata(typeSymbol) : null;
             void CallDefaultConstructor()
             {
-                Writer.Write(node, "new ");
+                CurrentTypeWriter.Write(node, "new ");
                 if (genericArgs != null || (typeSymbol is INamedTypeSymbol nt && nt.IsGenericType))
                 {
-                    Writer.Write(node, "(");
+                    CurrentTypeWriter.Write(node, "(");
                 }
                 if (targetConstructor?.IsExtern ?? false)
-                    Writer.Write(node, typeSymbol.Name);
+                    CurrentTypeWriter.Write(node, typeSymbol.Name);
                 else
-                    Writer.Write(node, typeMetadata?.InvocationName ?? typeSymbol.Name);
+                    CurrentTypeWriter.Write(node, typeMetadata?.InvocationName ?? typeSymbol.Name);
                 //if (genericArgs != null)
                 //{
                 //    Writer.Write(node, "(");
@@ -299,9 +300,9 @@ namespace NetJs.Translator.CSharpToJavascript
                 //}
                 if (genericArgs != null || (typeSymbol is INamedTypeSymbol nt2 && nt2.IsGenericType))
                 {
-                    Writer.Write(node, ")");
+                    CurrentTypeWriter.Write(node, ")");
                 }
-                Writer.Write(node, "()");
+                CurrentTypeWriter.Write(node, "()");
             }
             if (targetConstructor.IsExtern/* || typeSymbol.Kind == SymbolKind.TypeParameter*/)
             {
@@ -312,12 +313,12 @@ namespace NetJs.Translator.CSharpToJavascript
                 var constructorMetadata = _global.GetRequiredMetadata(targetConstructor);
                 if (constructorCallConvention == ConstructorCallConvention.PrototypeCall)
                 {
-                    Writer.Write(node, $"{typeMetadata.InvocationName ?? typeSymbol.Name}");
-                    Writer.Write(node, $".prototype.{constructorMetadata?.OverloadName ?? ((targetConstructor == null && parameterArgs?.Count() > 0) ? "$ctor$$1" : null) ?? "$ctor"}.call");
+                    CurrentTypeWriter.Write(node, $"{typeMetadata?.InvocationName ?? typeSymbol.Name}");
+                    CurrentTypeWriter.Write(node, $".prototype.{constructorMetadata?.OverloadName ?? ((targetConstructor == null && parameterArgs?.Count() > 0) ? "$ctor$$1" : null) ?? "$ctor"}.call");
                 }
                 else if (constructorCallConvention == ConstructorCallConvention.StaticCall)
                 {
-                    Writer.Write(node, $"{typeMetadata.InvocationName ?? typeSymbol.Name}.{constructorMetadata?.OverloadName ?? ((targetConstructor == null && parameterArgs?.Count() > 0) ? "$ctor$$1" : null) ?? "$ctor"}.call");
+                    CurrentTypeWriter.Write(node, $"{typeMetadata?.InvocationName ?? typeSymbol.Name}.{constructorMetadata?.OverloadName ?? ((targetConstructor == null && parameterArgs?.Count() > 0) ? "$ctor$$1" : null) ?? "$ctor"}.call");
                 }
                 else
                 {
@@ -327,7 +328,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     {
                         return;
                     }
-                    Writer.Write(node, $".{constructorMetadata.OverloadName ?? ((targetConstructor == null && parameterArgs?.Count() > 0) ? "$ctor$1" : null) ?? "$ctor"}");
+                    CurrentTypeWriter.Write(node, $".{constructorMetadata.OverloadName ?? ((targetConstructor == null && parameterArgs?.Count() > 0) ? "$ctor$1" : null) ?? "$ctor"}");
                 }
                 WriteMethodInvocationParameter(node, targetConstructor, genericArgs, parameterArgs,
                     prefixArguments: constructorCallConvention == ConstructorCallConvention.PrototypeCall || constructorCallConvention == ConstructorCallConvention.StaticCall ? (Action)(() =>
@@ -348,7 +349,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     {
                         if (isLiteralObject)
                         {
-                            Writer.Write(node, $"{instanceName}", true);
+                            CurrentTypeWriter.Write(node, $"{instanceName}", true);
                             //If the literal name is a valid js name, convert the [""] to . operation
                             if (imp.ArgumentList.Arguments.Count == 1)
                             {
@@ -359,17 +360,17 @@ namespace NetJs.Translator.CSharpToJavascript
                                     var valueName = litetal.Token.ValueText;
                                     if (valueName.IsValidateJsName())
                                     {
-                                        Writer.Write(node, ".");
-                                        Writer.Write(node, valueName);
-                                        Writer.Write(node, " = ");
+                                        CurrentTypeWriter.Write(node, ".");
+                                        CurrentTypeWriter.Write(node, valueName);
+                                        CurrentTypeWriter.Write(node, " = ");
                                         Visit(assignment.Right);
-                                        Writer.WriteLine(node, ";");
+                                        CurrentTypeWriter.WriteLine(node, ";");
                                         continue;
                                     }
                                 }
                             }
                             Visit(assignment);
-                            Writer.WriteLine(node, ";");
+                            CurrentTypeWriter.WriteLine(node, ";");
                             continue;
                         }
                         else
@@ -381,49 +382,49 @@ namespace NetJs.Translator.CSharpToJavascript
                                 SyntaxFactory.ElementAccessExpression(SyntaxFactory.IdentifierName(instanceName), imp.ArgumentList),
                                 assignment.Right
                                 );
-                            Writer.Write(node, "", true);
+                            CurrentTypeWriter.Write(node, "", true);
                             Visit(rewrite);
                             disposable.Dispose();
-                            Writer.WriteLine(node, ";");
+                            CurrentTypeWriter.WriteLine(node, ";");
                             continue;
                         }
                     }
                 }
                 else if (expression is InitializerExpressionSyntax init)
                 {
-                    Writer.Write(node, $"{instanceName}.Add(", true);
+                    CurrentTypeWriter.Write(node, $"{instanceName}.Add(", true);
                     int ix = 0;
                     foreach (var exp in init.Expressions)
                     {
                         if (ix > 0)
-                            Writer.Write(node, ", ");
+                            CurrentTypeWriter.Write(node, ", ");
                         Visit(exp);
                         ix++;
                     }
-                    Writer.WriteLine(node, ");");
+                    CurrentTypeWriter.WriteLine(node, ");");
                     continue;
                 }
                 else if (expression is ExpressionElementSyntax element)
                 {
-                    Writer.Write(node, $"{instanceName}.Add(", true);
+                    CurrentTypeWriter.Write(node, $"{instanceName}.Add(", true);
                     Visit(element);
-                    Writer.WriteLine(node, ");");
+                    CurrentTypeWriter.WriteLine(node, ");");
                     continue;
                 }
                 else if (expression is SpreadElementSyntax spread)
                 {
-                    Writer.Write(node, $"{instanceName}.AddRange(", true);
+                    CurrentTypeWriter.Write(node, $"{instanceName}.AddRange(", true);
                     Visit(spread.Expression);
-                    Writer.WriteLine(node, ");");
+                    CurrentTypeWriter.WriteLine(node, ");");
                     continue;
                 }
-                Writer.Write(node, $"{instanceName}.", true);
+                CurrentTypeWriter.Write(node, $"{instanceName}.", true);
                 Visit(expression);
-                Writer.WriteLine(node, ";");
+                CurrentTypeWriter.WriteLine(node, ";");
             }
         }
 
-        void WriteObjectCreation(CSharpSyntaxNode node, TypeSyntax? type, ITypeSymbol? typeSymbol, IEnumerable<CodeNode>? arguments, InitializerExpressionSyntax? initializer)
+        void WriteObjectCreation(CSharpSyntaxNode node, TypeSyntax? type, ITypeSymbol? typeSymbol, IMethodSymbol? boundConstructor, IEnumerable<CodeNode>? arguments, InitializerExpressionSyntax? initializer)
         {
             if (type == null && typeSymbol == null)
                 throw new InvalidOperationException("ONE of type or typeSymbol is required");
@@ -443,14 +444,19 @@ namespace NetJs.Translator.CSharpToJavascript
             bool hasInitializer = initializer?.Expressions != null;
             void WrapInExpression(Action<string, string> _continue)
             {
-                var i = ++Writer.CurrentClosure.NameManglingSeed;
+                var i = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
                 string classTargetName = $"$t{i}";
                 var instanceName = $"$i{i}";
-                Writer.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
-                Writer.WriteLine(node, $"{{", true);
-                _continue(classTargetName, instanceName);
-                Writer.WriteLine(node, $"return {instanceName};", true);
-                Writer.Write(node, $"}}.bind(this))", true);
+                WrapStatementsInExpression(node, () =>
+                {
+                    _continue(classTargetName, instanceName);
+                    CurrentTypeWriter.WriteLine(node, $"return {instanceName};", true);
+                });
+                //CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.{Constants.Expression}(function()");
+                //CurrentTypeWriter.WriteLine(node, $"{{", true);
+                //_continue(classTargetName, instanceName);
+                //CurrentTypeWriter.WriteLine(node, $"return {instanceName};", true);
+                //CurrentTypeWriter.Write(node, $"}}.bind(this))", true);
             }
             if (!isLiteralObject)
             {
@@ -460,7 +466,7 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     genericArgs = gn.TypeArgumentList;
                 }
-                var boundConstructor = GetExpressionBoundTarget(node).TypeSyntaxOrSymbol as IMethodSymbol;
+                boundConstructor ??= GetExpressionBoundTarget(node).TypeSyntaxOrSymbol as IMethodSymbol;
                 var targetConstructor = boundConstructor ?? GetBestOverloadMethod(typeSymbol, ".ctor", null, arguments.Select(a => a.AsT0), null, out overloadResult) ?? throw new InvalidOperationException("Cannot find the constructor");
                 bool isCompilerGeneratedCOnstructor = targetConstructor.Parameters.Count() == 0 && targetConstructor.IsImplicitlyDeclared;
                 if (_global.HasAttribute(targetConstructor, typeof(TemplateAttribute).FullName!, this, false, out _))
@@ -479,40 +485,40 @@ namespace NetJs.Translator.CSharpToJavascript
                         var constructorMeta = _global.GetRequiredMetadata(targetConstructor);
                         WrapInExpression((classTargetName, instanceName) =>
                         {
-                            Writer.WriteLine(node, $"//new {meta.InvocationName ?? typeSymbol.Name}()", true);
-                            Writer.Write(node, $"const {classTargetName} = ", true);
-                            Writer.Write(node, meta.InvocationName ?? typeSymbol.Name);
+                            CurrentTypeWriter.WriteLine(node, $"//new {meta.InvocationName ?? typeSymbol.Name}()", true);
+                            CurrentTypeWriter.Write(node, $"const {classTargetName} = ", true);
+                            CurrentTypeWriter.Write(node, meta.InvocationName ?? typeSymbol.Name);
                             if (meta.InvocationName == null && genericArgs != null)
                             {
-                                Writer.Write(node, "(");
+                                CurrentTypeWriter.Write(node, "(");
                                 int ix = 0;
                                 foreach (var t in genericArgs.Arguments)
                                 {
                                     if (ix > 0)
-                                        Writer.Write(node, ", ");
+                                        CurrentTypeWriter.Write(node, ", ");
                                     Visit(t);
                                     ix++;
                                 }
-                                Writer.Write(node, ")");
+                                CurrentTypeWriter.Write(node, ")");
                             }
-                            Writer.WriteLine(node, ";");
+                            CurrentTypeWriter.WriteLine(node, ";");
 
-                            Writer.WriteLine(node, $"const {instanceName} = new {classTargetName}();", true);
+                            CurrentTypeWriter.WriteLine(node, $"const {instanceName} = new {classTargetName}();", true);
                             if (constructorCallConvention == ConstructorCallConvention.PrototypeCall)
                             {
-                                Writer.Write(node, classTargetName);
-                                Writer.Write(node, $".prototype.{constructorMeta?.InvocationName ?? "$ctor"}.call", true);
+                                CurrentTypeWriter.Write(node, classTargetName);
+                                CurrentTypeWriter.Write(node, $".prototype.{constructorMeta?.InvocationName ?? "$ctor"}.call", true);
                             }
                             else if (constructorCallConvention == ConstructorCallConvention.StaticCall)
                             {
-                                Writer.Write(node, $"{classTargetName}.{constructorMeta?.InvocationName ?? "$ctor"}.call");
+                                CurrentTypeWriter.Write(node, $"{classTargetName}.{constructorMeta?.InvocationName ?? "$ctor"}.call");
                             }
                             else
                             {
                                 if (!isCompilerGeneratedCOnstructor)
                                 {
-                                    Writer.Write(node, $"{instanceName}", true);
-                                    Writer.Write(node, $".{(constructorMeta?.OverloadName ?? "$ctor")}");
+                                    CurrentTypeWriter.Write(node, $"{instanceName}", true);
+                                    CurrentTypeWriter.Write(node, $".{(constructorMeta?.OverloadName ?? "$ctor")}");
                                 }
                             }
                             ITypeSymbol? delegateReturnType = null;
@@ -528,9 +534,9 @@ namespace NetJs.Translator.CSharpToJavascript
                                 WriteMethodInvocationParameter(node,
                                     targetConstructor,
                                     genericArgs,
-                                    arguments, prefixArguments: constructorCallConvention == ConstructorCallConvention.InstanceCall ? null : (Action)(() => Writer.Write(node, $"{instanceName}")),
+                                    arguments, prefixArguments: constructorCallConvention == ConstructorCallConvention.InstanceCall ? null : (Action)(() => CurrentTypeWriter.Write(node, $"{instanceName}")),
                                     overloadResult: overloadResult);
-                                Writer.WriteLine(node, ";");
+                                CurrentTypeWriter.WriteLine(node, ";");
                             }
                             disposeAnonymousMethodParameter?.Dispose();
                             if (hasInitializer)
@@ -548,12 +554,12 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     if (initializer!.Expressions.All(e => e is AssignmentExpressionSyntax assignment && assignment.Left is not ImplicitElementAccessSyntax))
                     {
-                        Writer.Write(node, "{");
+                        CurrentTypeWriter.Write(node, "{");
                         int i = 0;
                         foreach (var e in initializer!.Expressions)
                         {
                             if (i > 0)
-                                Writer.Write(node, ", ");
+                                CurrentTypeWriter.Write(node, ", ");
                             if (e is AssignmentExpressionSyntax assign)
                             {
                                 if (assign.Left is IdentifierNameSyntax id)
@@ -561,33 +567,33 @@ namespace NetJs.Translator.CSharpToJavascript
                                     var member = typeSymbol.GetMembers(id.Identifier.ValueText, _global).First();
                                     //var idType = GetTypeSymbol(id);
                                     var metadata = _global.GetRequiredMetadata(member);
-                                    Writer.Write(node, metadata.InvocationName ?? Utilities.ResolveIdentifierName(id.Identifier));
+                                    CurrentTypeWriter.Write(node, metadata.InvocationName ?? Utilities.ResolveIdentifierName(id.Identifier));
                                 }
                                 else
                                 {
                                     Visit(assign.Left);
                                 }
-                                Writer.Write(node, ": ");
+                                CurrentTypeWriter.Write(node, ": ");
                                 Visit(assign.Right);
                             }
                             else
                                 Visit(e);
                             i++;
                         }
-                        Writer.Write(node, "}");
+                        CurrentTypeWriter.Write(node, "}");
                     }
                     else
                     {
                         WrapInExpression((className, instanceName) =>
                         {
-                            Writer.WriteLine(node, $"const {instanceName} = {{}};", true);
+                            CurrentTypeWriter.WriteLine(node, $"const {instanceName} = {{}};", true);
                             WriteInitializer(node, instanceName, typeSymbol, initializer!.Expressions);
                         });
                     }
                 }
                 else
                 {
-                    Writer.Write(node, "{}");
+                    CurrentTypeWriter.Write(node, "{}");
                 }
             }
         }
@@ -599,7 +605,7 @@ namespace NetJs.Translator.CSharpToJavascript
         public override void VisitImplicitObjectCreationExpression(ImplicitObjectCreationExpressionSyntax node)
         {
             var type = InferType(node);
-            WriteObjectCreation(node, type.type, type.typeSymbol, node.ArgumentList.Arguments.Select(e => new CodeNode(e)), node.Initializer);
+            WriteObjectCreation(node, type.type, type.typeSymbol, null, node.ArgumentList.Arguments.Select(e => new CodeNode(e)), node.Initializer);
             //base.VisitImplicitObjectCreationExpression(node);
         }
 
@@ -607,7 +613,7 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             EnsureImported(node.Type);
             var type = CodeSymbol.From(node.Type, SymbolKind.NamedType);
-            WriteObjectCreation(node, node.Type, null, node.ArgumentList?.Arguments.Select(e => new CodeNode(e)), node.Initializer);
+            WriteObjectCreation(node, node.Type, null, null, node.ArgumentList?.Arguments.Select(e => new CodeNode(e)), node.Initializer);
             memberAccesChainCurrentType = type;
             //base.VisitObjectCreationExpression(node);
         }

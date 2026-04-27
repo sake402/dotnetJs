@@ -1,9 +1,10 @@
-﻿namespace System
+﻿
+namespace System
 {
     [NetJs.ForcePartial(typeof(ICloneable))]
     [NetJs.Boot]
-    public interface ICloneable_Partial
+    public partial interface ICloneable_Partial
     {
-        
+
     }
 }

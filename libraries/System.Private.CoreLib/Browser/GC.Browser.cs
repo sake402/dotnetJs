@@ -47,7 +47,17 @@ namespace System
         [NetJs.MemberReplace(nameof(get_ephemeron_tombstone))]
         private static object get_ephemeron_tombstoneImpl()
         {
-            throw new PlatformNotSupportedException();
+            return new object();
+        }
+
+        [NetJs.MemberReplace(nameof(RefreshMemoryLimit))]
+        public static void RefreshMemoryLimitImpl()
+        {
+        }
+
+        [NetJs.MemberReplace(nameof(RegisterNoGCRegionCallback))]
+        public static void RegisterNoGCRegionCallbackImpl(long totalSize, Action callback)
+        {
         }
 
         [NetJs.MemberReplace(nameof(GetAllocatedBytesForCurrentThread))]
@@ -105,7 +115,7 @@ namespace System
         [NetJs.MemberReplace(nameof(AllocPinnedArray))]
         private static Array AllocPinnedArrayImpl(Type t, int length)
         {
-            return Array._Create(t, [length], null, null, 0);
+            return Array.CreateNested(t.As<RuntimeType>(), [length], null, null, 0);
         }
 
 

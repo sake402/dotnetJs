@@ -4,26 +4,63 @@ namespace System.Reflection
 {
     [NetJs.ForcePartial(typeof(RuntimePropertyInfo))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     internal sealed partial class RuntimePropertyInfo_Partial : ForcedPartialBase<RuntimePropertyInfo>
     {
-        internal PropertyModel _model;
+        //internal PropertyModel _model;
         internal RuntimePropertyInfo_Partial(PropertyModel model)
         {
-            _model = model;
+            THIS._model = model;
+            //_model = model;
         }
 
         [NetJs.MemberReplace]
         internal static void get_property_info(RuntimePropertyInfo prop, ref MonoPropertyInfo info, PInfo req_info)
         {
-            MonoPropertyInfo minfo = default!;
-            minfo.parent = prop.DeclaringType;
-            minfo.declaring_type = prop.DeclaringType;
-            var model = prop.As<RuntimePropertyInfo_Partial>()._model;
-            minfo.get_method = model.GetMethod != null ? new RuntimeMethodInfo(model.GetMethod) : null!;
-            minfo.set_method = model.SetMethod != null ? new RuntimeMethodInfo(model.SetMethod) : null!;
-            minfo.name = model.Name;
-            info = minfo;
+            var model = prop.As<RuntimePropertyInfo>()._model.As<PropertyModel>();
+            if (req_info.HasFlag(PInfo.Name))
+                info.name = model.Name;
+            if (req_info.HasFlag(PInfo.GetMethod))
+            {
+                if (NetJs.Script.IsDefined(model.GetMethod))
+                {
+                    model.GetMethod!.Name = "get_" + model.Name;
+                    if (NetJs.Script.IsDefined(model.OutputName))
+                        model.GetMethod!.OutputName = "get_" + model.OutputName;
+                    model.GetMethod!.DeclaringType = model.DeclaringType;
+                    model.GetMethod!.ReturnType = model.PropertyType;
+                    model.GetMethod!.Parameters = model.IndexParameters;
+                }
+                info.get_method = NetJs.Script.IsDefined(model.GetMethod) ? new RuntimeMethodInfo(model.GetMethod!) : null!;
+            }
+            if (req_info.HasFlag(PInfo.SetMethod))
+            {
+                if (NetJs.Script.IsDefined(model.SetMethod))
+                {
+                    model.SetMethod!.Name = "set_" + model.Name;
+                    if (NetJs.Script.IsDefined(model.OutputName))
+                        model.SetMethod!.OutputName = "set_" + model.OutputName;
+                    model.SetMethod!.DeclaringType = model.DeclaringType;
+                    //model.SetMethod!.Parameters =[ ..model.IndexParameters, model.PropertyType];
+                }
+                info.set_method = NetJs.Script.IsDefined(model.SetMethod) ? new RuntimeMethodInfo(model.SetMethod!) : null!;
+            }
+            if (req_info.HasFlag(PInfo.ReflectedType))
+                info.parent = AppDomain.GetType(model.DeclaringType) ?? throw new InvalidOperationException();
+            if (req_info.HasFlag(PInfo.DeclaringType))
+                info.declaring_type = AppDomain.GetType(model.DeclaringType) ?? throw new InvalidOperationException();
+            if (req_info.HasFlag(PInfo.DeclaringType))
+            {
+                PropertyAttributes att = default;
+                if (NetJs.Script.IsDefined(model.Flags))
+                {
+                    if (model.Flags.TypeHasFlag(MemberFlagsModel.HasDefaultValue))
+                    {
+                        att |= PropertyAttributes.HasDefault;
+                    }
+                }
+                info.attrs = att;
+            }
         }
 
         [NetJs.MemberReplace]
@@ -35,7 +72,7 @@ namespace System.Reflection
         [NetJs.MemberReplace]
         internal static object get_default_value(RuntimePropertyInfo prop)
         {
-            var model = prop.As<RuntimePropertyInfo_Partial>()._model;
+            var model = prop.As<RuntimePropertyInfo>()._model.As<PropertyModel>();
             var prototype = AppDomain.GetType(model.PropertyType)!._prototype;
             return prototype![model.Name]!;
         }
@@ -43,14 +80,14 @@ namespace System.Reflection
         [NetJs.MemberReplace]
         internal static int get_metadata_token(RuntimePropertyInfo monoProperty)
         {
-            var model = monoProperty.As<RuntimePropertyInfo_Partial>()._model;
-            return (int)model.Handle.Value;
+            var model = monoProperty.As<RuntimePropertyInfo>()._model;
+            return (int)model.Handle;
         }
 
         [NetJs.MemberReplace]
         private static PropertyInfo internal_from_handle_type(IntPtr event_handle, IntPtr type_handle)
         {
-            return (PropertyInfo)AppDomain.GetMember(new ReflectionHandleModel { Value = (uint)event_handle })!;
+            return (PropertyInfo)AppDomain.GetMember((uint)event_handle)!;
         }
 
     }

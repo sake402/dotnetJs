@@ -62,8 +62,34 @@ namespace NetJs.Translator.CSharpToJavascript
             new CollectionExpressionToReadOnlySpanAssignmentConverter(),
         ];
 
-        void WriteVariableAssignment(CSharpSyntaxNode node, CSharpSyntaxNode? lhsExpression, ISymbol? lhs, string? _operator, CodeNode rhsNode, ISymbol? rhs = null)
+        bool NeedBoxing(ITypeSymbol toType, ITypeSymbol fromType)
         {
+            //In JS, everything is on the heap, even struct.
+            //The only time we need boxing is if we are converting to object a native JS primitive type that has a one to one maps to .Net primitive type
+            if (/*fromType.IsValueType && */fromType.IsJsPrimitive())
+            {
+                if (SymbolEqualityComparer.Default.Equals(toType, _global.SystemObject))
+                    return true;
+            }
+            return false;
+        }
+
+        public void WriteVariableAssignment(CSharpSyntaxNode node,
+            CSharpSyntaxNode? lhsExpression,
+            ISymbol? lhs,
+            string? _operator,
+            CodeNode rhsNode,
+            ISymbol? rhs = null,
+            bool enableBoxing = true)
+        {
+            //Visit(lhsExpression);
+            //if (_operator!= null)
+            //{
+            //    CurrentTypeWriter.Write(node, _operator);
+            //}
+            //VisitNode(rhsNode);
+            //return;
+
             var rhsExpression = rhsNode.IsT0 ? rhsNode.AsT0 : null;
             if (rhsExpression == null && rhs == null)
             {
@@ -129,6 +155,11 @@ namespace NetJs.Translator.CSharpToJavascript
                 explicitRhsRef = true;
                 rhsRefKind = RefKind.Ref;
             }
+            else if (rhsExpression.IsKind(SyntaxKind.Argument) && !string.IsNullOrEmpty(((ArgumentSyntax)rhsExpression).RefKindKeyword.ToString()))
+            {
+                explicitRhsRef = true;
+                rhsRefKind = RefKind.Ref;
+            }
 
             bool leftDereference = false;
             bool rightDereference = false;
@@ -178,15 +209,15 @@ namespace NetJs.Translator.CSharpToJavascript
                     //assigning a ref from a non-ref
                     //eg ref int field; int a; field = a;
                     //Dereference and rewrite as field.$v = a
-                    Writer.Write(node, ".");
-                    Writer.Write(node, Constants.RefValueName);
+                    TryDereference(node);
                 }
-                Writer.Write(node, $" {_operator} ");
+                CurrentTypeWriter.Write(node, $" {_operator} ");
                 if (lhsExpression.IsKind(SyntaxKind.DeclarationExpression)/* is DeclarationExpressionSyntax*/)
                 {
-                    Writer.Write(node, $"{_global.GlobalName}.Destructure(");
+                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.Destructure(");
                 }
             }
+            bool doBoxing = enableBoxing && lhsType != null && rhsType != null && NeedBoxing(lhsType, rhsType);
             //if (rhsType == null || rhsRefTarget == null)
             //{
             //    var expressionBoundMember = GetExpressionBoundMember(rhsExpression).TypeSyntaxOrSymbol;
@@ -237,17 +268,22 @@ namespace NetJs.Translator.CSharpToJavascript
             //}
             //else
             {
-                if (rhsType != null &&
-                    lhsType != null &&
-                    !lhsType.Equals(rhsType, SymbolEqualityComparer.Default) &&
-                    _global.Compilation.HasImplicitConversion(rhsType, lhsType))
+                if (doBoxing)
                 {
-                    if (lhsType.IsNullable(out var t) && t!.Equals(rhsType, SymbolEqualityComparer.Default)) //we can directly assign T to T?, no need of operator
-                    { }
-                    else
-                    if (rhsAsExpression != null && TryInvokeMethodOperator(node, ImplicitOperatorName, (ITypeSymbol?)lhsType, null, [rhsAsExpression]))
-                        goto RhsEmitted;
+                    CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.BoxName}(");
                 }
+
+                //if (rhsType != null &&
+                //    lhsType != null &&
+                //    !lhsType.Equals(rhsType, SymbolEqualityComparer.Default) &&
+                //    _global.Compilation.HasImplicitConversion(rhsType, lhsType))
+                //{
+                //    if (lhsType.IsNullable(out var t) && t!.Equals(rhsType, SymbolEqualityComparer.Default)) //we can directly assign T to T?, no need of operator
+                //    { }
+                //    else
+                //        if (rhsAsExpression != null && TryInvokeMethodOperator(node, ImplicitOperatorName, (ITypeSymbol?)lhsType, null, [rhsAsExpression]))
+                //            goto RhsEmitted;
+                //}
 
                 if (rhsExpression != null && TryCastUsingExternalInterface(node, lhsType, rhsType, rhsExpression))
                 {
@@ -273,11 +309,10 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     VisitNode(rhsNode);
                 }
-            RhsEmitted:
+            //RhsEmitted:
                 if (rightDereference)
                 {
-                    Writer.Write(node, ".");
-                    Writer.Write(node, Constants.RefValueName);
+                    TryDereference(node);
                 }
                 if (rhsType != null &&
                     rhsType.SpecialType != SpecialType.System_Void &&
@@ -293,8 +328,15 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     if (rhsExpression.IsKind(SyntaxKind.IdentifierName))
                     {
-                        Writer.Write(node, ".Clone()"); //we generated this method (ICloneable.Clone) for all valuetypes, if they didnt implement ICloneable
+                        CurrentTypeWriter.Write(node, ".Clone()"); //we generated this method (ICloneable.Clone) for all valuetypes, if they didnt implement ICloneable
                     }
+                }
+                if (doBoxing)
+                {
+                    CurrentTypeWriter.Write(node, $", ");
+                    var rhsMetadata = _global.GetRequiredMetadata(rhsType!);
+                    CurrentTypeWriter.Write(node, rhsMetadata.InvocationName!);
+                    CurrentTypeWriter.Write(node, $")");
                 }
             }
 
@@ -302,14 +344,14 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 if (lhsExpression.IsKind(SyntaxKind.DeclarationExpression)/* is DeclarationExpressionSyntax*/)
                 {
-                    Writer.Write(node, ")");
+                    CurrentTypeWriter.Write(node, ")");
                 }
             }
         }
 
         public override void VisitEqualsValueClause(EqualsValueClauseSyntax node)
         {
-            Writer.Write(node, " = ");
+            CurrentTypeWriter.Write(node, " = ");
             ISymbol? lhsType = null;
             if (node.Parent is VariableDeclaratorSyntax vd)
             {
@@ -364,16 +406,16 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (TryInvokeMethodOperator(node, node.OperatorToken.ValueText, null, node.Left, [node.Left, node.Right]))
                 return;
-            var rhsType = GetExpressionBoundTarget(node.Right).TypeSyntaxOrSymbol as ISymbol;
-            if (rhsType == null)
-            {
-                rhsType = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Right), this/*, out _, out _*/);
-            }
-            var lhsType = GetExpressionBoundTarget(node.Left).TypeSyntaxOrSymbol as ISymbol;
-            if (lhsType == null)
-            {
-                lhsType = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Left), this/*, out _, out _*/);
-            }
+            var rhsType = _global.GetTypeSymbol(node.Right, this);// GetExpressionBoundTarget(node.Right).TypeSyntaxOrSymbol as ISymbol;
+            //if (rhsType == null)
+            //{
+            //    rhsType = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Right), this/*, out _, out _*/);
+            //}
+            var lhsType = _global.GetTypeSymbol(node.Left, this);// GetExpressionBoundTarget(node.Left).TypeSyntaxOrSymbol as ISymbol;
+            //if (lhsType == null)
+            //{
+            //    lhsType = _global.ResolveSymbol(GetExpressionReturnSymbol(node.Left), this/*, out _, out _*/);
+            //}
             var assignmentType = rhsType?.GetTypeSymbol() ?? lhsType?.GetTypeSymbol();
 
             IDisposable? disposeDelegateType = null;

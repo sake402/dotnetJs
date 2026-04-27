@@ -1,4 +1,5 @@
-﻿namespace System
+﻿
+namespace System
 {
     [NetJs.External]
     [NetJs.IgnoreGeneric]

@@ -47,6 +47,11 @@ namespace NetJs.Translator.CSharpToJavascript
             return modifier;
         }
 
+        string GetMethodParameterModifier(ParameterSyntax parameter)
+        {
+            return $"/*{string.Join(" ", parameter.Modifiers.Select(m => m.ValueText))}{(parameter.Modifiers.Count > 0 ? " " : "")}{parameter.Type?.ToFullString().Trim()}*/";
+        }
+
         void WriteMethodGenericArgument(CSharpSyntaxNode node, IMethodSymbol method, Dictionary<ITypeParameterSymbol, ISymbol>? genericTypeSubstitutions = null)
         {
             if (_global.HasAttribute(method, typeof(IgnoreCastAttribute).FullName, this, false, out _))
@@ -58,25 +63,25 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             if (parameters.Any())
             {
-                Writer.Write(node, "(");
+                CurrentTypeWriter.Write(node, "(");
                 int ix = 0;
                 foreach (var t in parameters)
                 {
                     if (ix > 0)
-                        Writer.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, ", ");
                     if (t is INamedTypeSymbol nt)
                     {
-                        Writer.Write(node, nt.ComputeOutputTypeName(_global));
+                        CurrentTypeWriter.Write(node, nt.ComputeOutputTypeName(_global));
                     }
                     else if (t is IArrayTypeSymbol arr)
                     {
-                        Writer.Write(node, arr.ComputeOutputTypeName(_global));
+                        CurrentTypeWriter.Write(node, arr.ComputeOutputTypeName(_global));
                     }
                     else if (t.Equals(_global.Compilation.DynamicType, SymbolEqualityComparer.Default))
                     {
                         var systemObject = _global.GetTypeSymbol("System.Object", this/*, out _, out _*/);
                         var meta = _global.GetRequiredMetadata(systemObject);
-                        Writer.Write(node, meta.OverloadName ?? "System.Object");
+                        CurrentTypeWriter.Write(node, meta.OverloadName ?? "System.Object");
                     }
                     else
                     {
@@ -84,16 +89,16 @@ namespace NetJs.Translator.CSharpToJavascript
                         if (subst != null && subst is not ITypeParameterSymbol)
                         {
                             var substSymbol = _global.GetMetadata(subst);
-                            Writer.Write(node, substSymbol?.OverloadName ?? t.Name);
+                            CurrentTypeWriter.Write(node, substSymbol?.OverloadName ?? t.Name);
                         }
                         else
                         {
-                            Writer.Write(node, t.Name);
+                            CurrentTypeWriter.Write(node, t.Name);
                         }
                     }
                     ix++;
                 }
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
         }
 
@@ -103,7 +108,8 @@ namespace NetJs.Translator.CSharpToJavascript
             CodeNode? arg,
             ITypeSymbol? argType,
             IParameterSymbol parameter,
-            MethodOverloadResult overloadResult)
+            MethodOverloadResult overloadResult,
+            bool? enableBoxing = null)
         {
             var substitution = overloadResult.ParameterValueSubstitutions?.GetValueOrDefault(parameter);
             if (substitution != null && substitution.Value.SelectedUnionItem != null && arg != null && arg.IsT0)
@@ -117,9 +123,9 @@ namespace NetJs.Translator.CSharpToJavascript
                         var meta = _global.GetRequiredMetadata(matched);
                         if ((meta.InvocationName ?? meta.OverloadName) != null)
                         {
-                            Writer.Write(node, meta.InvocationName ?? meta.OverloadName!);
+                            CurrentTypeWriter.Write(node, meta.InvocationName ?? meta.OverloadName!);
                             if (!matched.IsStatic)
-                                Writer.Write(node, ".bind(this)");
+                                CurrentTypeWriter.Write(node, ".bind(this)");
                             return;
                         }
                     }
@@ -149,13 +155,13 @@ namespace NetJs.Translator.CSharpToJavascript
                 {
                     defaultValue = $"{parameter.Type.ComputeOutputTypeName(_global)}.default()";
                 }
-                Writer.Write(node, defaultValue ?? "null");
+                CurrentTypeWriter.Write(node, defaultValue ?? "null");
             }
             else if (arg == null)
             {
-                Writer.Write(node, "{");
-                Writer.Write(node, index.ToString());
-                Writer.Write(node, "}");
+                CurrentTypeWriter.Write(node, "{");
+                CurrentTypeWriter.Write(node, index.ToString());
+                CurrentTypeWriter.Write(node, "}");
             }
             else
             {
@@ -175,7 +181,17 @@ namespace NetJs.Translator.CSharpToJavascript
                 if (arg.IsT0)
                 {
                     var disposable = RegisterTypeInference(arg.AsT0, parameter.Type);
-                    WriteVariableAssignment(node, null, parameter, null, arg.AsT0, argType);
+                    var method = (IMethodSymbol)parameter.ContainingSymbol;
+                    var box = enableBoxing ?? true;
+                    if (_global.HasAttribute(parameter, typeof(BoxAttribute).FullName, this, false, out var barg))
+                    {
+                        box = (bool)barg![0];
+                    }
+                    else if (method.IsExtern)
+                    {
+                        box = false;
+                    }
+                    WriteVariableAssignment(node, null, parameter, null, arg.AsT0, argType, enableBoxing: box);
                     disposable.Dispose();
                     //Visit(arg);
                     disposeAnonymousTypeDefinition?.Dispose();
@@ -194,7 +210,7 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 var extensionBlock = (ExtensionBlockDeclarationSyntax)node.Parent;
                 var extensionParameter = extensionBlock.ParameterList!.Parameters.Single();
-                Writer.Write(node, $"/*this {extensionParameter.Type}*/{extensionParameter.Identifier.ValueText}", true);
+                CurrentTypeWriter.Write(node, $"/*this {extensionParameter.Type}*/{extensionParameter.Identifier.ValueText}", true);
                 i++;
             }
             var symbol = _global.TryGetTypeSymbol(node, this/*, out _, out _*/);
@@ -214,8 +230,8 @@ namespace NetJs.Translator.CSharpToJavascript
                 else if (p.Type != null)
                     CurrentClosure.DefineIdentifierType(p.Identifier.ValueText, p.Type, SymbolKind.Parameter);
                 if (i > 0)
-                    Writer.Write(node, ", ");
-                Writer.Write(node, $"/*{string.Join(" ", p.Modifiers.Select(m => m.ValueText))}{(p.Modifiers.Count > 0 ? " " : "")}{p.Type?.ToFullString().Trim()}*/ {Utilities.ResolveIdentifierName(p.Identifier)}");
+                    CurrentTypeWriter.Write(node, ", ");
+                CurrentTypeWriter.Write(node, $"{GetMethodParameterModifier(p)} {Utilities.ResolveIdentifierName(p.Identifier)}");
                 i++;
             }
             //if (parameters.Where(e => e.Default != null).Any())
@@ -245,14 +261,14 @@ namespace NetJs.Translator.CSharpToJavascript
             if (arg.IsT0)
             {
                 if (ix > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 Visit(arg.AsT0);
                 ix++;
             }
             else if (arg.IsT1)
             {
                 if (ix > 0)
-                    Writer.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, ", ");
                 arg.AsT1();
                 ix++;
             }
@@ -274,7 +290,7 @@ namespace NetJs.Translator.CSharpToJavascript
             CodeNode? suffixArguments = null,
             MethodOverloadResult overloadResult = default)
         {
-            Writer.Write(node, "(");
+            CurrentTypeWriter.Write(node, "(");
             //if (node is InvocationExpressionSyntax)
             //{
             //    IEnumerable<GenericNameSyntax> genericNames =
@@ -307,11 +323,49 @@ namespace NetJs.Translator.CSharpToJavascript
                     {
                         parameters = parameters.Skip(1);
                     }
+                    //The given arguments is ordered the way we pass it to the method, if the method has default argument that is not passed, we need to inser it here
+                    if (parameters.Any(p => p.HasExplicitDefaultValue))
+                    {
+                        var firstDefaultParameter = parameters.Select((t, i) => (t, i)).First(p => p.t.HasExplicitDefaultValue);
+                        var firstDefaultParametrerIndex = firstDefaultParameter.i;
+                        List<CodeNode> newArguments = new();
+                        for (int i = 0; i < firstDefaultParametrerIndex; i++)
+                        {
+                            newArguments.Add(arguments.ElementAt(i));
+                        }
+                        bool hasNamedArgument = arguments.Any(e => e.IsT0 && e.AsT0 is ArgumentSyntax ar && ar.NameColon != null);
+                        for (int i = firstDefaultParametrerIndex; i < parameters.Count(); i++)
+                        {
+                            var parameterName = parameters.ElementAt(i).Name;
+                            var arg = arguments.Where(e => e.IsT0 && e.AsT0 is ArgumentSyntax).SingleOrDefault(e => ((ArgumentSyntax)e.AsT0).NameColon?.Name.Identifier.ValueText == parameterName);
+                            if (arg == null && !hasNamedArgument)
+                            {
+                                arg = arguments.ElementAtOrDefault(i);
+                            }
+                            if (arg != null)
+                            {
+                                newArguments.Add(arg);
+                            }
+                            else
+                            {
+                                var parameter = parameters.ElementAt(i);
+                                newArguments.Add(new CodeNode(() =>
+                                {
+                                    if (!TryWriteConstant(node, parameter.Type, null, new Optional<object?>(parameter.ExplicitDefaultValue)))
+                                    {
+                                        throw new InvalidOperationException($"Don't know how to write constant {parameter.ExplicitDefaultValue}");
+                                    }
+                                }));
+                            }
+                        }
+                        if (newArguments.Count > 0)
+                            arguments = newArguments;
+                    }
                     int arg_i = 0;
                     List<CodeNode> remainingArguments = new(arguments);
                     foreach (var parameter in parameters)
                     {
-                        var arg = remainingArguments.FirstOrDefault(e => e.IsT0 && e.AsT0 is ArgumentSyntax ar && ar.NameColon?.Name.ToString() == parameter.Name) ?? arguments.ElementAtOrDefault(arg_i);
+                        var arg = remainingArguments.FirstOrDefault();//.FirstOrDefault(e => e.IsT0 && e.AsT0 is ArgumentSyntax ar && ar.NameColon?.Name.ToString() == parameter.Name) ?? arguments.ElementAtOrDefault(arg_i);
                         if (arg == null && !parameter.IsParams && !parameter.HasExplicitDefaultValue)
                         {
                             if (targetMethod.Parameters.Count() == arguments.Count() + 1 && parameter.Name == "value" && suffixArguments != null) //if we are writing an indexer, break and write the last parameter supplied as the value
@@ -329,11 +383,11 @@ namespace NetJs.Translator.CSharpToJavascript
                             if (remainingArguments.Count() == 1) //if the last parameter passed is an array than can convert directly to the target type. dont create another array to wrap it again
                             {
                                 var singleParam = remainingArguments.Single();
-                                var singleParamType = singleParam.IsT0 ? _global.ResolveSymbol(GetExpressionReturnSymbol(singleParam.AsT0), this/*, out _, out _*/) : null;
+                                var singleParamType = singleParam.IsT0 ? _global.ResolveSymbol(GetExpressionReturnSymbol(singleParam.AsT0), this/*, out _, out _*/)?.GetTypeSymbol() : null;
                                 if (singleParamType?.CanConvertTo(parameter.Type, _global, null, out _) >= 0)
                                 {
                                     if (ix > 0)
-                                        Writer.Write(node, ", ");
+                                        CurrentTypeWriter.Write(node, ", ");
                                     WriteSingleMethodInvocationArgument(node, arg_i, arg, argType, parameter, overloadResult);
                                     //Visit(arg.Expression);
                                     if (arg != null)
@@ -342,24 +396,24 @@ namespace NetJs.Translator.CSharpToJavascript
                                 }
                             }
                             if (ix > 0)
-                                Writer.Write(node, ", ");
+                                CurrentTypeWriter.Write(node, ", ");
                             int iip = 0;
-                            Writer.Write(node, "[ ", false);
+                            CurrentTypeWriter.Write(node, "[ ", false);
                             foreach (var argument in remainingArguments)
                             {
                                 if (iip > 0)
-                                    Writer.Write(node, ", ");
+                                    CurrentTypeWriter.Write(node, ", ");
                                 WriteSingleMethodInvocationArgument(node, arg_i, argument, null, parameter, overloadResult);
                                 //Visit(argument.Expression);
                                 iip++;
                             }
-                            Writer.Write(node, " ]", false);
+                            CurrentTypeWriter.Write(node, " ]", false);
                             break;
                         }
                         else
                         {
                             if (ix > 0)
-                                Writer.Write(node, ", ");
+                                CurrentTypeWriter.Write(node, ", ");
                             WriteSingleMethodInvocationArgument(node, arg_i, arg, argType, parameter, overloadResult);
                             //Visit(arg.Expression);
                             if (arg != null)
@@ -375,7 +429,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     foreach (var arg in arguments.Where(e => (e.IsT0 ? e.AsT0 as ArgumentSyntax : null)?.NameColon == null))
                     {
                         if (ix > 0)
-                            Writer.Write(node, ", ");
+                            CurrentTypeWriter.Write(node, ", ");
                         if (arg.IsT0)
                             WriteVariableAssignment(node, null, null, null, arg.AsT0);
                         else
@@ -388,19 +442,19 @@ namespace NetJs.Translator.CSharpToJavascript
                     if (arguments.Any(e => e.IsT0 && e.AsT0 is ArgumentSyntax ar && ar.NameColon != null))
                     {
                         if (ix > 0)
-                            Writer.Write(node, ", ");
-                        Writer.Write(node, "{ ");
+                            CurrentTypeWriter.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, "{ ");
                         int ix2 = 0;
                         foreach (var arg in arguments.Where(e => e.IsT0 && e.AsT0 is ArgumentSyntax ar && ar.NameColon != null))
                         {
                             if (ix2 > 0)
-                                Writer.Write(node, ", ");
+                                CurrentTypeWriter.Write(node, ", ");
                             WriteVariableAssignment(node, null, null, null, arg.AsT0);
                             //Visit(arg);
                             ix2++;
                             ix++;
                         }
-                        Writer.Write(node, " }");
+                        CurrentTypeWriter.Write(node, " }");
                     }
                 }
             }
@@ -408,7 +462,7 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 WriteAdditionalArgument(node, suffixArguments, ref ix);
             }
-            Writer.Write(node, ")");
+            CurrentTypeWriter.Write(node, ")");
         }
 
         List<IMethodSymbol> discriminatedInterfaceMethodImplemented = new List<IMethodSymbol>();
@@ -432,19 +486,21 @@ namespace NetJs.Translator.CSharpToJavascript
                         .Where(im => methodSymbol.Equals(methodSymbol.ContainingType.FindImplementationForInterfaceMember(im), SymbolEqualityComparer.Default));
                     var metadata = _global.GetMetadata(methodSymbol);
                     var methodInvocationName = metadata?.InvocationName ?? throw new InvalidOperationException();// Utilities.ResolveMethodName(node);
-                    foreach (var implementedMethod in implementedMethods.Except(discriminatedInterfaceMethodImplemented))
+                    foreach (var implementedMethod in implementedMethods)
                     {
+                        if (discriminatedInterfaceMethodImplemented.Contains(implementedMethod, SymbolEqualityComparer.Default))
+                            continue;
                         if (!implementedMethod.IsExtern && !_global.HasAttribute(implementedMethod, typeof(ExternalAttribute).FullName, this, false, out _) && !_global.HasAttribute(implementedMethod.ContainingSymbol, typeof(ExternalAttribute).FullName, this, false, out _))
                         {
                             OpenClosure(node);
-                            Writer.WriteLine(node, $"//Generated explicit method implemetation for {implementedMethod}", true);
+                            CurrentTypeWriter.WriteLine(node, $"//Generated explicit method implemetation for {implementedMethod}", true);
                             var symbol = _global.GetRequiredMetadata(implementedMethod);
-                            Writer.Write(node, $"{(implementedMethod.IsStatic ? "static " : "")}{symbol.OverloadName}", true);
-                            Writer.Write(node, $"(", false);
+                            CurrentTypeWriter.Write(node, $"{(implementedMethod.IsStatic || methodSymbol.IsStaticCallConvention(_global) ? "static " : "")}{(methodSymbol.IsStaticCallConvention(_global) ? "/*conventional*/ " : "")}{symbol.OverloadName}", true);
+                            CurrentTypeWriter.Write(node, $"(", false);
                             //No need to write method argument explicitly since we use sptread operator on arguments
                             //WriteMethodDeclarationParameters(node, parameters?.Parameters ?? default);
-                            Writer.WriteLine(node, $")", false);
-                            Writer.WriteLine(node, $"{{", true);
+                            CurrentTypeWriter.WriteLine(node, $")", false);
+                            CurrentTypeWriter.WriteLine(node, $"{{", true);
 
                             //For implemented interface members call that may conflict in name:
                             //eg if a class implement both IComparer<string> and IComparer<char>
@@ -459,21 +515,48 @@ namespace NetJs.Translator.CSharpToJavascript
                                 var conflctingTs = conflictingMethods.Select(m => (m.ContainingType, m.ContainingType.TypeArguments)).ToList();
                                 if (implementedMethod.ContainingType.TypeKind == TypeKind.Interface && implementedMethod.ContainingType.TypeArguments.Any() && implementedMethod.ContainingType.TypeArguments.All(a => a is INamedTypeSymbol))
                                 {
-                                    Writer.WriteLine(node, $"let $ts = arguments[arguments.length-1];", true);
+                                    CurrentTypeWriter.WriteLine(node, $"let $ts = arguments[arguments.length-1];", true);
                                     foreach (var method in conflictingMethods.Except([implementedMethod]))
                                     {
                                         discriminatedInterfaceMethodImplemented.Add(method);
                                         var ifs = string.Join(" && ", method.ContainingType.TypeArguments.Select((t, i) => $"$ts[{i}] === {t.ComputeOutputTypeName(_global)}"));
-                                        Writer.WriteLine(node, $"//Merged and discriminated with method implemetation for {method}", true);
-                                        Writer.WriteLine(node, $"if ({ifs})", true);
+                                        CurrentTypeWriter.WriteLine(node, $"//Merged and discriminated with method implemetation for {method}", true);
+                                        CurrentTypeWriter.WriteLine(node, $"if ({ifs})", true);
                                         var implementation = methodSymbol.ContainingType.FindImplementationForInterfaceMember(method)!;
                                         var implementationMetadata = _global.GetRequiredMetadata(implementation);
-                                        Writer.WriteLine(node, $"    return {(!methodSymbol.IsStatic ? "this." : "")}{implementationMetadata.InvocationName}(...arguments);", true);
+                                        if (implementation.IsStaticCallConvention(_global))
+                                        {
+                                            CurrentTypeWriter.WriteLine(node, $"    return {implementationMetadata.InvocationName}.apply(this, arguments);", true);
+                                        }
+                                        else
+                                        {
+                                            CurrentTypeWriter.WriteLine(node, $"    return {(!methodSymbol.IsStatic ? "this." : "")}{implementationMetadata.InvocationName}(...arguments);", true);
+                                        }
                                     }
                                 }
                             }
-                            Writer.WriteLine(node, $"{(methodSymbol.ReceiverType != null ? "return " : "")}{(!methodSymbol.IsStatic ? "this." : "")}{methodInvocationName}(...arguments);", true);
-                            Writer.WriteLine(node, $"}}", true);
+                            if (methodSymbol.IsStaticCallConvention(_global))
+                            {
+                                CurrentTypeWriter.WriteLine(node, $"{(methodSymbol.ReceiverType != null ? "return " : "")}{methodInvocationName}.apply(this, arguments);", true);
+                            }
+                            else
+                            {
+                                CurrentTypeWriter.WriteLine(node, $"{(methodSymbol.ReceiverType != null ? "return " : "")}{(!methodSymbol.IsStatic ? "this." : "")}{methodInvocationName}(...arguments);", true);
+                            }
+                            CurrentTypeWriter.WriteLine(node, $"}}", true);
+                            if (methodSymbol.IsStaticCallConvention(_global) && !methodSymbol.IsStatic)
+                            {
+                                CurrentTypeWriter.WriteLine(node, $"//Static convention instance redirect", true);
+                                CurrentTypeWriter.Write(node, $"{symbol.OverloadName}", true);
+                                CurrentTypeWriter.Write(node, $"(", false);
+                                //No need to write method argument explicitly since we use spread operator on arguments
+                                //WriteMethodDeclarationParameters(node, parameters?.Parameters ?? default);
+                                CurrentTypeWriter.WriteLine(node, $")", false);
+                                CurrentTypeWriter.WriteLine(node, $"{{", true);
+                                CurrentTypeWriter.WriteLine(node, $"{(methodSymbol.ReceiverType != null ? "return " : "")}{methodInvocationName}.apply(this, arguments);", true);
+                                //CurrentTypeWriter.Write(node, $"return {symbol.InvocationName}.apply(this, ...arguments);", true);
+                                CurrentTypeWriter.WriteLine(node, $"}}", true);
+                            }
                             CloseClosure();
                         }
                     }
@@ -488,7 +571,7 @@ namespace NetJs.Translator.CSharpToJavascript
             var methodSymbol = _global.TryGetTypeSymbol(node, this/*, out _, out _*/);
             if (node.ExpressionBody != null || writePrologue != null)
             {
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
             writePrologue?.Invoke();
             bool needClosurePop = false;
@@ -528,21 +611,21 @@ namespace NetJs.Translator.CSharpToJavascript
             writeEpilogue?.Invoke();
             if (node.ExpressionBody != null || writePrologue != null)
             {
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
             }
         }
 
         string ConditionalInvokeStart(CSharpSyntaxNode node, CodeNode? lhsExpression)
         {
-            var i = ++Writer.CurrentClosure.NameManglingSeed;
+            var i = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
             string label = $"$loc{i}";
 
-            Writer.WriteLine(node, $"{_global.GlobalName}.$exp(function()");
-            Writer.WriteLine(node, $"{{", true);
-            Writer.Write(node, $"const {label} = ", true);
+            CurrentTypeWriter.WriteLine(node, $"{_global.GlobalName}.$exp(function()");
+            CurrentTypeWriter.WriteLine(node, $"{{", true);
+            CurrentTypeWriter.Write(node, $"const {label} = ", true);
             VisitNode(lhsExpression);
-            Writer.WriteLine(node, $";");
-            Writer.Write(node, $"return ", true);
+            CurrentTypeWriter.WriteLine(node, $";");
+            CurrentTypeWriter.Write(node, $"return ", true);
 
             //Writer.Write(node, $"(const {label} = ");
             //Visit(lhsExpression);
@@ -552,10 +635,23 @@ namespace NetJs.Translator.CSharpToJavascript
 
         void ConditionalInvokeEnd(CSharpSyntaxNode node)
         {
-            Writer.WriteLine(node, $";");
+            CurrentTypeWriter.WriteLine(node, $";");
             //Writer.WriteLine(node, $"return $ret;", true);
-            Writer.Write(node, $"}})", true);
+            CurrentTypeWriter.Write(node, $"}})", true);
             //Writer.Write(node, " || null)");
+        }
+
+        /// <summary>
+        /// Check for an instace call where lhs is a TypeParameter and rhs is an instance member on an interface implemented by lhs
+        /// </summary>
+        /// <param name="lhsSymbol"></param>
+        /// <param name="rhsSymbol"></param>
+        /// <returns></returns>
+        bool IsGenericInterfaceDispatch(ITypeSymbol lhsSymbol, ISymbol rhsSymbol)
+        {
+            return lhsSymbol.GetTypeSymbol().TypeKind == TypeKind.TypeParameter &&
+                !rhsSymbol.IsStatic &&
+                rhsSymbol.ContainingType.TypeKind == TypeKind.Interface;
         }
 
         public void WriteMethodInvocation(
@@ -591,7 +687,8 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
                 if (method.IsExtensionMethod)
                 {
-                    bool calledAsExtensionMethod = lhsSymbol != null && !lhsSymbol.Equals(method.ContainingType, SymbolEqualityComparer.Default);
+                    var lhsType = lhsSymbol?.GetTypeSymbol();
+                    bool calledAsExtensionMethod = lhsType != null && !lhsType.Equals(method.ContainingType, SymbolEqualityComparer.Default);
                     if (calledAsExtensionMethod)
                     {
                         EnsureImported(method.ContainingType);
@@ -599,7 +696,7 @@ namespace NetJs.Translator.CSharpToJavascript
                         var meta = _global.GetRequiredMetadata(method);
                         //Writer.Write(node, meta.InvocationName ?? method.ContainingType.Name);
                         //Writer.Write(node, ".");
-                        Writer.Write(node, meta.InvocationName ?? method.Name);
+                        CurrentTypeWriter.Write(node, meta.InvocationName ?? method.Name);
                         //if (method.Arity > 0)
                         //{
                         //    WriteMethodGenericArgument(node, method, overloadResult.GenericTypeSubstitutions);
@@ -612,55 +709,77 @@ namespace NetJs.Translator.CSharpToJavascript
                 }
             }
             var methodMetadata = method != null && method.ContainingSymbol is not IMethodSymbol/*Currently unable to read local method symbol when collecting symbols*/ ? _global.GetRequiredMetadata(method) : null;
-            if ((method?.IsStatic ?? false) || (method?.IsStaticCallConvention(_global) ?? false))
+            if ((method?.IsStatic ?? false) || 
+                (method?.IsStaticCallConvention(_global) ?? false))// ||
+                //'C'.GetHashCode() => if the lhs is static convention, even if the method isnt, we use static convention
+                //(lhsSymbol?.IsStaticCallConvention() ?? false))
             {
+                bool isStaticCallConvention = false;
                 if (lhsSymbol is ITypeParameterSymbol ttp)
                 {
-                    Writer.Write(node, ttp.Name);
-                    Writer.Write(node, ".");
-                    Writer.Write(node, methodMetadata?.OverloadName ?? method.Name);
+                    CurrentTypeWriter.Write(node, ttp.Name);
+                    CurrentTypeWriter.Write(node, ".");
+                    CurrentTypeWriter.Write(node, methodMetadata?.OverloadName ?? method!.Name);
                 }
                 else
                 {
-                    Writer.Write(node, methodMetadata?.InvocationName /*?? methodMetadata?.SimpleName*/ ?? method.Name);
-                    if (!method.IsStatic) //static convention call
+                    CurrentTypeWriter.Write(node, methodMetadata?.InvocationName /*?? methodMetadata?.SimpleName*/ ?? method!.Name);
+                    if (!method!.IsStatic) //static convention call
                     {
-                        Writer.Write(node, ".call");
+                        isStaticCallConvention = true;
+                        CurrentTypeWriter.Write(node, ".call");
                     }
                 }
                 if (methodMetadata == null)
                 {
-                    if (method.Arity > 0)
+                    if (method?.Arity > 0)
                     {
                         WriteMethodGenericArgument(node, method, overloadResult.GenericTypeSubstitutions);
                     }
                     //the generic method is called without providing generic argument, use the infered arguments in the genericTypesSubstitutions
-                    else if (method.IsGenericMethod && !node.ChildNodes().Any(e => e is GenericNameSyntax))
+                    else if (method?.IsGenericMethod == true && !node.ChildNodes().Any(e => e is GenericNameSyntax))
                     {
-                        Writer.Write(node, "(", false);
+                        CurrentTypeWriter.Write(node, "(", false);
                         int ix = 0;
                         foreach (var tp in method.TypeParameters)
                         {
                             if (ix > 0)
-                                Writer.Write(node, ", ", false);
+                                CurrentTypeWriter.Write(node, ", ", false);
                             var type = overloadResult.GenericTypeSubstitutions?.GetValueOrDefault(tp);
                             var typeName = type != null ? _global.GetMetadata(type)?.FullName : null;
-                            Writer.Write(node, typeName ?? tp.Name);
+                            CurrentTypeWriter.Write(node, typeName ?? tp.Name);
                             ix++;
                         }
-                        Writer.Write(node, ")", false);
+                        CurrentTypeWriter.Write(node, ")", false);
                     }
                 }
-                Action? prefixArgument = !method.IsStatic ? () =>
+                Action? prefixArgument = method != null&&!method.IsStatic ? () =>
                 {
-                    /*static convention call*/
-                    if (lhsExpression == null)
+                    ConditionalAccessExpressionSyntax? ce = null;
+                    if ((ce = node.FindClosestParent<ConditionalAccessExpressionSyntax>(isCandidate: (e) => rhsExpression.IsKind(SyntaxKind.MemberBindingExpression) || e.Expression == node || e.WhenNotNull == node)) != null &&
+                        ConditionalAccessUseIfNotNull(ce, out _) &&
+                        (ce.WhenNotNull == node || rhsExpression.IsKind(SyntaxKind.MemberBindingExpression)))
                     {
-                        Writer.Write(node, "this");
+                        CurrentTypeWriter.Write(node, Constants.IfNotNullParameterName);
+                    }
+                    /*static convention call*/
+                    else if (lhsExpression == null)
+                    {
+                        if (SymbolIsThisTypeMember(method, out _))
+                        {
+                            CurrentTypeWriter.Write(node, "this");
+                        }
                     }
                     else
                     {
-                        VisitNode(lhsExpression);
+                        if (isStaticCallConvention && lhsExpression.IsT0 && lhsExpression.AsT0.IsKind(SyntaxKind.BaseExpression))
+                        {
+                            CurrentTypeWriter.Write(node, "this"); //cannot pass super to method call
+                        }
+                        else
+                        {
+                            VisitNode(lhsExpression);
+                        }
                     }
                 }
                 : null;
@@ -669,25 +788,81 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             else
             {
-                if (lhsExpression != null)
+                //If we are calling a method on an interface through a generic type, we really cant be sure the method exist directly on the target
+                //For example calling IEquatable.Equals on a char will fail as char is a js primitive type
+                //If such type (as char) were defined with StaticConvention, then we can actually dispatch the call statically, through the generic type T we have
+                var dlhsExpression = lhsExpression != null ? (lhsExpression.IsT0 ? lhsExpression.AsT0 : null) : null;
+                var dlhsSymbol = lhsSymbol;
+                if (dlhsExpression == null)
                 {
-                    VisitNode(lhsExpression);
-                    Writer.Write(node, ".");
-                }
-                else
-                {
-                    if (method != null && !method.IsStatic && method.MethodKind != MethodKind.LocalFunction && method.MethodKind != MethodKind.DelegateInvoke)
+                    if (node.Parent.IsKind(SyntaxKind.ConditionalAccessExpression))
                     {
-                        Writer.Write(node, "this.");
+                        dlhsExpression = ((ConditionalAccessExpressionSyntax)node.Parent).Expression;
+                        dlhsSymbol = _global.GetTypeSymbol(dlhsExpression, this);
                     }
                 }
-                if (method?.MethodKind != MethodKind.DelegateInvoke && methodMetadata?.InvocationName != null)
+                if (dlhsExpression != null &&
+                    rhsExpression != null &&
+                    dlhsSymbol != null &&
+                    method != null &&
+                    IsGenericInterfaceDispatch(dlhsSymbol.GetTypeSymbol(), method))
                 {
-                    Writer.Write(node, methodMetadata.InvocationName);
+                    //$.$dsp(lhs, T, (t)=>t.Method)()
+                    CurrentTypeWriter.Write(node, _global.GlobalName);
+                    CurrentTypeWriter.Write(node, ".");
+                    CurrentTypeWriter.Write(node, Constants.Dispatch);
+                    CurrentTypeWriter.Write(node, "(");
+                    VisitNode(dlhsExpression);
+                    CurrentTypeWriter.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, dlhsSymbol.GetTypeSymbol().Name);
+                    CurrentTypeWriter.Write(node, ", ");
+                    CurrentTypeWriter.Write(node, "($t) => ");
+                    CurrentTypeWriter.Write(node, "$t.");
+                    var exp = rhsExpression;
+                    if (exp.IsKind(SyntaxKind.MemberBindingExpression))
+                        exp = ((MemberBindingExpressionSyntax)exp).Name;
+                    Visit(exp);
+                    CurrentTypeWriter.Write(node, ")");
                 }
                 else
                 {
-                    Visit(rhsExpression);
+                    if (lhsExpression != null)
+                    {
+                        VisitNode(lhsExpression);
+                        CurrentTypeWriter.Write(node, ".");
+                    }
+                    else
+                    {
+                        if (SymbolIsThisTypeMember(method, out _))
+                        {
+                            ConditionalAccessExpressionSyntax? ce = null;
+                            if ((ce = node.FindClosestParent<ConditionalAccessExpressionSyntax>(isCandidate: (e) => e.Expression == node || e.WhenNotNull == node)) == null)
+                                CurrentTypeWriter.Write(node, "this.");
+                            else if (ce.Expression == node)
+                                CurrentTypeWriter.Write(node, "this.");
+                            else if (ce.WhenNotNull == node)
+                                CurrentTypeWriter.Write(node, ".");
+                        }
+                        else if (method != null &&
+                            !method.IsStatic &&
+                            method.MethodKind != MethodKind.LocalFunction &&
+                            method.MethodKind != MethodKind.DelegateInvoke)
+                        {
+                            //ConditionalAccessExpressionSyntax? ce = null;
+                            //if ((ce = node.FindClosestParent<ConditionalAccessExpressionSyntax>(isCandidate: (e) => e.Expression == node || e.WhenNotNull == node)) == null)
+                            //    CurrentTypeWriter.Write(node, "this.");
+                            //else
+                            CurrentTypeWriter.Write(node, ".");
+                        }
+                    }
+                    if (method?.MethodKind != MethodKind.DelegateInvoke && methodMetadata?.InvocationName != null)
+                    {
+                        CurrentTypeWriter.Write(node, methodMetadata.InvocationName);
+                    }
+                    else
+                    {
+                        Visit(rhsExpression);
+                    }
                 }
                 //Handle implemented interface members call that may conflict in name:
                 //eg if a class implement both IComparer<string> and IComparer<char>
@@ -704,18 +879,18 @@ namespace NetJs.Translator.CSharpToJavascript
                         if (existingSuffix != null)
                         {
                             WriteAdditionalArgument(node, existingSuffix, ref ix);
-                            Writer.Write(node, ", ");
+                            CurrentTypeWriter.Write(node, ", ");
                         }
                         ix = 0;
-                        Writer.Write(node, "[");
+                        CurrentTypeWriter.Write(node, "[");
                         foreach (var t in method.ContainingType.TypeArguments)
                         {
                             if (ix > 0)
-                                Writer.Write(node, ", ");
-                            Writer.Write(node, t.ComputeOutputTypeName(_global));
+                                CurrentTypeWriter.Write(node, ", ");
+                            CurrentTypeWriter.Write(node, t.ComputeOutputTypeName(_global));
                             ix++;
                         }
-                        Writer.Write(node, "]");
+                        CurrentTypeWriter.Write(node, "]");
                     });
                 }
                 WriteMethodInvocationParameter(node, method, explicitGenericArgs, parameterArgs, null, suffixArguments: suffixArguments, overloadResult: overloadResult);
@@ -723,14 +898,14 @@ namespace NetJs.Translator.CSharpToJavascript
             }
         }
 
-        void WriteMethodInvocation(
-            CSharpSyntaxNode node,
-            string methodFullName,
-            Func<IMethodSymbol, bool>? methodFilter = null,
-            ITypeSymbol[]? classGenericTypes = null,
-            ITypeSymbol[]? methodGenericTypes = null,
-            CodeNode? lhsExpression = null,
-            IEnumerable<CodeNode>? arguments = null)
+        public void WriteMethodInvocation(
+              CSharpSyntaxNode node,
+              string methodFullName,
+              Func<IMethodSymbol, bool>? methodFilter = null,
+              ITypeSymbol[]? classGenericTypes = null,
+              ITypeSymbol[]? methodGenericTypes = null,
+              CodeNode? lhsExpression = null,
+              IEnumerable<CodeNode>? arguments = null)
         {
             var i = methodFullName.LastIndexOf('.');
             var className = methodFullName.Substring(0, i);
@@ -740,7 +915,7 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 @class = ((INamedTypeSymbol)@class).Construct(classGenericTypes);
             }
-            var method = (IMethodSymbol)@class.GetMembers(methodName).Where(e => e is IMethodSymbol m && (methodFilter?.Invoke(m) ?? true)).Single();
+            var method = (IMethodSymbol)@class.GetMembers(methodName).Where(e => e is IMethodSymbol m && (!(methodGenericTypes?.Any() ?? false) || methodGenericTypes.Length == m.TypeArguments.Length) && (methodFilter?.Invoke(m) ?? true)).Single();
             if (methodGenericTypes != null)
             {
                 method = method.Construct(methodGenericTypes);
@@ -754,6 +929,10 @@ namespace NetJs.Translator.CSharpToJavascript
 
         public override void VisitInvocationExpression(InvocationExpressionSyntax node)
         {
+            if (node.ToFullString().Contains("'A'.GetHashCode()"))
+            {
+
+            }
             var parameterArgs = (ArgumentListSyntax?)node.ChildNodes().FirstOrDefault(e => e.IsKind(SyntaxKind.ArgumentList)/* is ArgumentListSyntax*/);
             if (node.Expression is IdentifierNameSyntax nid)
             {
@@ -762,9 +941,9 @@ namespace NetJs.Translator.CSharpToJavascript
                     var argName = node.ArgumentList.Arguments.FirstOrDefault();
                     if (argName == null)
                         throw new InvalidOperationException("nameof expects one argument");
-                    Writer.Write(node, "\"");
-                    Writer.Write(node, argName.ToString());
-                    Writer.Write(node, "\"");
+                    CurrentTypeWriter.Write(node, "\"");
+                    CurrentTypeWriter.Write(node, argName.ToString());
+                    CurrentTypeWriter.Write(node, "\"");
                     return;
                 }
                 //else
@@ -989,6 +1168,10 @@ namespace NetJs.Translator.CSharpToJavascript
             var methodSymbol = (IMethodSymbol)OpenClosure(node);// _global.TryGetTypeSymbol(node, this, out _, out _);
             if (_global.LinkTrimOutMethod(methodSymbol))
                 return;
+            //if (methodSymbol.Name== "FilterHelper")
+            //{
+
+            //}
             bool external = _global.HasAttribute(methodSymbol, typeof(TemplateAttribute).FullName!, this, false, out _);
             bool export = _global.ShouldExportType(methodSymbol, this);
             if (export && !external && !node.Modifiers.IsAbstract() && (node.Body != null || node.ExpressionBody != null))
@@ -1005,10 +1188,11 @@ namespace NetJs.Translator.CSharpToJavascript
                 //closures.Push(new CodeBlockClosure(global, semanticModel, node, methodSymbol));
                 EnsureImported(node.ReturnType);
                 string? modifier = GetMethodModifier(node, node.Modifiers, node.ReturnType);
+                string? smodifier = null;
 
                 if (!methodSymbol.IsStatic && methodSymbol.IsStaticCallConvention(_global))
                 {
-                    modifier = "static/*conventional*/ " + modifier;
+                    smodifier = "static/*conventional*/ ";
                 }
 
                 var methodName = metadata.OverloadName ?? Utilities.ResolveMethodName(node);
@@ -1018,33 +1202,38 @@ namespace NetJs.Translator.CSharpToJavascript
                     //methodName = implementingType.ToString()!.Replace(".", "$").Replace("<", "$").Replace(">", "$") + "$" + .;
                 }
                 //Writer.WriteLine($"{modifier}{node.Identifier.Text.Trim()}({requiredParameters}{(requiredParameters.Length > 0 ? ", " : "")}{optionalParameters})", true);
-                Writer.Write(node, $"{modifier} {methodName}", true);
+                CurrentTypeWriter.Write(node, $"{smodifier}{modifier} {methodName}", true);
                 bool writeGenerics = node.Arity > 0 && (methodSymbol == null || !_global.HasAttribute(methodSymbol, typeof(IgnoreGenericAttribute).FullName, this, false, out _)) && (node.TypeParameterList?.Parameters.Any() ?? false);
                 if (writeGenerics)
                 {
-                    Writer.Write(node, " = (", false);
+                    CurrentTypeWriter.Write(node, " = (", false);
                     int i = 0;
                     foreach (var p in node.TypeParameterList!.Parameters)
                     {
                         if (i > 0)
-                            Writer.Write(node, ", ");
-                        Writer.Write(node, p.Identifier.ValueText);
+                            CurrentTypeWriter.Write(node, ", ");
+                        CurrentTypeWriter.Write(node, p.Identifier.ValueText);
                         i++;
                     }
-                    Writer.Write(node, $") => {(node.Modifiers.IsAsync() ? "async " : "")}", false);
+                    CurrentTypeWriter.Write(node, $") => {(node.Modifiers.IsAsync() ? "async " : "")}", false);
                 }
-                Writer.Write(node, $"(", false);
+                CurrentTypeWriter.Write(node, $"(", false);
                 WriteMethodDeclarationParameters(node, node.ParameterList.Parameters);
-                Writer.Write(node, $")");
+                CurrentTypeWriter.Write(node, $")");
                 if (writeGenerics)
                 {
-                    Writer.WriteLine(node, $" =>");
+                    CurrentTypeWriter.WriteLine(node, $" =>");
                 }
                 else
                 {
-                    Writer.WriteLine(node, $"");
+                    CurrentTypeWriter.WriteLine(node, $"");
                 }
                 WriteMethodBody(node, node.ReturnType, node.TypeParameterList?.Parameters, node.ParameterList.Parameters);
+                if (methodSymbol != null && !methodSymbol.IsStatic && methodSymbol.IsStaticCallConvention(_global))
+                {
+                    CurrentTypeWriter.WriteLine(node, $"//Static convention instance redirect", true);
+                    CurrentTypeWriter.WriteLine(node, $"{modifier} {methodName}() {{ return {metadata.InvocationName}.apply(this, arguments); }}", true);
+                }
             }
             if (!external)
             {
@@ -1053,6 +1242,11 @@ namespace NetJs.Translator.CSharpToJavascript
                 TryWriteImplementedMethod(node, node.ExplicitInterfaceSpecifier, node.ParameterList, methodSymbol);
             }
             CloseClosure();
+            if (methodSymbol != null && methodSymbol.IsStatic && _global.HasAttribute(methodSymbol, "System.Runtime.CompilerServices.ModuleInitializerAttribute", this, false, out _))
+            {
+                var metadata = _global.GetRequiredMetadata(methodSymbol);
+                _global.RegisterModuleInitializer($"{metadata.InvocationName}();");
+            }
             //base.VisitMethodDeclaration(node);
         }
 
@@ -1069,9 +1263,9 @@ namespace NetJs.Translator.CSharpToJavascript
             string? modifier = GetMethodModifier(node, node.Modifiers, node.ReturnType);
             var operatorSymbol = OpenClosure(node);// _global.GetTypeSymbol(node, this, out _, out _);
             var metadata = _global.GetRequiredMetadata(operatorSymbol);
-            Writer.Write(node, $"{modifier} {metadata.OverloadName ?? node.OperatorToken.ValueText.ResolveOperatorMethodName(node.ParameterList.Parameters.Count)}(", true);
+            CurrentTypeWriter.Write(node, $"{modifier} {metadata.OverloadName ?? node.OperatorToken.ValueText.ResolveOperatorMethodName(node.ParameterList.Parameters.Count)}(", true);
             WriteMethodDeclarationParameters(node, node.ParameterList.Parameters);
-            Writer.WriteLine(node, $")");
+            CurrentTypeWriter.WriteLine(node, $")");
             WriteMethodBody(node, node.ReturnType, null, node.ParameterList.Parameters);
             CloseClosure();
             //closures.Pop();
@@ -1092,9 +1286,9 @@ namespace NetJs.Translator.CSharpToJavascript
             //{
             //    name = $"{name}${g.Arity}";
             //}
-            Writer.Write(node, $"{modifier} {(meta?.OverloadName ?? "op_Implicit")}(", true);
+            CurrentTypeWriter.Write(node, $"{modifier} {(meta?.OverloadName ?? "op_Implicit")}(", true);
             WriteMethodDeclarationParameters(node, node.ParameterList.Parameters);
-            Writer.WriteLine(node, $")");
+            CurrentTypeWriter.WriteLine(node, $")");
             WriteMethodBody(node, node.Type, null, node.ParameterList.Parameters);
             CloseClosure();
             //closures.Pop();
@@ -1113,13 +1307,13 @@ namespace NetJs.Translator.CSharpToJavascript
             OpenClosure(node);
             EnsureImported(node.ReturnType);
             string? modifier = GetMethodModifier(node, node.Modifiers, node.ReturnType, true);
-            Writer.Write(node, $"{modifier} function {node.Identifier.ValueText}(", true);
+            CurrentTypeWriter.Write(node, $"{modifier} function {node.Identifier.ValueText}(", true);
             WriteMethodDeclarationParameters(node, node.ParameterList.Parameters);
-            Writer.WriteLine(node, $")");
+            CurrentTypeWriter.WriteLine(node, $")");
             //WriteMethodBody(node);
             if (node.ExpressionBody != null)
             {
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
             //VisitChildren(node.ChildNodes().Where(e => e is not IdentifierNameSyntax && e is not ParameterListSyntax && e is not TypeParameterConstraintClauseSyntax && e is not ExplicitInterfaceSpecifierSyntax).Except(node.ReturnType != null ? [node.ReturnType] : []));
 
@@ -1134,7 +1328,7 @@ namespace NetJs.Translator.CSharpToJavascript
             //base.VisitMethodDeclaration(node);
             if (node.ExpressionBody != null)
             {
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
             }
             CloseClosure();
             //base.VisitLocalFunctionStatement(node);
@@ -1149,8 +1343,11 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 foreach (var parameter in node.ParameterList.Parameters)
                 {
-                    var d = CurrentClosure.DefineIdentifierType(parameter.Identifier.ValueText, parameter.Type, SymbolKind.Parameter);
-                    dispose.Add(d);
+                    if (parameter.Type != null)
+                    {
+                        var d = CurrentClosure.DefineIdentifierType(parameter.Identifier.ValueText, parameter.Type, SymbolKind.Parameter);
+                        dispose.Add(d);
+                    }
                 }
             }
             VisitChildren(node.Members);
@@ -1162,15 +1359,15 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (!ShouldExportMethod(node))
                 return;
-            Writer.WriteLine(node, "$dtor()", true);
+            CurrentTypeWriter.WriteLine(node, "$dtor()", true);
             if (node.ExpressionBody != null)
             {
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
             base.VisitDestructorDeclaration(node);
             if (node.ExpressionBody != null)
             {
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
             }
         }
     }

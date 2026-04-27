@@ -14,23 +14,23 @@ namespace NetJs.Translator.CSharpToJavascript
     {        
         public override void VisitQueryExpression(QueryExpressionSyntax node)
         {
-            Writer.WriteLine(node, "dotnetJs.Expression(function()");
-            Writer.WriteLine(node, "{", true);
-            Writer.WriteLine(node, "let $ret = [];", true);
+            CurrentTypeWriter.WriteLine(node, "dotnetJs.Expression(function()");
+            CurrentTypeWriter.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, "let $ret = [];", true);
             Visit(node.FromClause);
             VisitChildren(node.ChildNodes().Except([node.FromClause]));
-            Writer.WriteLine(node, "return $ret;", true);
-            Writer.Write(node, "}.bind(this))", true);
+            CurrentTypeWriter.WriteLine(node, "return $ret;", true);
+            CurrentTypeWriter.Write(node, "}.bind(this))", true);
             //base.VisitQueryExpression(node);
         }
 
         public override void VisitFromClause(FromClauseSyntax node)
         {
-            var enumarableName = $"$en{Writer.ClosureDepth}";
-            Writer.Write(node, $"var {enumarableName} = ", true);
+            var enumarableName = $"$en{CurrentTypeWriter.ClosureDepth}";
+            CurrentTypeWriter.Write(node, $"var {enumarableName} = ", true);
             Visit(node.Expression);
-            Writer.WriteLine(node, ";");
-            Writer.WriteLine(node, $"while ({enumarableName}.MoveNext())", true);
+            CurrentTypeWriter.WriteLine(node, ";");
+            CurrentTypeWriter.WriteLine(node, $"while ({enumarableName}.MoveNext())", true);
             var children = node.ChildNodes().Except([node.Expression]);
             //bool explicitBlock = false;
             //if (children.Count() == 1 && children.Single() is not BlockSyntax)
@@ -47,28 +47,28 @@ namespace NetJs.Translator.CSharpToJavascript
         
         public override void VisitWhereClause(WhereClauseSyntax node)
         {
-            Writer.Write(node, "if (", true);
+            CurrentTypeWriter.Write(node, "if (", true);
             Visit(node.Condition);
-            Writer.WriteLine(node, ")");
+            CurrentTypeWriter.WriteLine(node, ")");
             //base.VisitWhereClause(node);
         }
 
         public override void VisitSelectClause(SelectClauseSyntax node)
         {
-            Writer.Write(node, $"$ret.Push(", true);
+            CurrentTypeWriter.Write(node, $"$ret.Push(", true);
             Visit(node.Expression);
-            Writer.WriteLine(node, ");");
+            CurrentTypeWriter.WriteLine(node, ");");
             //base.VisitSelectClause(node);
         }
 
         public override void VisitQueryBody(QueryBodySyntax node)
         {
-            var enumarableName = $"$en{Writer.ClosureDepth}";
+            var enumarableName = $"$en{CurrentTypeWriter.ClosureDepth}";
             var query = (QueryExpressionSyntax)node.Parent!;
-            Writer.WriteLine(node, "{", true);
-            Writer.WriteLine(node, $"var {query.FromClause.Identifier.ValueText/*.ToFullString().Trim()*/} = {enumarableName}.Current;", true);
+            CurrentTypeWriter.WriteLine(node, "{", true);
+            CurrentTypeWriter.WriteLine(node, $"var {query.FromClause.Identifier.ValueText/*.ToFullString().Trim()*/} = {enumarableName}.Current;", true);
             VisitChildren(node.ChildNodes());
-            Writer.WriteLine(node, "}", true);
+            CurrentTypeWriter.WriteLine(node, "}", true);
             //base.VisitQueryBody(node);
         }
 

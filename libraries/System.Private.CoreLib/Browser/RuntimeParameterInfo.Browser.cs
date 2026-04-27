@@ -7,7 +7,7 @@ namespace System.Reflection
 {
     [NetJs.ForcePartial(typeof(RuntimeParameterInfo))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     internal partial class RuntimeParameterInfo_Partial : ForcedPartialBase<RuntimeParameterInfo>
     {
         internal ParameterModel _model;
@@ -22,14 +22,17 @@ namespace System.Reflection
             //This.ClassImpl = type;
             //This.PositionImpl = position;
             ParameterAttributes attrs = ParameterAttributes.None;
-            if (model.Flags.HasFlag(ParameterFlagsModel.Out))
-                attrs |= ParameterAttributes.Out;
-            if (model.Flags.HasFlag(ParameterFlagsModel.Ref))
-                attrs |= ParameterAttributes.In;
-            if (model.Flags.HasFlag(ParameterFlagsModel.Optional))
-                attrs |= ParameterAttributes.Optional;
-            //if (model.Flags.HasFlag(ParameterFlagsModel.Params))
-            //    attrs|= ParameterAttributes.Params;
+            if (NetJs.Script.IsDefined(model.Flags))
+            {
+                if (model.Flags.HasFlag(ParameterFlagsModel.Out))
+                    attrs |= ParameterAttributes.Out;
+                if (model.Flags.HasFlag(ParameterFlagsModel.Ref))
+                    attrs |= ParameterAttributes.In;
+                if (model.Flags.HasFlag(ParameterFlagsModel.Optional))
+                    attrs |= ParameterAttributes.Optional;
+                //if (model.Flags.HasFlag(ParameterFlagsModel.Params))
+                //    attrs|= ParameterAttributes.Params;
+            }
             Script.Write("this.AttrsImpl = attrs");
             Script.Write("this.DefaultValueImpl = null");
             Script.Write("this.MemberImpl = member");
@@ -47,7 +50,7 @@ namespace System.Reflection
         }
 
         [NetJs.MemberReplace]
-        internal static  Type[] GetTypeModifiers(Type type, MemberInfo member, int position, bool optional, int genericArgumentPosition = -1)
+        internal static Type[] GetTypeModifiers(Type type, MemberInfo member, int position, bool optional, int genericArgumentPosition = -1)
         {
             return Type.EmptyTypes;
         }

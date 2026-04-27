@@ -16,46 +16,46 @@ namespace System.Runtime.InteropServices
         static SimpleDictionary<object?> marsalTable = new SimpleDictionary<object?>();
         internal static unsafe IntPtr MarshalObject(void* value)
         {
-            if (Script.TypeOf(value) == "number")
+            if (Script.TypeOf(value).NativeEquals("number"))
                 return (IntPtr)value;
             int reference = MarshalledPointerFlag + Random.Shared.Next(1, 0x7FFFFFFF);
-            while (marsalTable.ContainsKey(reference.ToString()))
+            while (marsalTable.ContainsKey(reference))
             {
                 reference = MarshalledPointerFlag + Random.Shared.Next(1, 0x7FFFFFFF);
             }
-            marsalTable[reference.ToString()] = *(object*)value;
+            marsalTable[reference] = *(object*)value;
             return reference;
         }
 
         internal static IntPtr MarshalObject(object? value, IntPtr handle = 0, bool deleteOld = false)
         {
-            if (Script.TypeOf(value) == "number")
-                return (IntPtr)value;
+            if (Script.TypeOf(value).NativeEquals("number"))
+                return value.As<IntPtr>();
             if (handle == 0)
             {
                 handle = MarshalledPointerFlag + Random.Shared.Next(1, 0x7FFFFFFF);
-                while (marsalTable.ContainsKey(handle.ToString()))
+                while (marsalTable.ContainsKey(handle.As<int>()))
                 {
                     handle = MarshalledPointerFlag + Random.Shared.Next(1, 0x7FFFFFFF);
                 }
             }
-            var key = handle.ToString();
-            if (!deleteOld && marsalTable.ContainsKey(key))
+            //var key = handle.ToString();
+            if (!deleteOld && marsalTable.ContainsKey(handle.As<int>()))
             {
                 throw new InvalidOperationException();
             }
-            marsalTable[key] = value;
+            marsalTable[handle.As<int>()] = value;
             return handle;
         }
 
         internal static object? MarshalObject(IntPtr value)
         {
-            return marsalTable[value.ToString()];
+            return marsalTable[value.As<int>()];
         }
 
         internal static void Remove(IntPtr value)
         {
-            marsalTable.Remove(value.ToString());
+            marsalTable.Remove(value.As<int>());
         }
 
         static int lastPInvokeError;
@@ -109,7 +109,7 @@ namespace System.Runtime.InteropServices
             }
             else
             {
-                var methodInfo = AppDomain.GetMember(new ReflectionHandleModel { Value = (uint)ptr }) as MethodInfo;
+                var methodInfo = AppDomain.GetMember((uint)ptr) as MethodInfo;
                 if (methodInfo != null)
                 {
                     //new JSFunctionDelegate()
@@ -123,7 +123,7 @@ namespace System.Runtime.InteropServices
         {
             if (d.Method != null)
             {
-                return (IntPtr)d.Method.As<RuntimeMethodInfo>()._model.Handle.Value;
+                return (IntPtr)d.Method.As<RuntimeMethodInfo>()._model.Handle;
             }
             return MarshalObject(d);
         }
@@ -137,8 +137,32 @@ namespace System.Runtime.InteropServices
         [NetJs.MemberReplace(nameof(SizeOfHelper))]
         private static int SizeOfHelperImpl(QCallTypeHandle t, bool throwIfNotMarshalable)
         {
-            throw new NotImplementedException();
+            var type = t.QCallTypeHandleToRuntimeType();
+            return CalculateSizeOf(type);
         }
 
+        internal static int CalculateSizeOf(RuntimeType type)
+        {
+            if (!type.IsValueType)
+                return IntPtr.Size;
+            if (NetJs.Script.IsDefined(type._model.As<TypeModel>().Size))
+            {
+                return type._model.As<TypeModel>().Size!.Value;
+            }
+            int sz = 0;
+            var fields = type.GetFields(BindingFlags.Instance);
+            for (int i = 0; i < fields.Length; i++)
+            {
+                if (fields[i].FieldType.As<RuntimeType>().IsValueType)
+                {
+                    sz += SizeOf(fields[i].FieldType);
+                }
+                else
+                {
+                    sz += IntPtr.Size;
+                }
+            }
+            return sz;
+        }
     }
 }

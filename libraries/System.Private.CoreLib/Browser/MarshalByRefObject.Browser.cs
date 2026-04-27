@@ -2,8 +2,8 @@
 {
     [NetJs.ForcePartial(typeof(MarshalByRefObject))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
-    [NetJs.OutputOrder(int.MinValue+1)] 
+    //[NetJs.Reflectable(false)]
+    [NetJs.OutputOrder(int.MinValue+3)] 
     public abstract partial class MarshalByRefObject_Partial
     {
     }

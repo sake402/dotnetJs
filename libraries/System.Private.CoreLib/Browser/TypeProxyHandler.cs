@@ -15,6 +15,7 @@ namespace System.Reflection
             FullName = fullName;
         }
 
+        [Name(Constants.PrototypeFullName)]
         string FullName { get; }
         /// <summary>
         /// The finally created type we will proxy to
@@ -24,7 +25,7 @@ namespace System.Reflection
         [Name("get")]
         public object? Get(object target, string property, object receiver)
         {
-            if (TargetType != null && Prototype != null)
+            if (TargetType is not null && Prototype is not null)
             {
                 var v1 = Prototype[property];
                 var v2 = TargetType[property];
@@ -35,24 +36,26 @@ namespace System.Reflection
                 return v1 ?? v2;
             }
             //We will need these properties early before the proxy is bound to its type
-            if (property == nameof(FullName))
-                return FullName;
-            else if (property == "$type")
+            if (property.NativeEquals(Constants.PrototypeFullName))
+                return FullName.As<object>();
+            else if (property.NativeEquals("$type"))
                 return this;
-            else if (property == "IsGenericTypeDefinition")
-                return FullName.NativeEndsWith(">");
+            else if (property.NativeEquals("$isProxy"))
+                return true.As<object>();
+            else if (property.NativeEquals("IsGenericTypeDefinition"))
+                return FullName.NativeEndsWith(">").As<object>();
             return null;
         }
         [Name("set")]
         public bool Set(object target, string property, object value)
         {
             //Update the target of the proxy
-            if (property == nameof(TargetType))
+            if (property.NativeEquals(nameof(TargetType)))
             {
                 TargetType = value.As<Type>();
                 return true;
             }
-            else if (property == nameof(Prototype))
+            else if (property.NativeEquals(nameof(Prototype)))
             {
                 Prototype = value.As<TypePrototype>();
                 return true;

@@ -32,9 +32,9 @@ namespace NetJs.Translator.CSharpToJavascript
                         )
                     {
                         Visit(left);
-                        Writer.Write(node, " ");
-                        Writer.Write(node, _operator);
-                        Writer.Write(node, " ");
+                        CurrentTypeWriter.Write(node, " ");
+                        CurrentTypeWriter.Write(node, _operator);
+                        CurrentTypeWriter.Write(node, " ");
                         Visit(right);
                         return true;
                     }
@@ -58,9 +58,9 @@ namespace NetJs.Translator.CSharpToJavascript
                     {
                         if (TryInvokeMethodOperator(node, ImplicitOperatorName, higherPrecision, null, [left]))
                         {
-                            Writer.Write(node, " ");
-                            Writer.Write(node, _operator);
-                            Writer.Write(node, " ");
+                            CurrentTypeWriter.Write(node, " ");
+                            CurrentTypeWriter.Write(node, _operator);
+                            CurrentTypeWriter.Write(node, " ");
                             Visit(right);
                             return true;
                         }
@@ -72,9 +72,9 @@ namespace NetJs.Translator.CSharpToJavascript
                         if (TryInvokeMethodOperator(node, ImplicitOperatorName, higherPrecision, null, [right], () =>
                         {
                             Visit(left);
-                            Writer.Write(node, " ");
-                            Writer.Write(node, _operator);
-                            Writer.Write(node, " ");
+                            CurrentTypeWriter.Write(node, " ");
+                            CurrentTypeWriter.Write(node, _operator);
+                            CurrentTypeWriter.Write(node, " ");
                         }))
                         {
                             return true;

@@ -21,28 +21,28 @@ namespace NetJs.Translator.CSharpToJavascript
             }
             if (svd != null)
             {
-                Writer.InsertInCurrentClosure(node, $"let {svd.Identifier.ValueText};", true);
-                Writer.Write(node, "(");
-                Writer.Write(node, svd.Identifier.ValueText);
-                Writer.Write(node, $" = ");
+                CurrentTypeWriter.InsertInCurrentClosure(node, $"let {svd.Identifier.ValueText};", true);
+                CurrentTypeWriter.Write(node, "(");
+                CurrentTypeWriter.Write(node, svd.Identifier.ValueText);
+                CurrentTypeWriter.Write(node, $" = ");
                 WritePatternExpressionFilter(node);
-                Writer.Write(node, $", ");
+                CurrentTypeWriter.Write(node, $", ");
             }
-            Writer.Write(node, $"{_global.GlobalName}.{Constants.IsTypeName}(");
+            CurrentTypeWriter.Write(node, $"{_global.GlobalName}.{Constants.IsTypeName}(");
             if (svd != null)
             {
-                Writer.Write(node, svd.Identifier.ValueText);
+                CurrentTypeWriter.Write(node, svd.Identifier.ValueText);
             }
             else
             {
                 WritePatternExpressionFilter(node);
             }
-            Writer.Write(node, $", ");
+            CurrentTypeWriter.Write(node, $", ");
             Visit(node.Type);
-            Writer.Write(node, $")");
+            CurrentTypeWriter.Write(node, $")");
             if (svd != null)
             {
-                Writer.Write(node, ")");
+                CurrentTypeWriter.Write(node, ")");
             }
             if (svd != null)
             {
@@ -64,14 +64,14 @@ namespace NetJs.Translator.CSharpToJavascript
             //var governor = node.FindClosest<SwitchExpressionSyntax>()!.GoverningExpression;
             if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern) || node.WhenClause != null)
             {
-                Writer.Write(node, "if", true);
+                CurrentTypeWriter.Write(node, "if", true);
                 if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern))
                 {
-                    Writer.Write(node, "(");
+                    CurrentTypeWriter.Write(node, "(");
                 }
                 if (node.WhenClause != null)
                 {
-                    Writer.Write(node, "(");
+                    CurrentTypeWriter.Write(node, "(");
                 }
             }
             //if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern)) { 
@@ -82,18 +82,18 @@ namespace NetJs.Translator.CSharpToJavascript
             {
                 if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern))
                 {
-                    Writer.Write(node, ")");
+                    CurrentTypeWriter.Write(node, ")");
                 }
                 if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern) && node.WhenClause != null)
                 {
-                    Writer.Write(node, " && ");
+                    CurrentTypeWriter.Write(node, " && ");
                 }
                 Visit(node.WhenClause);
             }
             if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern) || node.WhenClause != null)
             {
-                Writer.WriteLine(node, ")");
-                Writer.WriteLine(node, "{", true);
+                CurrentTypeWriter.WriteLine(node, ")");
+                CurrentTypeWriter.WriteLine(node, "{", true);
             }
             WriteReturn(node, node.Expression);
             //Writer.Write(node, node.Expression.IsKind(SyntaxKind.ThrowExpression) ? "" : "return ", true);
@@ -101,7 +101,7 @@ namespace NetJs.Translator.CSharpToJavascript
             //Writer.WriteLine(node, ";");
             if (!node.Pattern.IsKind(SyntaxKind.DiscardPattern) || node.WhenClause != null)
             {
-                Writer.WriteLine(node, "}", true);
+                CurrentTypeWriter.WriteLine(node, "}", true);
             }
             //base.VisitSwitchExpressionArm(node);
         }
@@ -134,11 +134,11 @@ namespace NetJs.Translator.CSharpToJavascript
                 bool needsVar = NeedsCachePatternExpressionInTempVariable(node.GoverningExpression);
                 if (needsVar)
                 {
-                    var i = ++Writer.CurrentClosure.NameManglingSeed;
+                    var i = ++CurrentTypeWriter.CurrentClosure.NameManglingSeed;
                     CurrentClosure.Tags.Add(SwitchExpressionVariableName, $"$switch{i}");
-                    Writer.Write(node, $"let $switch{i} = ", true);
+                    CurrentTypeWriter.Write(node, $"let $switch{i} = ", true);
                     Visit(node.GoverningExpression);
-                    Writer.WriteLine(node, ";");
+                    CurrentTypeWriter.WriteLine(node, ";");
                 }
                 foreach (var arm in node.Arms)
                 {

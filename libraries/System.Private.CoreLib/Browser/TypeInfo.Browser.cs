@@ -5,7 +5,7 @@ using System.Text;
 namespace System.Reflection
 {
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     public abstract partial class TypeInfo 
     {
     }

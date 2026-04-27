@@ -7,19 +7,25 @@ using System.Text;
 namespace System
 {
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
-    [NetJs.OutputOrder(int.MinValue+2)] 
+    //[NetJs.Reflectable(false)]
+    [NetJs.OutputOrder(int.MinValue + 4)]
     public sealed partial class AppDomain
     {
-        internal static SimpleDictionary<AssemblyModel> _reflectionMetadata = new SimpleDictionary<AssemblyModel>();
-        internal static SimpleDictionary<RuntimeAssembly> _assemblies = new SimpleDictionary<RuntimeAssembly>();
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+        internal static SimpleDictionary<AssemblyModel> GlobalMetadataRegistry;
+        internal static SimpleDictionary<RuntimeAssembly> GlobalAssemblyRegistry;
         internal static SimpleDictionary<Union<TypePrototype, TypePrototypeProvider>> GlobalPrototypeRegistry;
-        internal static SimpleDictionary<RuntimeType> GlobalTypeRegistry = new SimpleDictionary<RuntimeType>();
-        
-        static AppDomain()
+        internal static SimpleDictionary<RuntimeType> GlobalTypeRegistry;
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring as nullable.
+
+        [Name(Constants.AppDomainInitialize)]
+        static void Initialize()
         {
+            GlobalMetadataRegistry = new SimpleDictionary<AssemblyModel>();
+            GlobalAssemblyRegistry = new SimpleDictionary<RuntimeAssembly>();
+            GlobalTypeRegistry = new SimpleDictionary<RuntimeType>();
             //GlobalPrototypeRegistry = Script.Write<SimpleDictionary<TypePrototypeRegistrar>>("window.dotnetJs");
-            GlobalPrototypeRegistry = Script.Write<SimpleDictionary<Union<TypePrototype, TypePrototypeProvider>>>("window.dotnetJs");
+            GlobalPrototypeRegistry = Script.Write<SimpleDictionary<Union<TypePrototype, TypePrototypeProvider>>>($"window.{Constants.ProjectName}");
             Script.Write($"$.{Constants.AssemblyRegistryName} = this.{Constants.AssemblyRegistryName}");
             Script.Write($"$.{Constants.AssemblyMetadataRegistryName} = this.{Constants.AssemblyMetadataRegistryName}");
             //Script.Write($"$.{Constants.AssemblyStubName} = $.System.AppDomain.{Constants.AssemblyStubName}");
@@ -28,20 +34,20 @@ namespace System
         [Name(Constants.AssemblyMetadataRegistryName)]
         public static void ReflectionData(string assemblyName, AssemblyModel assemblyMetadata)
         {
-            _reflectionMetadata[assemblyMetadata.Handle.Assembly] = assemblyMetadata;
-            _reflectionMetadata[assemblyName] = assemblyMetadata;
+            GlobalMetadataRegistry[assemblyMetadata.Handle.GetAssemblyHandle()] = assemblyMetadata;
+            GlobalMetadataRegistry[assemblyName] = assemblyMetadata;
         }
 
         [Name(Constants.AssemblyRegistryName)]
         internal static void CreateAssembly(string assemblyName, Action<RuntimeAssembly> action)
         {
-            var assembly = _assemblies[assemblyName];
+            var assembly = GlobalAssemblyRegistry[assemblyName];
             if (Script.IsUndefinedOrNull(assembly))
             {
-                var metadata = _reflectionMetadata[assemblyName];
+                var metadata = GlobalMetadataRegistry[assemblyName];
                 assembly = new RuntimeAssembly_Partial(metadata, assemblyName).As<RuntimeAssembly>();
-                _assemblies[metadata.Handle.Assembly] = assembly;
-                _assemblies[assemblyName] = assembly;
+                GlobalAssemblyRegistry[metadata.Handle.GetAssemblyHandle()] = assembly;
+                GlobalAssemblyRegistry[assemblyName] = assembly;
                 //precreate all types in this assembly as a stub
                 //if (Script.IsDefined(metadata.Types))
                 //{
@@ -81,43 +87,43 @@ namespace System
 
         //public static AppDomain CurrentDomain { get; } = new AppDomain();
 
-        public static string GetTypeName(ReflectionHandleModel typeHandle)
+        public static string GetTypeName(ulong typeHandle)
         {
-            var assemblyHandle = typeHandle.Assembly;
-            var assemblyMetadata = _reflectionMetadata[assemblyHandle];
-            return assemblyMetadata.TypeNames[typeHandle.Type];
+            var assemblyHandle = typeHandle.GetAssemblyHandle();
+            var assemblyMetadata = GlobalMetadataRegistry[assemblyHandle];
+            return assemblyMetadata.TypeNames[typeHandle.GetTypeHandle()];
         }
 
-        public static string? GetAssemblyName(ReflectionHandleModel assemblyHandle)
+        public static string? GetAssemblyName(ulong assemblyHandle)
         {
-            var metadata = _reflectionMetadata[assemblyHandle.Assembly];
+            var metadata = GlobalMetadataRegistry[assemblyHandle.GetAssemblyHandle()];
             return metadata?.FullName;
         }
 
-        public static AssemblyModel? GetAssemblyMetadata(ReflectionHandleModel assemblyHandle)
+        public static AssemblyModel? GetAssemblyMetadata(ulong assemblyHandle)
         {
-            var metadata = _reflectionMetadata[assemblyHandle.Assembly];
+            var metadata = GlobalMetadataRegistry[assemblyHandle.GetAssemblyHandle()];
             return metadata;
         }
 
-        internal static RuntimeAssembly? GetAssembly(ReflectionHandleModel assemblyHandle)
+        internal static RuntimeAssembly? GetAssembly(ulong assemblyHandle)
         {
-            var assembly = _assemblies[assemblyHandle.Assembly];
+            var assembly = GlobalAssemblyRegistry[assemblyHandle.GetAssemblyHandle()];
             return assembly;
         }
 
-        internal static RuntimeType? GetType(ReflectionHandleModel typeHandle)
+        internal static RuntimeType? GetType(ulong typeHandle)
         {
-            var value = AppDomain.GlobalTypeRegistry[typeHandle.AssemblyAndType];
+            var value = AppDomain.GlobalTypeRegistry[typeHandle.GetAssemblyAndTypeHandle()];
             if (Script.IsUndefined(value))
                 return null;
             return value;
         }
 
-        internal static MemberInfo? GetMember(ReflectionHandleModel memberHandle)
+        internal static MemberInfo? GetMember(ulong memberHandle)
         {
             var type = GetType(memberHandle);
-            return type.GetMemberInternal(memberHandle);
+            return type?.GetMemberInternal(memberHandle);
         }
 
         internal static RuntimeType? GetTypeInternal(string? typeName, bool ignoreCase = false, bool throwOnError = false)
@@ -128,7 +134,7 @@ namespace System
                     throw new ArgumentNullException(nameof(typeName));
                 return null;
             }
-            var assemblies = CurrentDomain.GetAssemblies();
+            var assemblies = GlobalAssemblyRegistry.Values;
             for (int i = 0; i < assemblies.Length; i++)
             {
                 var assembly = assemblies[i];

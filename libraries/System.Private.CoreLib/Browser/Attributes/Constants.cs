@@ -4,9 +4,29 @@
     public static class Constants
     {
         [InlineConst]
+        public const bool ExportClassName = true;
+        [InlineConst]
+        public const bool DisableBootClass = false;
+        [InlineConst]
+        public const bool NestedClassAsNestedStaticObject = true;
+        [InlineConst]
+        public const string ProjectName = "NetJs";
+        [InlineConst]
+        public const string GlobalName = "$";
+        [InlineConst]
+        public const string SystemPrivateCoreLib = "$spc";
+        [InlineConst]
         public const string AssemblyRegistryName = "$asm";
         [InlineConst]
         public const string AssemblyClassName = "$cls";
+        [InlineConst]
+        public const string AssemblyNestedClassName = "$ncls";
+        [InlineConst]
+        public const string AssemblyStructName = "$str";
+        [InlineConst]
+        public const string AssemblyNestedStructName = "$nstr";
+        [InlineConst]
+        public const string AssemblyBootClassName = "$bt";
         [InlineConst]
         public const string InterfaceMixin = "$mx";
         [InlineConst]
@@ -14,7 +34,15 @@
         [InlineConst]
         public const string GenericType = "$gt";
         [InlineConst]
+        public const string IfNotNull = "$ifnn";
+        [InlineConst]
+        public const string IfNotNullParameterName = "$t";
+        [InlineConst]
         public const string AssemblyTypeProxyName = "$typeProxy";
+        [InlineConst]
+        public const string AppDomainInitialize = "$init";
+        [InlineConst]
+        public const string RunModuleInitializersName = "$minit";
         [InlineConst]
         public const string AssemblyMetadataRegistryName = "$meta";
         [InlineConst]
@@ -50,13 +78,19 @@
         [InlineConst]
         public const string TypePointer = "$typePointer";
         [InlineConst]
-        public const string TypeOf = "$typeof";
+        public const string TypeOf = "$typeOf";
+        [InlineConst]
+        public const string FirstOf = "$firstOf";
+        [InlineConst]
+        public const string SizeOf = "$sizeOf";
         [InlineConst]
         public const string TypePrototypeName = "$prototype";
         [InlineConst]
         public const string ToArray = "$toArray";
         [InlineConst]
         public const string ToStringName = "$toString";
+        [InlineConst]
+        public const string HashCodeKey = "$hashCode";
         [InlineConst]
         public const string GetHashCodeName = "$getHashCode";
         [InlineConst]
@@ -68,7 +102,7 @@
         [InlineConst]
         public const string RemoveDelagate = "$remove";
         [InlineConst]
-        public const string DiscardRefName = "$discard";
+        public const string DiscardRefName = "$discardRef";
         [InlineConst]
         public const string FinalizerRegister = "$finalizer";
         [InlineConst]
@@ -83,5 +117,13 @@
         public const string TupleUnPack = "$tupleUnpack";
         [InlineConst]
         public const string StructFieldsLayoutName = "$fields";
+        [InlineConst]
+        public const string StaticStructFieldsLayoutName = "$sfields";
+        [InlineConst]
+        public const string PrototypeFullName = "$fullName";
+        [InlineConst]
+        public const string NumericShift = "$nsh";
+        [InlineConst]
+        public const string Dispatch = "$dsp";
     }
 }

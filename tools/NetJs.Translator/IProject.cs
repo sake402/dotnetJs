@@ -21,6 +21,7 @@ namespace NetJs.Translator
         IList<string> GetSourceFiles();
         IList<string> GetContentFiles();
         IList<string> GetLinkerFiles();
+        IList<string> GetEmbeddedFiles();
         bool Build();
     }
 

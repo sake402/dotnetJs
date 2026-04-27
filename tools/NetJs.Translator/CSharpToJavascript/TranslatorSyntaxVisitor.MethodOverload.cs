@@ -43,7 +43,7 @@ namespace NetJs.Translator.CSharpToJavascript
         {
             if (explicitGenericArgs != null)
             {
-                var ts = explicitGenericArgs.Arguments.Select(a => _global.ResolveSymbol(GetExpressionReturnSymbol(a), this/*, out _, out _*/).GetTypeSymbol()!).ToArray();
+                var ts = explicitGenericArgs.Arguments.Select(a => _global.ResolveSymbol(GetExpressionReturnSymbol(a), this/*, out _, out _*/)!.GetTypeSymbol()!).ToArray();
                 if (ts.Any(t => t is not ITypeParameterSymbol))
                     method = method.Construct(ts);
             }
@@ -103,7 +103,7 @@ namespace NetJs.Translator.CSharpToJavascript
                     _parameterSubstitutions[parameter] = new MethodParameterResult
                     {
                         SelectedUnionItem = unionItemSelected,
-                        Arguments = [arg],
+                        Arguments = arg!= null ? [arg] : [],
                         ArgumentType = argType,
                         OutType = outType,
                         OutName = outName

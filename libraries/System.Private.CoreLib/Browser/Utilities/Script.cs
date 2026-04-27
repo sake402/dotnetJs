@@ -16,6 +16,12 @@ namespace NetJs
         public static unsafe extern RefOrPointer<T> Ref<T>(T* value);
         [Template("{0}")]
         public static unsafe extern T* RefP<T>(RefOrPointer<T> value);
+        [Template("{0}")]
+        public static unsafe extern void* RefAsVoidPointer<T>(RefOrPointer<T> value);
+        [Template("{0}")]
+        public static unsafe extern ref T PointerARef<T>(T* value) where T : allows ref struct;
+        [Template("{0}")]
+        public static unsafe extern T* RefAsPointer<T>(ref readonly T value) where T : allows ref struct;
         //[Template("{0}")]
         //public static extern ref T ArrayRef<T>(ArrayRef<T> value);
         //[Template("{0}")]
@@ -82,6 +88,13 @@ namespace NetJs
 
         [Template("dotnetJs.toArray({items})")]
         public static extern T[] ToArray<T>(IEnumerable<T> items);
+
+        [Template("[]")]
+        public static extern T[] NewArray<T>();
+        [Template("new Array({length})")]
+        public static extern T[] NewArray<T>(int length);
+        [Template("{values}")]
+        public static extern T[] CreateArrayFromValues<T>(params T[] values);
 
         public static extern T Identity<T>(T arg, params object[] args);
 
@@ -195,7 +208,9 @@ namespace NetJs
         /// <param name="args"></param>
         /// <returns></returns>
         [Template]
-        public static extern T Write<T>(string code, params object[] args);
+        public static extern T Write<T>(string code, params object[] args) where T : allows ref struct;
+        [Template]
+        public static extern ref T WriteRef<T>(string code, params object[] args) where T : allows ref struct;
 
         /// <summary>
         /// Inject javascript code

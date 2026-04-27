@@ -2,8 +2,8 @@
 {
     [NetJs.ForcePartial(typeof(IReflect))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
-    public interface IReflect_Partial
+    //[NetJs.Reflectable(false)]
+    public partial interface IReflect_Partial
     {
     }
 }

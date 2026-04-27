@@ -1,6 +1,7 @@
 ﻿using NetJs;
 using System;
 using System.Collections.Generic;
+using System.Reflection.Metadata;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -8,9 +9,8 @@ using System.Text;
 namespace System.Reflection
 {
     [NetJs.ForcePartial(typeof(RuntimeAssembly))]
-    [NetJs.Name(nameof(RuntimeAssembly))]
     [NetJs.Boot]
-    [NetJs.Reflectable(false)]
+    //[NetJs.Reflectable(false)]
     internal sealed partial class RuntimeAssembly_Partial : ForcedPartialBase<RuntimeAssembly>
     {
         internal RuntimeModule_Partial _module;
@@ -24,33 +24,45 @@ namespace System.Reflection
                 Assembly._entry = this.As<Assembly>();
         }
 
+        internal static TypeProxyHandler CreateTypeProxy(string fullTypeName)
+        {
+            var proxyHandler = new TypeProxyHandler(fullTypeName);
+            object? proxy = null;
+            Script.Write("proxy = new Proxy({}, proxyHandler)");
+            return proxy.As<TypeProxyHandler>();
+        }
+
         /// <summary>
         /// Define a proxy to a type/prototype not yet created. 
         /// </summary>
         /// <param name="fullTypeName"></param>
         [NetJs.Name(NetJs.Constants.AssemblyTypeProxyName)]
-        public void TypeProxy(string fullTypeName)
+        void TypeProxy(string fullTypeName)
         {
             if (!AppDomain.GlobalPrototypeRegistry.ContainsKey(fullTypeName))
             {
-                var proxyHandler = new TypeProxyHandler(fullTypeName);
-                object? proxy = null;
-                Script.Write("proxy = new Proxy({}, proxyHandler)");
-                //var type = Type.Create(this, (TypePrototype?)null, null!, fullTypeName); //will be initialized when finally created
-                //_stubs[fullTypeName] = type;
+                object? proxy = CreateTypeProxy(fullTypeName);
                 AppDomain.GlobalPrototypeRegistry.SetNested(fullTypeName.NativeReplaceAll("<", "$").NativeReplaceAll(",", "$").NativeReplaceAll(">", "$"), proxy.As<TypePrototype>());
             }
         }
 
-        [NetJs.Name(NetJs.Constants.AssemblyClassName)]
-        public Union<TypePrototype, TypePrototypeProvider> DefineType(string fullTypeName, TypePrototypeProvider provider)
+        TypeModel GetModel(string fullTypeName, TypeFlagsModel flag)
         {
-            provider.As<object>()["$fn"] = fullTypeName;
-            var jsName = fullTypeName.NativeReplaceAll("<", "$").NativeReplaceAll(",", "$").NativeReplaceAll(">", "$");
+            var localAssemblyTypeName = fullTypeName;
+            if (localAssemblyTypeName.NativeStartsWith("$"))
+            {
+                var firstDot = localAssemblyTypeName.NativeIndexOf(".");
+                localAssemblyTypeName = localAssemblyTypeName.NativeSubstring(firstDot + 1);
+            }
             TypeModel? typeMetadata;
             unchecked
             {
-                typeMetadata = _model.Types?.Filter(t => _model.TypeNames[t.Handle.Type] == fullTypeName)[0];
+                typeMetadata = _model.Types?.Filter(t =>
+                {
+                    if (Script.IsUndefinedOrNull(t.Handle))
+                        return false;
+                    return _model.TypeNames[t.Handle.GetTypeHandle()].NativeEquals(localAssemblyTypeName);
+                })[0];
             }
             if (Script.IsUndefinedOrNull(typeMetadata))
             {
@@ -58,135 +70,163 @@ namespace System.Reflection
                 //var pth = prototype.FullName.NativeSplit(".");
                 typeMetadata = new TypeModel
                 {
+                    Flags = flag,
                     //Name = pth[pth.Length - 1],
-                    Handle = new ReflectionHandleModel { Value = 0 },//prototype.FullName,
+                    Handle = 0,//prototype.FullName,
                 };
             }
-            //Dont try reading namespace for nested types, it will return the nested static method/property within the containing class anyway
-            var existing = !typeMetadata!.Flags.TypeHasFlag(TypeFlagsModel.IsNested) ? AppDomain.GlobalPrototypeRegistry.GetNested(jsName) : null;
+            return typeMetadata!;
+        }
+
+        string GetJsName(string fullTypeName)
+        {
+            return fullTypeName.NativeReplaceAll("<", "$").NativeReplaceAll(",", "$").NativeReplaceAll(">", "$");
+        }
+
+        [NetJs.Name(NetJs.Constants.AssemblyStructName)]
+        Union<TypePrototype, TypePrototypeProvider> DefineStruct(string fullTypeName, TypePrototypeProvider provider)
+        {
+            return DefineType(fullTypeName, provider, TypeFlagsModel.IsValueType);
+        }
+
+        [NetJs.Name(NetJs.Constants.AssemblyNestedStructName)]
+        Union<TypePrototype, TypePrototypeProvider> DefineNestedStruct(string fullTypeName, TypePrototypeProvider provider)
+        {
+            return DefineType(fullTypeName, provider, TypeFlagsModel.IsValueType | TypeFlagsModel.IsNested);
+        }
+
+        [NetJs.Name(NetJs.Constants.AssemblyNestedClassName)]
+        Union<TypePrototype, TypePrototypeProvider> DefineNestedType(string fullTypeName, TypePrototypeProvider provider)
+        {
+            return DefineType(fullTypeName, provider, TypeFlagsModel.IsNested);
+        }
+
+        [NetJs.Name(NetJs.Constants.AssemblyClassName)]
+        Union<TypePrototype, TypePrototypeProvider> DefineType(string fullTypeName, TypePrototypeProvider provider, TypeFlagsModel flags)
+        {
+            if (Script.IsUndefined(flags))
+                flags = TypeFlagsModel.None;
+            provider.As<object>()["$fn"] = fullTypeName.As<object>();
+            var jsName = GetJsName(fullTypeName);
+            TypeModel typeMetadata = GetModel(fullTypeName, flags);
+            //bool isNestedClass = Constants.NestedClassAsNestedStaticObject && typeMetadata!.Flags.TypeHasFlag(TypeFlagsModel.IsNested);
+            //if (_isCompleted) //if the assembly was marked completed, any other class defined after that is a nested class
+            var isNestedClass = flags.TypeHasFlag(TypeFlagsModel.IsNested);
+            //Dont try reading namespace for nested types, it will return the nested static method/property within the containing class anyway, and get recursive
+            var existing = !isNestedClass ? AppDomain.GlobalPrototypeRegistry.GetNested(jsName) : null;
             if (Script.IsDefined(existing))
             {
                 //if we have created a typestub, this is existing as Proxy type with handler TypeProxyHandler, now we have its prototype
 #pragma warning disable CS0184 // 'is' expression's given expression is never of the provided type
                 //if (!(existing is TypeProxyHandler))
-                if (!Script.Write<bool>("existing instanceof Proxy"))
+                if (!(Script.Write<bool>("existing.$isProxy === true")))
                     return existing!;
 #pragma warning restore CS0184 // 'is' expression's given expression is never of the provided type
             }
-            //bool isGenericDefinition = fullTypeName.EndsWith('$');
             bool isGenericDefinition = fullTypeName.NativeEndsWith("$") || fullTypeName.NativeEndsWith(">");
-            bool isInterface = typeMetadata!.Kind == TypeKindModel.Interface;
-            bool isInterfaceMixin = isInterface && Script.Write<int>("provider.length") >= 1;
-            //check if we have a proxy for this type already
-            //Type? type = existing.As<Type>();
+            bool isInterface = typeMetadata.Kind == TypeKindModel.Interface;
+            bool isInterfaceMixin = isInterface && Script.Write<int>("provider.length") >= 2;
             RuntimeType? type = null;
-            //if (Script.IsDefined(type))
-            //{
-            //    Script.Delete(_stubs, fullTypeName);
-            //}
             TypePrototype? prototype = null;
+            //If this type depends on itself, its proxy was created before we even run DefineType, otherwize create a new proxy for it,
+            //and pass the proxy into the provider so it can be used in the type definition,
+            //and later we will update the proxy with the real type and prototype
+            var selfProxy = existing.As<TypeProxyHandler>() ?? CreateTypeProxy(fullTypeName);
             if (isInterfaceMixin)
             {
-                //if (Script.IsDefined(type))
-                //{
-                //    type.InitializeFrom(provider, typeMetadata!);
-                //}
-                //else
-                //{
-                type = RuntimeType.Create(This, provider, typeMetadata!, fullTypeName);
-                //}
+                type = RuntimeType.Create(THIS, provider, typeMetadata, fullTypeName);
             }
             else if (isGenericDefinition)
             {
-                //if (Script.IsDefined(type))
-                //{
-                //    type.InitializeFrom(provider, typeMetadata!);
-                //}
-                //else
-                //{
-                type = RuntimeType.Create(This, provider, typeMetadata!, fullTypeName);
-                //}
+                type = RuntimeType.Create(THIS, provider, typeMetadata, fullTypeName);
             }
             else
             {
-                prototype = provider(null, null);
-                //if (Script.IsDefined(type))
-                //{
-                //    type.InitializeFrom(prototype, typeMetadata!);
-                //}
-                //else
-                //{
-                type = RuntimeType.Create(This, prototype, typeMetadata!, fullTypeName);
-                //}
-                prototype.Type = type;
+                //Pass the proxy object as this into the provider
+                //existing = existing ?? CreateTypeProxy(fullTypeName).As<TypePrototype>();
+                prototype = provider(selfProxy, null, null);
+                type = RuntimeType.Create(THIS, prototype, typeMetadata, fullTypeName);
             }
-            _types.Push(type);
-            AppDomain.GlobalTypeRegistry[fullTypeName] = type;
-            AppDomain.GlobalTypeRegistry[typeMetadata.Handle.AssemblyAndType] = type;
+            //Now that we have the concrete type and some js closure already holds the stub/proxy
+            //Supply the real things to the proxy so it can forward it as neccessary
+            selfProxy.TargetType = type;
+            selfProxy.Prototype = prototype;
             if (Script.IsDefined(existing))
             {
-                //Now that we have the concrete type and some closure already holds the stub/proxy
-                //Supply the real things to the proxy so it can forward it as neccessary
-                existing.As<TypeProxyHandler>().TargetType = type;
-                existing.As<TypeProxyHandler>().Prototype = prototype;
+                //existing.As<TypeProxyHandler>().TargetType = type;
+                //existing.As<TypeProxyHandler>().Prototype = prototype;
                 //remove the typeStub just before we insert the real type
                 AppDomain.GlobalPrototypeRegistry.RemoveNested(jsName);
             }
-            bool staticInitialized = false;
+            //bool typeCompleted = false;
             //dont try so set inner types, they are managed and readonly static within the containing type
-            if (!typeMetadata.Flags.TypeHasFlag(TypeFlagsModel.IsNested))
+            if (!isNestedClass)
             {
+                //Dont initialize type until they are actually accessed
                 AppDomain.GlobalPrototypeRegistry.SetNested(jsName, prototype ?? provider.As<TypePrototype>(), onAccess: (mtype) =>
                 {
-                    if (!staticInitialized)
+                    if (_isCompleted && !type._isCompleted)
                     {
-                        type.StaticInitialize();
-                        staticInitialized = true;
+                        //typeCompleted = true;
+                        type.Complete();
                     }
+                    return type._isCompleted;
+                    //else
+                    //{
+                    //    onCompleted.Push(() =>
+                    //    {
+                    //        if (!typeCompleted)
+                    //        {
+                    //            typeCompleted = true;
+                    //            type.Complete();
+                    //        }
+                    //    });
+                    //}
                 });
             }
             if (!isInterfaceMixin && !isGenericDefinition)
                 AppDomain.SetupDefaults(type);
-            //if assembly was already built before we make this new type, build it immediately
-            //if (isCompleted)
-            //type.Complete();
-            //Initialize nested types immetialty. If we are crreating it, it means we want to use it immediately
-            if (typeMetadata.Flags.TypeHasFlag(TypeFlagsModel.IsNested))
+            if (isNestedClass)
             {
-                if (!staticInitialized)
-                {
-                    type.StaticInitialize();
-                    staticInitialized = true;
-                }
+                //Initialize nested types immedialty. If we are crrating it, it means we already access it
+                RegisterCompletionNotification(type);
             }
             return prototype ?? provider.As<TypePrototype>();
         }
 
+        internal static string InsertGenericNames(string fullTypeName, string[] genericArguments)
+        {
+            unchecked
+            {
+                if (!fullTypeName.NativeEndsWith(">"))
+                    throw new InvalidOperationException();
+                int nArgs = 1;
+                int i = fullTypeName.Length - 2;
+                while (fullTypeName.NativeCharCodeAt(i) != '<')
+                {
+                    nArgs++;
+                    i--;
+                }
+                var name = fullTypeName.NativeSplit("<")[0];
+                if (nArgs != genericArguments.Length)
+                    throw new InvalidOperationException("Number of generic arguments doesnt match");
+                var gn = genericArguments.Join(",");
+                return name + "<" + gn + ">";
+            }
+        }
+
         //static SimpleDictionary<TypePrototype> mixinCache = new SimpleDictionary<TypePrototype>();
         [NetJs.Name("$mix")]
-        TypePrototype Mixin(string fullTypeName, TypePrototype[] genericArgumemnts, TypePrototype? mix, ParameterlessTypePrototypeProvider getPrototype)
+        TypePrototype Mixin(string fullTypeName, TypePrototype[] genericArguments, TypePrototype? mix, ParameterlessTypePrototypeProvider getPrototype)
         {
             unchecked
             {
                 string cacheKey;
-                string? newGenericName = null;
-                if (genericArgumemnts.Length > 0)
+                string fullNameWithGenericArguments = fullTypeName;
+                if (genericArguments.Length > 0)
                 {
-                    if (!fullTypeName.NativeEndsWith(">"))
-                        throw new InvalidOperationException();
-                    int nArgs = 1;
-                    int i = fullTypeName.Length - 2;
-                    while (fullTypeName[i] != '<')
-                    {
-                        nArgs++;
-                        i--;
-                    }
-                    var name = fullTypeName.NativeSplit("<")[0];
-                    if (nArgs != genericArgumemnts.Length)
-                        throw new InvalidOperationException("Numver of generic arguments doesnt match");
-                    var gn = genericArgumemnts.Map(m => m?.FullName ?? "").Join(",");
-                    newGenericName = name + "<" + gn + ">";
-                    cacheKey = newGenericName;
+                    fullNameWithGenericArguments = InsertGenericNames(fullNameWithGenericArguments, genericArguments.Map(m => m?.FullName ?? ""));
+                    cacheKey = fullNameWithGenericArguments;
                     if (Script.IsDefined(mix))
                     {
                         cacheKey += "+" + mix!.FullName;
@@ -201,10 +241,11 @@ namespace System.Reflection
                 var existingPrototype = AppDomain.GlobalPrototypeRegistry[cacheKey];
                 if (Script.IsDefined(existingPrototype))
                     return existingPrototype.As<TypePrototype>();
-                var prototype = getPrototype();
+                //If the type we are mixing for depends on itself, we need to pass this into the getPrototype so it can be used in the mixin definition
+                var selfProxy = CreateTypeProxy(fullNameWithGenericArguments);
+                var prototype = getPrototype(selfProxy);
                 AppDomain.GlobalPrototypeRegistry[cacheKey] = prototype;
-                //this is a new class prototype, define its System.Type if any of the typArgument is not a genericName
-                if (genericArgumemnts.Length > 0 && genericArgumemnts.Some(t =>
+                bool IsGenericTypeDefinition(TypePrototype t)
                 {
                     //It is very much possible that the t(TypePrototype) we have here is actually a System.Type, if we had created a stub of it that isn't replace yet
                     //But we can be very sure it isn't a generic type
@@ -212,25 +253,28 @@ namespace System.Reflection
                     if (t is Type)
                     {
                         //the only thing the stub has at this point is just its fullName
-                        return !t.As<Type>().FullName!.NativeEndsWith(">");
+                        return t.As<Type>().FullName!.NativeEndsWith("<>") || t.As<Type>().FullName!.NativeEndsWith(",>");
                         //return false;
                     }
 #pragma warning restore CS0184 // 'is' expression's given expression is never of the provided type
-                    return !t.Type!.IsGenericTypeDefinition;
-                }))
+                    return t.FullName!.NativeEndsWith("<>") || t.FullName!.NativeEndsWith(",>");
+                    //return !t.Type!.IsGenericTypeDefinition;
+                }
+                //this is a new class prototype, define its System.Type if any of the typArgument is not a genericName
+                if (genericArguments.Length > 0 && genericArguments.Some(t => !IsGenericTypeDefinition(t)))
                 {
                     var genericType = AppDomain.GlobalTypeRegistry[fullTypeName];
-                    var newType = genericType.MakeGenericTypeInternal(genericArgumemnts.Map(a => a.Type.As<RuntimeType>()!), prototype);
-                    AppDomain.GlobalTypeRegistry[newGenericName!] = newType;
-                    //prototype.Type = newType;
-                    newType.Complete();
+                    var newType = genericType.MakeGenericTypeInternal(genericArguments.Map(a => a.Type.As<RuntimeType>()!), prototype, fullNameWithGenericArguments);
+                    selfProxy.TargetType = newType;
+                    selfProxy.Prototype = prototype;
+                    AppDomain.GlobalTypeRegistry[fullNameWithGenericArguments!] = newType;
                 }
                 return prototype;
             }
         }
 
         [NetJs.Name(Constants.InterfaceMixin)]
-        public TypePrototype InterfaceMixin(string fullName, TypePrototype[] mixes, ParameterlessTypePrototypeProvider getPrototype)
+        TypePrototype InterfaceMixin(string fullName, TypePrototype[] mixes, ParameterlessTypePrototypeProvider getPrototype)
         {
             if (mixes.Length != 1)
                 throw new InvalidOperationException("Interface mixin must be 1");
@@ -241,7 +285,7 @@ namespace System.Reflection
         }
 
         [NetJs.Name(Constants.GenericInterfaceMixin)]
-        public TypePrototype GenericInterfaceMixin(string fullName, TypePrototype[] mixes, ParameterlessTypePrototypeProvider getPrototype)
+        TypePrototype GenericInterfaceMixin(string fullName, TypePrototype[] mixes, ParameterlessTypePrototypeProvider getPrototype)
         {
             if (mixes.Length < 2)
                 throw new InvalidOperationException("Generic Interface mixin must be at least 2");
@@ -252,65 +296,81 @@ namespace System.Reflection
         }
 
         [NetJs.Name(NetJs.Constants.GenericType)]
-        public TypePrototype GenericType(string fullName, TypePrototype[] genericArgs, ParameterlessTypePrototypeProvider getPrototype)
+        TypePrototype GenericType(string fullName, TypePrototype[] genericArgs, ParameterlessTypePrototypeProvider getPrototype)
         {
             return Mixin(fullName, genericArgs, null, getPrototype);
         }
 
-        bool isCompleted;
+        //        [NetJs.Name("$dlg")]
+        //        TypePrototype Delegate(string fullTypeName, TypePrototype returnType, TypePrototype[] parameters)
+        //        {
+        //            var jsName = GetJsName(fullTypeName);
+        //            var existing = AppDomain.GlobalPrototypeRegistry.GetNested(jsName);
+        //            if (Script.IsDefined(existing))
+        //            {
+        //                //if we have created a typestub, this is existing as Proxy type with handler TypeProxyHandler, now we have its prototype
+        //#pragma warning disable CS0184 // 'is' expression's given expression is never of the provided type
+        //                //if (!(existing is TypeProxyHandler))
+        //                if (!(Script.Write<bool>("existing.$isProxy === true")))
+        //                    return existing.As<TypePrototype>()!;
+        //#pragma warning restore CS0184 // 'is' expression's given expression is never of the provided type
+        //            }
+        //        }
+
+        bool _isCompleted;
+        Action[] onCompleted = [];
+
+        internal void RegisterCompletionNotification(RuntimeType type)
+        {
+            if (_isCompleted && !type._isCompleted)
+            {
+                type.Complete();
+            }
+            else
+            {
+                onCompleted.Push(() =>
+                {
+                    if (!type._isCompleted)
+                    {
+                        type.Complete();
+                    }
+                });
+            }
+        }
+
+        [Name("$do_complete")]
         internal void Complete()
         {
-            unchecked
-            {
-                //there is a bit of dilemma here
-                //Calling complete on Type runs the static initializers,
-                //however if the  dependency of this is not yet run, we end up getting TypeError
-                //For now, we run complete until successful
-                RuntimeType[] remaining = [];
-                remaining.Push(_types);
-                while (remaining.Length > 0)
-                {
-                    int startLen = remaining.Length;
-                    for (int i = 0; i < remaining.Length; i++)
-                    {
-                        try
-                        {
-                            remaining[i].Complete();
-                            remaining.Splice(i, 1);
-                            //move iterator back to where we removed one
-                            i--;
-                        }
-                        catch
-                        {
-                            //Debugger.Break();
-                        }
-                    }
-                    if (remaining.Length == startLen) //cannot initialize the remaining type
-                    {
-                        //try them one more time and don't catch the error again sowe can see it in console
-                        for (int i = 0; i < remaining.Length; i++)
-                        {
-                            remaining[i].Complete();
-                            remaining.Splice(i, 1);
-                        }
-                        break;
-                    }
-                }
-            }
-            isCompleted = true;
+            _isCompleted = true;
+            onCompleted.ForEach(o => o());
+            onCompleted = null!;
         }
 
 
         internal RuntimeType? GetTypeInternal(string name, bool ignoreCase = false)
         {
+            var firstComma = name.NativeIndexOf(",");
+            if (firstComma >= 0)
+            {
+                var secondComma = name.NativeIndexOf(",", firstComma + 1);
+                if (secondComma >= 0)
+                {
+                    //ignore the version, culture and token
+                    name = name.NativeSubstring(0, secondComma);
+                }
+            }
+            if (name.NativeEndsWith(", mscorlib"))
+            {
+                name = name.NativeSubstring(0, name.Length - 10) + ", System.Private.CoreLib";
+            }
             for (int i = 0; i < _types.Length; i++)
             {
                 var t = _types[i];
-                if (t.InternalFullName == name || t.InternalAssemblyQualifiedName == name)
+                if (t.InternalFullName.NativeEquals(name) || t.InternalAssemblyQualifiedName.NativeEquals(name))
                     return t;
                 if (ignoreCase)
                 {
-                    if (t.InternalFullName.Equals(name, StringComparison.InvariantCulture) || t.InternalAssemblyQualifiedName.Equals(name))
+                    if (t.InternalFullName.NativeToLower().NativeEquals(name) || t.InternalAssemblyQualifiedName.NativeToLower().NativeEquals(name))
                         return t;
                 }
             }
@@ -349,11 +409,12 @@ namespace System.Reflection
             res.GetObjectHandleOnStack<Type[]?>() = [];
         }
 
-        [NetJs.MemberReplace]
-        private static void GetInfo(QCallAssembly assembly, ObjectHandleOnStack res, int kind)
+        [NetJs.MemberReplace("GetInfo(QCallAssembly, ObjectHandleOnStack, AssemblyInfoKind)")]
+        [NetJs.MemberParameterTypesMayNotMatch]
+        private static void GetInfoImpl(QCallAssembly assembly, ObjectHandleOnStack res, int kind)
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
-            switch (kind)
+            switch ((int)kind)
             {
                 //Location
                 case 1:
@@ -393,11 +454,14 @@ namespace System.Reflection
         {
             var runtimeAssembly = assembly.QCallAssemblyHandleToRuntimeType().As<RuntimeAssembly_Partial>();
             var manifest = runtimeAssembly._model.Manifests?.ArrayFirstOrDefault(a => a.Name == name);
-            if (manifest != null)
+            if (manifest?.Data != null)
             {
-                size = manifest.Data.Length;
+                var bytes = NetJs.Script.IsArray(manifest.Data) ? manifest.Data.As<byte[]>() : Convert.FromBase64String(manifest.Data);
+                //we dont want to keep converting from base64 to byte[], cache by replacinf the original string
+                manifest.Data = bytes.As<string>();
+                size = bytes.Length;
                 module.GetObjectHandleOnStack<RuntimeModule_Partial>() = runtimeAssembly._module;
-                return RuntimeHelpers.CreateArrayReference(manifest.Data).As<IntPtr>();
+                return RuntimeHelpers.CreateArrayReference(bytes).As<IntPtr>();
             }
             size = 0;
             return IntPtr.Zero;

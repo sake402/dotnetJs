@@ -70,6 +70,8 @@ namespace System
         [NetJs.Template("{array}.shift()")]
         public static extern object Shift<T>(this T[] array);
 
+        [NetJs.Template("{array}.slice()")]
+        public static extern Array ArrayClone(this Array array);
         [NetJs.Template("{array}.slice({start})")]
         public static extern Array Slice<T>(this T[] array, int start);
 
@@ -98,7 +100,12 @@ namespace System
         public static T ArraySingle<T>(this T[] arr)
         {
             if (arr.Length == 1)
-                return arr[0];
+            {
+                unchecked
+                {
+                    return arr[0];
+                }
+            }
             if (arr.Length > 1)
                 throw new ArrayTypeMismatchException();
             throw new InvalidOperationException();
@@ -107,7 +114,12 @@ namespace System
         public static T? ArraySingleOrDefault<T>(this T[] arr)
         {
             if (arr.Length == 1)
-                return arr[0];
+            {
+                unchecked
+                {
+                    return arr[0];
+                }
+            }
             if (arr.Length > 1)
                 throw new ArrayTypeMismatchException();
             return default(T);
@@ -117,14 +129,20 @@ namespace System
         {
             if (arr.Length == 0)
                 throw new InvalidOperationException();
-            return arr[0];
+            unchecked
+            {
+                return arr[0];
+            }
         }
 
         public static T ArrayFirst<T>(this T[] arr, Func<T, bool> filter)
         {
             if (arr.Length == 0)
                 throw new InvalidOperationException();
-            return arr.Filter(filter)[0];
+            unchecked
+            {
+                return arr.Filter(filter)[0];
+            }
         }
 
         public static T? ArrayFirstOrDefault<T>(this T[] arr)
@@ -141,14 +159,20 @@ namespace System
             var arr2 = arr.Filter(filter);
             if (arr2.Length == 0)
                 return default(T);
-            return arr2[0];
+            unchecked
+            {
+                return arr2[0];
+            }
         }
 
         public static T ArrayLast<T>(this T[] arr)
         {
             if (arr.Length == 0)
                 throw new InvalidOperationException();
-            return arr[arr.Length - 1];
+            unchecked
+            {
+                return arr[arr.Length - 1];
+            }
         }
 
         public static T ArrayLast<T>(this T[] arr, Func<T, bool> filter)
@@ -156,14 +180,20 @@ namespace System
             if (arr.Length == 0)
                 throw new InvalidOperationException();
             arr = arr.Filter(filter);
-            return arr[arr.Length - 1];
+            unchecked
+            {
+                return arr[arr.Length - 1];
+            }
         }
 
         public static T? ArrayLastOrDefault<T>(this T[] arr)
         {
             if (arr.Length == 0)
                 return default(T);
-            return arr[arr.Length - 1];
+            unchecked
+            {
+                return arr[arr.Length - 1];
+            }
         }
 
         public static T? ArrayLastOrDefault<T>(this T[] arr, Func<T, bool> filter)
@@ -173,7 +203,10 @@ namespace System
             var arr2 = arr.Filter(filter);
             if (arr2.Length == 0)
                 return default(T);
-            return arr2[arr2.Length - 1];
+            unchecked
+            {
+                return arr2[arr2.Length - 1];
+            }
         }
 
         public static bool ArrayAny<T>(this T[] arr)

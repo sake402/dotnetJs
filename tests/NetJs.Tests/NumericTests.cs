@@ -94,7 +94,7 @@ namespace NetJs.Tests
             //Debug.Assert(decimal.Round(12.3456m, 2) == 12.35m);
             //Debug.Assert(decimal.Truncate(12.999m) == 12m);
         }
-
+        
         private static void TestFloatingPointArithmetic()
         {
             double x = 5.5, y = 2.0;
